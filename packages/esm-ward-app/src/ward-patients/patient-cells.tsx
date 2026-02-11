@@ -156,8 +156,7 @@ export const UnAssignPatientBedAction: FC<UnAssignPatientBedActionProps> = ({
 
   if (isLoading || isLoadingBills || loading) return <InlineLoading />;
   if (error || billsError) return null;
-  if (bills.length === 0) return null;
   if (pendingBills.length > 0) return null;
-  if (!dailyBedFeeSettled(daysInWard)) return null;
+  if (bills.length > 0 && !dailyBedFeeSettled(daysInWard)) return null;
   return <OverflowMenuItem itemText={t('unAssignBed', 'Un Assign bed')} onClick={onClick} />;
 };
