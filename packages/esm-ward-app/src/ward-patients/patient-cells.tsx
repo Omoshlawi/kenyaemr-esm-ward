@@ -79,7 +79,9 @@ export const PatientDayInWardCell: FC<PatientAdmissionCellProps> = ({ encounterU
       ? dayjs(dischargeEncounter.encounterDatetime).startOf('day')
       : dayjs().startOf('day');
     const daysAdmitted =
-      admissionDate.isValid() && dischargeDate.isValid() ? Math.abs(dischargeDate.diff(admissionDate, 'days')) : '--';
+      admissionDate.isValid() && dischargeDate.isValid()
+        ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 1
+        : '--';
     return daysAdmitted;
   }, [encounter, encounterUuid, emrConfiguration]);
   if (isLoading) return <InlineLoading />;
@@ -96,7 +98,7 @@ export const PatientBillStatus: FC<PatientAdmissionCellProps> = ({ patientUuid, 
     const admissionDate = dayjs(encounter?.encounterDatetime).startOf('day');
     const dischargeDate = dayjs().startOf('day');
     const daysAdmitted =
-      admissionDate.isValid() && dischargeDate.isValid() ? Math.abs(dischargeDate.diff(admissionDate, 'days')) : 0;
+      admissionDate.isValid() && dischargeDate.isValid() ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 1 : 0;
     return daysAdmitted;
   }, [encounter]);
   const startDate = useMemo(() => {
@@ -138,7 +140,7 @@ export const UnAssignPatientBedAction: FC<UnAssignPatientBedActionProps> = ({
     const admissionDate = dayjs(encounter?.encounterDatetime).startOf('day');
     const dischargeDate = dayjs().startOf('day');
     const daysAdmitted =
-      admissionDate.isValid() && dischargeDate.isValid() ? Math.abs(dischargeDate.diff(admissionDate, 'days')) : 0;
+      admissionDate.isValid() && dischargeDate.isValid() ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 1 : 0;
     return daysAdmitted;
   }, [encounter]);
   const startDate = useMemo(() => {
