@@ -449,6 +449,22 @@ export const configSchema: ConfigSchema = {
         label: 'Post Delivery form',
         tags: [{ uuid: '473001b4-5a6e-4e2e-b39c-f54edea89c6f', tag: 'Postnatal Ward' }], // Postnatal and Maternity tags
       },
+
+      {
+        uuid: '2061790f-815e-43a9-8a1e-dae9e4956c2a',
+        label: 'Surgical Safety Checklist (Sign In)',
+        tags: [],
+      },
+      {
+        uuid: '982af61b-fd51-474c-85d2-0459b7e3640b',
+        label: 'Surgical Safety Checklist (Sign Out)',
+        tags: [],
+      },
+      {
+        uuid: '923411a3-4aae-4242-ba85-bb5b5176e6b1',
+        label: 'Surgical Safety Checklist (Time Out)',
+        tags: [],
+      },
     ],
   },
   inPatientVisitTypeUuid: {
