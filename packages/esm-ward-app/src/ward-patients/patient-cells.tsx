@@ -114,7 +114,7 @@ export const PatientBillStatus: FC<PatientAdmissionCellProps> = ({ patientUuid, 
 
   if (isLoading || isLoadingBills) return <InlineLoading />;
   if (error || billsError) return <p>--</p>;
-  if (bills.length === 0) return <Tag type="red">{t('billsNotRaised', 'Bills Not Raised')}</Tag>;
+  if (bills.length === 0) return <p>--</p>;
   if (pendingBills.length > 0) return <Tag type="red">{t('pendingBills', 'Pending Bills')}</Tag>;
   if (!dailyBedFeeSettled(daysInWard))
     return <Tag type="red">{t('dailyBedFeeUnmatching', 'Daily bed fee and days in ward not matching')}</Tag>;
@@ -156,8 +156,7 @@ export const UnAssignPatientBedAction: FC<UnAssignPatientBedActionProps> = ({
 
   if (isLoading || isLoadingBills || loading) return <InlineLoading />;
   if (error || billsError) return null;
-  if (bills.length === 0) return null;
   if (pendingBills.length > 0) return null;
-  if (!dailyBedFeeSettled(daysInWard)) return null;
+  if (bills.length > 0 && !dailyBedFeeSettled(daysInWard)) return null;
   return <OverflowMenuItem itemText={t('unAssignBed', 'Un Assign bed')} onClick={onClick} />;
 };
