@@ -465,6 +465,11 @@ export const configSchema: ConfigSchema = {
         label: 'Surgical Safety Checklist (Time Out)',
         tags: [],
       },
+      {
+        uuid: '77a06fb9-0035-474e-8b2b-c247ac75d2e7',
+        label: 'Preoperative Questionnaire',
+        tags: [],
+      },
     ],
   },
   inPatientVisitTypeUuid: {
