@@ -127,7 +127,7 @@ jobs:
         - name: Invoke workflow without inputs. Don't wait for result
           uses: the-actions-org/workflow-dispatch@v4
           with:
-            workflow: KenyaEMR CI
+            workflow: dev-server-ci.yml
             repo: Palladium-hub/openmrs-config-kenyaemr
             token: ${{ secrets.PERSONAL_TOKENS }}
             wait-for-completion: false
