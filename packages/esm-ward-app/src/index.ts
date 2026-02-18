@@ -138,6 +138,8 @@ export const patientDischargeDocumentPreview = getAsyncLifecycle(
   options,
 );
 
+export const wardSwitchModal = getAsyncLifecycle(() => import('./ward-view/ward-switch.modal'), options);
+
 export const inPatientChartLink = getSyncLifecycle(
   createDashboardLink({ ...inPatientMeta, icon: 'omrs-icon-activity' }),
   options,

@@ -34,7 +34,7 @@ export const PatientGenderCell: FC<CellProps> = ({ patientUuid }) => {
 
   if (isLoading) return <InlineLoading />;
   if (error) return <p>--</p>;
-  return <div>{patient.gender}</div>;
+  return <div>{patient?.gender}</div>;
 };
 
 type PatientAdmissionCellProps = CellProps & {

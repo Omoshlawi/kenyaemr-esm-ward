@@ -9,6 +9,7 @@ import useSWR from 'swr';
 import { type AdmissionLocationFetchResponse } from '../types/index';
 import useWardLocation from './useWardLocation';
 import { useState } from 'react';
+import useSWRImmutable from 'swr/immutable';
 
 const requestRep =
   'custom:(ward,totalBeds,occupiedBeds,bedLayouts:(rowNumber,bedType,columnNumber,bedNumber,bedId,bedUuid,status,location,patients:(person:full,identifiers,uuid)))';
@@ -52,5 +53,14 @@ export const useAdmisiionLocations = () => {
     pageSizes,
     currPageSize,
     setCurrPageSize,
+  };
+};
+
+export const useLocationsByTag = (tag: string) => {
+  const url = `${restBaseUrl}/location?tag=${encodeURIComponent(tag)}`;
+  const { data, ...rest } = useSWRImmutable<FetchResponse<{ results: Array<Location> }>>(url, openmrsFetch);
+  return {
+    ...rest,
+    locations: data?.data?.results ?? [],
   };
 };

@@ -115,6 +115,12 @@
       }
     }
   ],
+  "modals": [
+    {
+      "name": "ward-switch-modal",
+      "component": "wardSwitchModal"
+    }
+  ],
   "workspaces": [
     {
       "name": "admission-requests-workspace",
