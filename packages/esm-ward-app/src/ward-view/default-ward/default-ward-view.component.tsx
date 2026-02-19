@@ -15,9 +15,10 @@ import DefaultWardBeds from './default-ward-beds.component';
 import DefaultWardPatientCardHeader from './default-ward-patient-card-header.component';
 import DefaultWardPendingPatients from './default-ward-pending-patients.component';
 import DefaultWardUnassignedPatients from './default-ward-unassigned-patients.component';
+import { InlineLoading } from '@carbon/react';
 
 const DefaultWardView = () => {
-  const { location } = useWardLocation();
+  const { location, isLoadingLocation } = useWardLocation();
   const { t } = useTranslation();
   const wardPatientGroupDetails = useWardPatientGrouping();
   const summary = useWardSummaryMetrics();
@@ -40,6 +41,10 @@ const DefaultWardView = () => {
   const wardBeds = <DefaultWardBeds />;
   const wardUnassignedPatients = <DefaultWardUnassignedPatients />;
   const wardPendingPatients = <DefaultWardPendingPatients />;
+
+  if (isLoadingLocation) {
+    return <InlineLoading status="active" description={t('loadingLocation', 'Loading location...')} />;
+  }
 
   return (
     <>

@@ -1,0 +1,14 @@
+@use '@carbon/layout';
+@use '@carbon/type';
+
+.wardSwitchModal {
+  min-height: calc(layout.$layout-07 * 1.5);
+}
+
+.headerTitle {
+  @include type.type-style('heading-compact-01');
+}
+
+.subtitle {
+  margin-bottom: layout.$spacing-05;
+}
