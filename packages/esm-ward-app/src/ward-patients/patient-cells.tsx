@@ -1,8 +1,16 @@
 import { InlineLoading, OverflowMenuItem, Tag } from '@carbon/react';
-import { ConfigurableLink, formatDatetime, parseDate, useEmrConfiguration, usePatient } from '@openmrs/esm-framework';
+import {
+  ConfigurableLink,
+  formatDatetime,
+  parseDate,
+  useConfig,
+  useEmrConfiguration,
+  usePatient,
+} from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { type WardConfigObject } from '../config-schema';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
 import { usePatientBills } from '../ward-workspace/kenya-emr-patient-discharge/patient-discharge.resource';
 
@@ -20,6 +28,7 @@ export const PatientAgeCell: FC<CellProps> = ({ patientUuid }) => {
   if (error) return <p>--</p>;
   return <div>{age}</div>;
 };
+
 export const HyperLinkPatientCell: FC<CellProps & { patientName: string }> = ({ patientUuid, patientName }) => {
   const patientChartUrl = '${openmrsSpaBase}/patient/${patientUuid}/chart/Patient Summary';
   return (
@@ -34,7 +43,7 @@ export const PatientGenderCell: FC<CellProps> = ({ patientUuid }) => {
 
   if (isLoading) return <InlineLoading />;
   if (error) return <p>--</p>;
-  return <div>{patient?.gender}</div>;
+  return <div>{patient.gender}</div>;
 };
 
 type PatientAdmissionCellProps = CellProps & {
@@ -89,34 +98,57 @@ export const PatientDayInWardCell: FC<PatientAdmissionCellProps> = ({ encounterU
 
   return <p>{daysInWard}</p>;
 };
+const useAdmissionBillingDetails = (encounterUuid: string) => {
+  const { encounter, error, isLoading } = useEncounterDetails(encounterUuid);
+  const config = useConfig<WardConfigObject>();
+
+  const admissionDate = useMemo(() => {
+    if (!encounter?.encounterDatetime) return null;
+    const date = dayjs(encounter.encounterDatetime);
+    return date.isValid() ? date.startOf('day') : null;
+  }, [encounter]);
+
+  const ipdDischargeEncounter = useMemo(() => {
+    if (!encounter?.visit?.encounters || !config?.ipdDischargeEncounterTypeUuid) return null;
+    return encounter.visit.encounters.find((e) => e.encounterType?.uuid === config.ipdDischargeEncounterTypeUuid);
+  }, [encounter, config]);
+
+  const endDate = useMemo(() => {
+    if (ipdDischargeEncounter?.encounterDatetime) {
+      const date = dayjs(ipdDischargeEncounter.encounterDatetime);
+      if (date.isValid()) return date.endOf('day');
+    }
+    return dayjs().endOf('day');
+  }, [ipdDischargeEncounter]);
+
+  const daysInWard = useMemo(() => {
+    if (!admissionDate) return 0;
+    const endDay = endDate.startOf('day');
+    return Math.abs(endDay.diff(admissionDate, 'days')) + 1;
+  }, [admissionDate, endDate]);
+
+  const billStartDate = useMemo(() => admissionDate?.toDate() ?? null, [admissionDate]);
+
+  const billEndDate = useMemo(() => endDate.toDate(), [endDate]);
+
+  return { encounter, error, isLoading, daysInWard, billStartDate, billEndDate };
+};
 
 export const PatientBillStatus: FC<PatientAdmissionCellProps> = ({ patientUuid, encounterUuid }) => {
-  const { encounter, error, isLoading } = useEncounterDetails(encounterUuid);
+  const { error, isLoading, daysInWard, billStartDate, billEndDate } = useAdmissionBillingDetails(encounterUuid);
   const { t } = useTranslation();
-  const daysInWard = useMemo(() => {
-    if (!encounter) return 0;
-    const admissionDate = dayjs(encounter?.encounterDatetime).startOf('day');
-    const dischargeDate = dayjs().startOf('day');
-    const daysAdmitted =
-      admissionDate.isValid() && dischargeDate.isValid() ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 1 : 0;
-    return daysAdmitted;
-  }, [encounter]);
-  const startDate = useMemo(() => {
-    if (!encounter || !dayjs(encounter.encounterDatetime).isValid()) return null;
-    return dayjs(encounter.encounterDatetime).startOf('day');
-  }, [encounter]);
-  const endDateDate = dayjs().endOf('day');
+
   const {
     isLoading: isLoadingBills,
     error: billsError,
     bills,
     pendingBills,
     dailyBedFeeSettled,
-  } = usePatientBills(patientUuid, startDate?.toDate(), endDateDate.toDate());
+  } = usePatientBills(patientUuid, billStartDate, billEndDate);
 
   if (isLoading || isLoadingBills) return <InlineLoading />;
   if (error || billsError) return <p>--</p>;
-  if (bills.length === 0) return <p>--</p>;
+  if (bills.length === 0) return <Tag type="red">{t('billsNotRaised', 'Bills Not Raised')}</Tag>;
   if (pendingBills.length > 0) return <Tag type="red">{t('pendingBills', 'Pending Bills')}</Tag>;
   if (!dailyBedFeeSettled(daysInWard))
     return <Tag type="red">{t('dailyBedFeeUnmatching', 'Daily bed fee and days in ward not matching')}</Tag>;
@@ -127,38 +159,28 @@ type UnAssignPatientBedActionProps = PatientAdmissionCellProps & {
   onClick?: () => void;
   loading?: boolean;
 };
+
 export const UnAssignPatientBedAction: FC<UnAssignPatientBedActionProps> = ({
   encounterUuid,
   patientUuid,
   onClick,
   loading,
 }) => {
-  const { encounter, error, isLoading } = useEncounterDetails(encounterUuid);
+  const { error, isLoading, daysInWard, billStartDate, billEndDate } = useAdmissionBillingDetails(encounterUuid);
   const { t } = useTranslation();
-  const daysInWard = useMemo(() => {
-    if (!encounter) return 0;
-    const admissionDate = dayjs(encounter?.encounterDatetime).startOf('day');
-    const dischargeDate = dayjs().startOf('day');
-    const daysAdmitted =
-      admissionDate.isValid() && dischargeDate.isValid() ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 1 : 0;
-    return daysAdmitted;
-  }, [encounter]);
-  const startDate = useMemo(() => {
-    if (!encounter || !dayjs(encounter.encounterDatetime).isValid()) return null;
-    return dayjs(encounter.encounterDatetime).startOf('day');
-  }, [encounter]);
-  const endDateDate = dayjs().endOf('day');
+
   const {
     isLoading: isLoadingBills,
     error: billsError,
     bills,
     pendingBills,
     dailyBedFeeSettled,
-  } = usePatientBills(patientUuid, startDate?.toDate(), endDateDate.toDate());
+  } = usePatientBills(patientUuid, billStartDate, billEndDate);
 
   if (isLoading || isLoadingBills || loading) return <InlineLoading />;
   if (error || billsError) return null;
+  if (bills.length === 0) return null;
   if (pendingBills.length > 0) return null;
-  if (bills.length > 0 && !dailyBedFeeSettled(daysInWard)) return null;
+  if (!dailyBedFeeSettled(daysInWard)) return null;
   return <OverflowMenuItem itemText={t('unAssignBed', 'Un Assign bed')} onClick={onClick} />;
 };

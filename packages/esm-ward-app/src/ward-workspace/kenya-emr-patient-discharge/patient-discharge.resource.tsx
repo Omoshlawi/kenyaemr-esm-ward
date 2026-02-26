@@ -127,6 +127,7 @@ export const usePatientDischarge = () => {
 
   return { handleDischarge };
 };
+
 export enum PaymentStatus {
   POSTED = 'POSTED',
   PENDING = 'PENDING',
@@ -136,6 +137,7 @@ export enum PaymentStatus {
   ADJUSTED = 'ADJUSTED',
   EXEMPTED = 'EXEMPTED',
 }
+
 type Bill = OpenmrsResource & {
   voided: boolean;
   voidReason?: string;
@@ -148,17 +150,22 @@ type Bill = OpenmrsResource & {
     quantity: number;
   }>;
 };
+
 export const usePatientBills = (patientUuid: string, startingDate?: Date, endDate?: Date) => {
   const rep = 'custom:(uuid,display,voided,voidReason,dateCreated,patient:(uuid,display))';
   const { dailyBedFeeBillableService } = useConfig<WardConfigObject>();
   const startingDateISO = startingDate?.toISOString();
-  const endDateISO = endDate.toISOString();
+  const endDateISO = endDate?.toISOString();
   const url = `${restBaseUrl}/cashier/bill?v=${rep}&patientUuid=${patientUuid}&createdOnOrAfter=${startingDateISO}&createdOnOrBefore=${endDateISO}`;
-  const { data, isLoading, error } = useSWR<FetchResponse<{ results: Array<Bill> }>>(startingDate ? url : null);
+  const { data, isLoading, error } = useSWR<FetchResponse<{ results: Array<Bill> }>>(
+    startingDate && endDate ? url : null,
+  );
+
   const bills = useMemo(
-    () => (data?.data?.results ?? []).filter((b) => b.patient.uuid === patientUuid),
+    () => (data?.data?.results ?? []).filter((b) => !b.voided && b.patient.uuid === patientUuid),
     [data, patientUuid],
   );
+
   const pendingBills = useMemo(
     () => bills.filter((bill) => bill.lineItems.some((it) => it.paymentStatus === PaymentStatus.PENDING)),
     [bills],
@@ -166,17 +173,18 @@ export const usePatientBills = (patientUuid: string, startingDate?: Date, endDat
 
   const dailyBedFeeSettled = useCallback(
     (daysInWard?: number) => {
-      if (!daysInWard) return true;
+      if (!daysInWard || daysInWard <= 0) return true;
       const dailyBedFeesLineItems = bills.reduce<Bill['lineItems']>((prev, curr) => {
         const b = (curr.lineItems ?? []).filter((item) => item.billableService === dailyBedFeeBillableService);
         prev.push(...b);
         return prev;
       }, []);
       const totalQuantity = dailyBedFeesLineItems.reduce((prev, curr) => prev + curr.quantity, 0);
-      return totalQuantity === daysInWard;
+      return totalQuantity >= daysInWard;
     },
     [dailyBedFeeBillableService, bills],
   );
+
   return {
     error,
     isLoading,
