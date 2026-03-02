@@ -363,7 +363,7 @@ export const configSchema: ConfigSchema = {
   dailyBedFeeBillableService: {
     _description: 'Daily Bed Fee bILLABLE SERVICE uuid',
     _type: Type.UUID,
-    _default: '37ce491f-b2dd-4433-b203-efebb8ba1469',
+    _default: '0a5a23e3-c953-428c-92e3-3b99f8a822f0',
   },
   drugOrderEncounterType: {
     _description: 'Drug Order encounter type Uuid',

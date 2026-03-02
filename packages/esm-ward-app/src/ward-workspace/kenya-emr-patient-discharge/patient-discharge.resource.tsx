@@ -54,32 +54,12 @@ const createDischargeEncounter = (encounterPayload: any) => {
   });
 };
 
-/**
- * Custom hook for handling patient discharge operations
- *
- * This hook provides functionality to discharge a patient by:
- * 1. Creating a discharge encounter
- * 2. Removing the patient from their bed (if applicable)
- * 3. Updating the ward patient group details
- *
- * @returns {Object} An object containing the handleDischarge function
- * @property {Function} handleDischarge - Function to handle the patient discharge process
- */
 export const usePatientDischarge = () => {
   const { t } = useTranslation();
   const { wardPatientGroupDetails } =
     useAppContext<{ wardPatientGroupDetails: { mutate: () => void } }>('ward-view-context') ?? {};
   const session = useSession();
 
-  /**
-   * Handles the patient discharge process
-   *
-   * @param {Encounter} encounter - The current encounter
-   * @param {WardPatient} wardPatient - The ward patient information
-   * @param {Record<string, unknown>} emrConfiguration - EMR configuration containing encounter types and roles
-   * @param {Visit} visit - The current visit
-   * @returns {Promise<void>} A promise that resolves when the discharge process is complete
-   */
   const handleDischarge = async (
     encounter: Encounter,
     wardPatient: WardPatient,
@@ -147,6 +127,7 @@ type Bill = OpenmrsResource & {
   lineItems: Array<{
     paymentStatus: PaymentStatus;
     billableService: string;
+    itemOrServiceConceptUuid: string;
     quantity: number;
   }>;
 };
@@ -175,7 +156,7 @@ export const usePatientBills = (patientUuid: string, startingDate?: Date, endDat
     (daysInWard?: number) => {
       if (!daysInWard || daysInWard <= 0) return true;
       const dailyBedFeesLineItems = bills.reduce<Bill['lineItems']>((prev, curr) => {
-        const b = (curr.lineItems ?? []).filter((item) => item.billableService === dailyBedFeeBillableService);
+        const b = (curr.lineItems ?? []).filter((item) => item.itemOrServiceConceptUuid === dailyBedFeeBillableService);
         prev.push(...b);
         return prev;
       }, []);
