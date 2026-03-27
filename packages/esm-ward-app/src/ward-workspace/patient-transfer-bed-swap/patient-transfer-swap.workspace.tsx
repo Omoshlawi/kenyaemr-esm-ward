@@ -35,20 +35,25 @@ export default function PatientTransferAndSwapWorkspace({
         <div className={styles.contentSwitcherWrapper}>
           <h2 className={styles.productiveHeading02}>{t('typeOfTransfer', 'Type of transfer')}</h2>
           <div className={styles.contentSwitcher}>
-            <ContentSwitcher onChange={({ name }) => setSelectedSection(name)}>
+            <ContentSwitcher
+              onChange={({ index }) =>
+                setSelectedSection(index === 0 ? TransferSection.TRANSFER : TransferSection.BED_SWAP)
+              }
+              selectedIndex={selectedSection === TransferSection.TRANSFER ? 0 : 1}
+              size="sm">
               <Switch name={TransferSection.TRANSFER} text={t('transfer', 'Transfer')} />
               <Switch name={TransferSection.BED_SWAP} text={t('bedSwap', 'Bed swap')} />
             </ContentSwitcher>
           </div>
         </div>
       )}
-      <div className={styles.workspaceForm}>
+      {/* <div className={styles.workspaceForm}>
         {selectedSection === TransferSection.TRANSFER ? (
-          <PatientAdmitOrTransferForm {...props} />
+          <PatientAdmitOrTransferForm {...{ ...props, closeWorkspace }} />
         ) : (
           <PatientBedSwapForm {...props} />
         )}
-      </div>
+      </div> */}
     </div>
   );
 }

@@ -13,7 +13,14 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import { formatDatetime, launchWorkspace, parseDate, useAppContext, usePagination } from '@openmrs/esm-framework';
+import {
+  formatDatetime,
+  launchWorkspace,
+  launchWorkspace2,
+  parseDate,
+  useAppContext,
+  usePagination,
+} from '@openmrs/esm-framework';
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
@@ -50,13 +57,13 @@ const AwaitingAdmissionPatients = () => {
   ];
 
   const launchPatientTransferForm = (wardPatient: WardPatient) => {
-    launchWorkspace<WardPatientWorkspaceProps>('patient-transfer-request-workspace', {
+    launchWorkspace2('patient-transfer-request-workspace', {
       wardPatient,
     });
   };
 
   const launchCancelAdmissionForm = (wardPatient: WardPatient) => {
-    launchWorkspace<WardPatientWorkspaceProps>('cancel-admission-request-workspace', {
+    launchWorkspace2('cancel-admission-request-workspace', {
       wardPatient,
     });
   };
@@ -80,7 +87,7 @@ const AwaitingAdmissionPatients = () => {
       const isTransfer = wardPatient.inpatientRequest.dispositionType == 'TRANSFER';
 
       return {
-        id: request?.patient?.uuid ?? index,
+        id: request?.patient?.uuid ?? index.toString(),
         admissionDate,
         idNumber: getOpenmrsId(request.patient?.identifiers ?? []) ?? '--',
         name: (
@@ -117,7 +124,11 @@ const AwaitingAdmissionPatients = () => {
     return <EmptyState message={t('noPatientInAdmisionQueue', 'No patients in admission queue')} />;
   return (
     <div>
-      <Search value={search} onChange={(e) => setSearch(e.target.value)} />
+      <Search
+        labelText={t('searchPatients', 'Search patients')}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
       <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
         {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
           <TableContainer>

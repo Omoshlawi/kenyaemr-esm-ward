@@ -9,7 +9,13 @@ import {
   TextArea,
 } from '@carbon/react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ResponsiveWrapper, showSnackbar, useAppContext } from '@openmrs/esm-framework';
+import {
+  ResponsiveWrapper,
+  showSnackbar,
+  useAppContext,
+  Workspace2,
+  type Workspace2DefinitionProps,
+} from '@openmrs/esm-framework';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -28,13 +34,13 @@ import styles from './patient-transfer-swap.scss';
  * - an un-admitted patient, to create a request to admit
  */
 export default function PatientAdmitOrTransferForm({
-  closeWorkspaceWithSavedChanges,
-  wardPatient,
-  promptBeforeClosing,
-}: WardPatientWorkspaceProps) {
+  closeWorkspace,
+  workspaceProps: { wardPatient },
+}: Workspace2DefinitionProps<WardPatientWorkspaceProps>) {
   const { t } = useTranslation();
   const { patient, inpatientRequest, visit } = wardPatient ?? {};
   const [showErrorNotifications, setShowErrorNotifications] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { createEncounter, emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } =
     useCreateEncounter();
@@ -86,9 +92,8 @@ export default function PatientAdmitOrTransferForm({
   }, [dispositionsWithTypeTransfer, setValue]);
 
   useEffect(() => {
-    promptBeforeClosing(() => isDirty);
-    return () => promptBeforeClosing(null);
-  }, [isDirty, promptBeforeClosing]);
+    setHasUnsavedChanges(isDirty);
+  }, [isDirty]);
 
   const onSubmit = useCallback(
     (values: FormValues) => {
@@ -133,12 +138,12 @@ export default function PatientAdmitOrTransferForm({
         })
         .finally(() => {
           setIsSubmitting(false);
-          closeWorkspaceWithSavedChanges();
+          closeWorkspace({ discardUnsavedChanges: true });
           wardPatientGroupDetails.mutate();
         });
     },
     [
-      closeWorkspaceWithSavedChanges,
+      closeWorkspace,
       createEncounter,
       dispositionsWithTypeTransfer,
       emrConfiguration,
@@ -158,113 +163,120 @@ export default function PatientAdmitOrTransferForm({
     return <></>;
   }
   return (
-    <Form
-      onSubmit={handleSubmit(onSubmit, onError)}
-      className={classNames(styles.formContainer, styles.workspaceContent)}>
-      <Stack gap={4}>
-        {errorFetchingEmrConfiguration && (
-          <div className={styles.formError}>
-            <InlineNotification
-              kind="error"
-              title={t('somePartsOfTheFormDidntLoad', "Some parts of the form didn't load")}
-              subtitle={t(
-                'fetchingEmrConfigurationFailed',
-                'Fetching EMR configuration failed. Try refreshing the page or contact your system administrator.',
-              )}
-              lowContrast
-              hideCloseButton
-            />
-          </div>
-        )}
-        {currentAdmission ? (
-          inpatientRequest && (
+    <Workspace2 title={t('patientTransferRequest', 'Patient Transfer Request')} hasUnsavedChanges={hasUnsavedChanges}>
+      <Form
+        onSubmit={handleSubmit(onSubmit, onError)}
+        className={classNames(styles.formContainer, styles.workspaceContent)}>
+        <Stack gap={4}>
+          {errorFetchingEmrConfiguration && (
+            <div className={styles.formError}>
+              <InlineNotification
+                kind="error"
+                title={t('somePartsOfTheFormDidntLoad', "Some parts of the form didn't load")}
+                subtitle={t(
+                  'fetchingEmrConfigurationFailed',
+                  'Fetching EMR configuration failed. Try refreshing the page or contact your system administrator.',
+                )}
+                lowContrast
+                hideCloseButton
+              />
+            </div>
+          )}
+          {currentAdmission ? (
+            inpatientRequest && (
+              <InlineNotification
+                kind="info"
+                lowContrast={true}
+                hideCloseButton={true}
+                title={t('patientCurrentlyAdmittedToWardLocation', 'Patient currently admitted to {{wardLocation}}', {
+                  wardLocation: currentAdmission.currentInpatientLocation.display,
+                })}
+              />
+            )
+          ) : (
             <InlineNotification
               kind="info"
               lowContrast={true}
               hideCloseButton={true}
-              title={t('patientCurrentlyAdmittedToWardLocation', 'Patient currently admitted to {{wardLocation}}', {
-                wardLocation: currentAdmission.currentInpatientLocation.display,
-              })}
+              title={t('patientCurrentlyNotAdmitted', 'Patient currently not admitted')}
             />
-          )
-        ) : (
-          <InlineNotification
-            kind="info"
-            lowContrast={true}
-            hideCloseButton={true}
-            title={t('patientCurrentlyNotAdmitted', 'Patient currently not admitted')}
-          />
-        )}
-        <div className={styles.field}>
-          <h2 className={styles.productiveHeading02}>{t('selectALocation', 'Select a location')}</h2>
-          <Controller
-            name="location"
-            control={control}
-            render={({ field, fieldState: { error } }) => (
-              <LocationSelector
-                name={field.name}
-                field={field}
-                invalid={!!error?.message}
-                invalidText={error?.message}
-                // ancestorLocation={visit?.location}
-                excludeLocations={currentAdmission ? [currentAdmission.currentInpatientLocation] : []}
-              />
-            )}
-          />
-        </div>
-        {dispositionsWithTypeTransfer?.length > 1 && (
+          )}
           <div className={styles.field}>
-            <h2 className={styles.productiveHeading02}>{t('transferType', 'Transfer type')}</h2>
+            <h2 className={styles.productiveHeading02}>{t('selectALocation', 'Select a location')}</h2>
             <Controller
-              name="transferType"
+              name="location"
+              control={control}
+              render={({ field, fieldState: { error } }) => (
+                <LocationSelector
+                  name={field.name}
+                  field={field}
+                  invalid={!!error?.message}
+                  invalidText={error?.message}
+                  // ancestorLocation={visit?.location}
+                  excludeLocations={currentAdmission ? [currentAdmission.currentInpatientLocation] : []}
+                />
+              )}
+            />
+          </div>
+          {dispositionsWithTypeTransfer?.length > 1 && (
+            <div className={styles.field}>
+              <h2 className={styles.productiveHeading02}>{t('transferType', 'Transfer type')}</h2>
+              <Controller
+                name="transferType"
+                control={control}
+                render={({ field, fieldState: { error } }) => (
+                  <ResponsiveWrapper>
+                    <RadioButtonGroup
+                      orientation="vertical"
+                      {...field}
+                      invalid={!!error?.message}
+                      invalidText={error?.message}>
+                      {dispositionsWithTypeTransfer.map((disposition) => (
+                        <RadioButton id={disposition.uuid} labelText={disposition.name} value={disposition.uuid} />
+                      ))}
+                    </RadioButtonGroup>
+                  </ResponsiveWrapper>
+                )}
+              />
+            </div>
+          )}
+          <div className={styles.field}>
+            <h2 className={styles.productiveHeading02}>{t('notes', 'Notes')}</h2>
+            <Controller
+              name="note"
               control={control}
               render={({ field, fieldState: { error } }) => (
                 <ResponsiveWrapper>
-                  <RadioButtonGroup
-                    orientation="vertical"
+                  <TextArea
+                    labelText={t('notes', 'Notes')}
                     {...field}
                     invalid={!!error?.message}
-                    invalidText={error?.message}>
-                    {dispositionsWithTypeTransfer.map((disposition) => (
-                      <RadioButton id={disposition.uuid} labelText={disposition.name} value={disposition.uuid} />
-                    ))}
-                  </RadioButtonGroup>
+                    invalidText={error?.message}
+                  />
                 </ResponsiveWrapper>
               )}
             />
           </div>
-        )}
-        <div className={styles.field}>
-          <h2 className={styles.productiveHeading02}>{t('notes', 'Notes')}</h2>
-          <Controller
-            name="note"
-            control={control}
-            render={({ field, fieldState: { error } }) => (
-              <ResponsiveWrapper>
-                <TextArea {...field} invalid={!!error?.message} invalidText={error?.message} />
-              </ResponsiveWrapper>
-            )}
-          />
-        </div>
-        {showErrorNotifications && (
-          <div className={styles.notifications}>
-            {Object.values(errors).map((error) => (
-              <InlineNotification lowContrast subtitle={error?.message} hideCloseButton />
-            ))}
-          </div>
-        )}
-      </Stack>
-      <ButtonSet className={styles.buttonSet}>
-        <Button size="xl" kind="secondary" onClick={closeWorkspaceWithSavedChanges}>
-          {t('cancel', 'Cancel')}
-        </Button>
-        <Button
-          type="submit"
-          size="xl"
-          disabled={isLoadingEmrConfiguration || isSubmitting || errorFetchingEmrConfiguration || !patient}>
-          {t('save', 'Save')}
-        </Button>
-      </ButtonSet>
-    </Form>
+          {showErrorNotifications && (
+            <div className={styles.notifications}>
+              {Object.values(errors).map((error) => (
+                <InlineNotification lowContrast subtitle={error?.message} hideCloseButton />
+              ))}
+            </div>
+          )}
+        </Stack>
+        <ButtonSet className={styles.buttonSet}>
+          <Button size="xl" kind="secondary" onClick={() => closeWorkspace()}>
+            {t('cancel', 'Cancel')}
+          </Button>
+          <Button
+            type="submit"
+            size="xl"
+            disabled={isLoadingEmrConfiguration || isSubmitting || errorFetchingEmrConfiguration || !patient}>
+            {t('save', 'Save')}
+          </Button>
+        </ButtonSet>
+      </Form>
+    </Workspace2>
   );
 }

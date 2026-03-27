@@ -91,6 +91,7 @@
   "patientNoteNowVisible": "It should be now visible in the notes history",
   "patientNoteSaveError": "Error saving patient note",
   "patientNotesDidntLoad": "Patient notes didn't load",
+  "patientTransferRequest": "Patient Transfer Request",
   "patientTransferRequestCreated": "Patient transfer request created",
   "patientUnassignedFromBed": "Patient unassigned from bed",
   "patientUnassignedFromBedDetail": "{{patientName}} is now unassigned from bed",

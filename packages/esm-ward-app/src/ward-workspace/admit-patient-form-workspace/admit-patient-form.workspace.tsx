@@ -15,7 +15,13 @@ import {
   TextInput,
 } from '@carbon/react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { showSnackbar, useAppContext, useConfig } from '@openmrs/esm-framework';
+import {
+  showSnackbar,
+  useAppContext,
+  useConfig,
+  Workspace2,
+  type Workspace2DefinitionProps,
+} from '@openmrs/esm-framework';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -41,14 +47,13 @@ import {
  * the bed management module is installed. It asks to (optionally) select
  * a bed to assign to patient
  */
-const AdmitPatientFormWorkspace: React.FC<WardPatientWorkspaceProps> = ({
-  wardPatient,
+const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientWorkspaceProps>> = ({
+  workspaceProps: { wardPatient },
   closeWorkspace,
-  closeWorkspaceWithSavedChanges,
-  promptBeforeClosing,
 }) => {
   const { patient, inpatientRequest, visit } = wardPatient ?? {};
   const dispositionType = inpatientRequest?.dispositionType ?? 'ADMIT';
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const config = useConfig<WardConfigObject>();
   const { t } = useTranslation();
   const { location } = useWardLocation();
@@ -80,8 +85,8 @@ const AdmitPatientFormWorkspace: React.FC<WardPatientWorkspaceProps> = ({
   ]);
 
   useEffect(() => {
-    promptBeforeClosing(() => isDirty);
-  }, [isDirty, promptBeforeClosing]);
+    setHasUnsavedChanges(() => isDirty);
+  }, [isDirty]);
 
   const onSubmit = (values: InapatientAdmissionFormData) => {
     setShowErrorNotifications(false);
@@ -161,7 +166,7 @@ const AdmitPatientFormWorkspace: React.FC<WardPatientWorkspaceProps> = ({
       .finally(() => {
         setIsSubmitting(false);
         wardPatientGroupDetails?.mutate?.();
-        closeWorkspaceWithSavedChanges();
+        closeWorkspace({ discardUnsavedChanges: true });
       });
   };
 
@@ -173,270 +178,270 @@ const AdmitPatientFormWorkspace: React.FC<WardPatientWorkspaceProps> = ({
   if (!wardPatientGroupDetails) return <></>;
 
   return (
-    <Form control={control} className={styles.form} onSubmit={handleSubmit(onSubmit, onError)}>
-      <Stack gap={4} className={styles.grid}>
-        <WardPatientWorkspaceBanner {...{ wardPatient }} />
-        <Column>
-          <Controller
-            control={control}
-            name="admissionDate"
-            render={({ field: { onChange, value }, fieldState: { error } }) => {
-              return (
-                <DatePicker
-                  value={value}
-                  datePickerType="single"
-                  onChange={([date]) => {
-                    onChange(date);
-                  }}
-                  className={styles.datePickerInput}>
-                  <DatePickerInput
-                    id="admission-date"
-                    labelText={t('admissionDate', 'Admission Date')}
-                    placeholder="mm/dd/yyyy"
-                    invalid={error?.message}
-                    invalidText={error?.message}
-                  />
-                </DatePicker>
-              );
-            }}
-          />
-        </Column>
-        <Column>
-          <DiagnosisInput control={control} name={'diagnosis'} />
-        </Column>
-        <Column>
-          <Controller
-            control={control}
-            name="primaryDoctor"
-            render={({ field: { onChange, value }, fieldState: { error } }) => {
-              return (
-                <ComboBox
-                  id="primary-doctor"
-                  invalid={error?.message}
-                  helperText={isLoadingProviders ? 'Loading....' : undefined}
-                  invalidText={error?.message}
-                  itemToString={(provider) => providers.find((p) => p.uuid === provider)?.display ?? ''}
-                  items={providers.map((p) => p.uuid)}
-                  selectedItem={value}
-                  onChange={({ selectedItem }) => onChange(selectedItem)}
-                  placeholder={t('primaryDoctor', 'Primary Doctor')}
-                  titleText={t('primaryDoctor', 'Primary Doctor')}
-                  type="default"
-                />
-              );
-            }}
-          />
-        </Column>
-        <Column>
-          <Controller
-            control={control}
-            name="primaryDoctorPhoneNumber"
-            render={({ field, fieldState: { error } }) => {
-              return (
-                <TextInput
-                  {...field}
-                  invalid={error?.message}
-                  invalidText={error?.message}
-                  id="primary-doctor-phone-number"
-                  labelText={t('primaryDoctorPhoneNumber', 'Primary doctor phone number')}
-                  placeholder={t('phoneNumber', 'Phone number')}
-                  size="md"
-                  type="text"
-                />
-              );
-            }}
-          />
-        </Column>
-        <Column>
-          <Controller
-            control={control}
-            name="emergencyDoctor"
-            render={({ field: { onChange, value }, fieldState: { error } }) => {
-              return (
-                <ComboBox
-                  id="emergency-doctor"
-                  invalid={error?.message}
-                  helperText={isLoadingProviders ? 'Loading....' : undefined}
-                  invalidText={error?.message}
-                  itemToString={(provider) => providers.find((p) => p.uuid === provider)?.display ?? ''}
-                  items={providers.map((p) => p.uuid)}
-                  selectedItem={value}
-                  onChange={({ selectedItem }) => onChange(selectedItem)}
-                  placeholder={t('emergencyDoctor', 'Emergence Doctor')}
-                  titleText={t('emergencyDoctor', 'Emergency Doctor')}
-                  type="default"
-                />
-              );
-            }}
-          />
-        </Column>
-        <Column>
-          <Controller
-            control={control}
-            name="emergencyDoctorPhoneNumber"
-            render={({ field, fieldState: { error } }) => {
-              return (
-                <TextInput
-                  {...field}
-                  invalid={error?.message}
-                  invalidText={error?.message}
-                  id="emergency-doctor-phone-number"
-                  labelText={t('emergencyDoctorPhoneNumber', 'Emergency doctor phone number')}
-                  placeholder={t('phoneNumber', 'Phone number')}
-                  size="md"
-                  type="text"
-                />
-              );
-            }}
-          />
-        </Column>
-        <Column>
-          <Controller
-            control={control}
-            name="paymentMode"
-            render={({ field: { onChange, value }, fieldState: { error } }) => {
-              return (
-                <RadioButtonGroup
-                  legendText={t('paymentMode', 'Payment mode')}
-                  name="payment-mode"
-                  defaultSelected={value}
-                  invalid={error?.message}
-                  invalidText={error?.message}
-                  onChange={onChange}
-                  orientation="vertical">
-                  <RadioButton
-                    labelText={t('cash', 'Cash')}
-                    value={config.conceptUuidForWardAdmission.cashPaymentMethod}
-                  />
-                  <RadioButton
-                    labelText={t('mpesa', 'MPESA')}
-                    value={config.conceptUuidForWardAdmission.mpesaPaymentMethod}
-                  />
-                  <RadioButton
-                    labelText={t('insuarance', 'Insuarance')}
-                    value={config.conceptUuidForWardAdmission.insurancePaymentMethod}
-                  />
-                </RadioButtonGroup>
-              );
-            }}
-          />
-        </Column>
-        {paymentMethodObservable === config.conceptUuidForWardAdmission.insurancePaymentMethod && (
+    <Workspace2 title={t('admitPatientForm', 'Admit Patient Form')} hasUnsavedChanges={hasUnsavedChanges}>
+      <Form className={styles.form} onSubmit={handleSubmit(onSubmit, onError)}>
+        <Stack gap={4} className={styles.grid}>
+          <WardPatientWorkspaceBanner {...{ wardPatient }} />
           <Column>
             <Controller
               control={control}
-              name="insuranceType"
+              name="admissionDate"
               render={({ field: { onChange, value }, fieldState: { error } }) => {
                 return (
-                  <Dropdown
-                    invalid={error?.message}
+                  <DatePicker
+                    value={value}
+                    datePickerType="single"
+                    onChange={([date]) => {
+                      onChange(date);
+                    }}
+                    className={styles.datePickerInput}>
+                    <DatePickerInput
+                      id="admission-date"
+                      labelText={t('admissionDate', 'Admission Date')}
+                      placeholder="mm/dd/yyyy"
+                      invalid={!!error?.message}
+                      invalidText={error?.message}
+                    />
+                  </DatePicker>
+                );
+              }}
+            />
+          </Column>
+          <Column>
+            <DiagnosisInput control={control} name={'diagnosis'} />
+          </Column>
+          <Column>
+            <Controller
+              control={control}
+              name="primaryDoctor"
+              render={({ field: { onChange, value }, fieldState: { error } }) => {
+                return (
+                  <ComboBox
+                    id="primary-doctor"
+                    invalid={!!error?.message}
+                    helperText={isLoadingProviders ? 'Loading....' : undefined}
                     invalidText={error?.message}
+                    itemToString={(provider) => providers.find((p) => p.uuid === provider)?.display ?? ''}
+                    items={providers.map((p) => p.uuid)}
                     selectedItem={value}
                     onChange={({ selectedItem }) => onChange(selectedItem)}
-                    id="insurance-type"
-                    itemToString={(concept) =>
-                      config.insuaranceTypes.find((type) => type.concept === concept)?.label ?? ''
-                    }
-                    items={config.insuaranceTypes.map((type) => type.concept)}
-                    label={t('insuranceType', 'Insurance type')}
-                    titleText={t('insuranceType', 'Insurance type')}
-                    type="default"
+                    placeholder={t('primaryDoctor', 'Primary Doctor')}
+                    titleText={t('primaryDoctor', 'Primary Doctor')}
                   />
                 );
               }}
             />
           </Column>
-        )}
-        {paymentMethodObservable === config.conceptUuidForWardAdmission.insurancePaymentMethod &&
-          insuaranceTypeObservable === config.conceptUuidForWardAdmission.otherInsuaranceType && (
+          <Column>
+            <Controller
+              control={control}
+              name="primaryDoctorPhoneNumber"
+              render={({ field, fieldState: { error } }) => {
+                return (
+                  <TextInput
+                    {...field}
+                    invalid={!!error?.message}
+                    invalidText={error?.message}
+                    id="primary-doctor-phone-number"
+                    labelText={t('primaryDoctorPhoneNumber', 'Primary doctor phone number')}
+                    placeholder={t('phoneNumber', 'Phone number')}
+                    size="md"
+                    type="text"
+                  />
+                );
+              }}
+            />
+          </Column>
+          <Column>
+            <Controller
+              control={control}
+              name="emergencyDoctor"
+              render={({ field: { onChange, value }, fieldState: { error } }) => {
+                return (
+                  <ComboBox
+                    id="emergency-doctor"
+                    invalid={!!error?.message}
+                    helperText={isLoadingProviders ? 'Loading....' : undefined}
+                    invalidText={error?.message}
+                    itemToString={(provider) => providers.find((p) => p.uuid === provider)?.display ?? ''}
+                    items={providers.map((p) => p.uuid)}
+                    selectedItem={value}
+                    onChange={({ selectedItem }) => onChange(selectedItem)}
+                    placeholder={t('emergencyDoctor', 'Emergence Doctor')}
+                    titleText={t('emergencyDoctor', 'Emergency Doctor')}
+                  />
+                );
+              }}
+            />
+          </Column>
+          <Column>
+            <Controller
+              control={control}
+              name="emergencyDoctorPhoneNumber"
+              render={({ field, fieldState: { error } }) => {
+                return (
+                  <TextInput
+                    {...field}
+                    invalid={!!error?.message}
+                    invalidText={error?.message}
+                    id="emergency-doctor-phone-number"
+                    labelText={t('emergencyDoctorPhoneNumber', 'Emergency doctor phone number')}
+                    placeholder={t('phoneNumber', 'Phone number')}
+                    size="md"
+                    type="text"
+                  />
+                );
+              }}
+            />
+          </Column>
+          <Column>
+            <Controller
+              control={control}
+              name="paymentMode"
+              render={({ field: { onChange, value }, fieldState: { error } }) => {
+                return (
+                  <RadioButtonGroup
+                    legendText={t('paymentMode', 'Payment mode')}
+                    name="payment-mode"
+                    defaultSelected={value}
+                    invalid={!!error?.message}
+                    invalidText={error?.message}
+                    onChange={onChange}
+                    orientation="vertical">
+                    <RadioButton
+                      labelText={t('cash', 'Cash')}
+                      value={config.conceptUuidForWardAdmission.cashPaymentMethod}
+                    />
+                    <RadioButton
+                      labelText={t('mpesa', 'MPESA')}
+                      value={config.conceptUuidForWardAdmission.mpesaPaymentMethod}
+                    />
+                    <RadioButton
+                      labelText={t('insuarance', 'Insuarance')}
+                      value={config.conceptUuidForWardAdmission.insurancePaymentMethod}
+                    />
+                  </RadioButtonGroup>
+                );
+              }}
+            />
+          </Column>
+          {paymentMethodObservable === config.conceptUuidForWardAdmission.insurancePaymentMethod && (
             <Column>
               <Controller
                 control={control}
-                name="otherInsuranceType"
-                render={({ field, fieldState: { error } }) => {
+                name="insuranceType"
+                render={({ field: { onChange, value }, fieldState: { error } }) => {
                   return (
-                    <TextInput
-                      {...field}
-                      invalid={error?.message}
+                    <Dropdown
+                      invalid={!!error?.message}
                       invalidText={error?.message}
-                      id="other-insurance-type"
-                      labelText={t('otherInsuranceType', 'Other Insurance Type')}
-                      placeholder={t('pleaseSpecify', 'Please specify')}
-                      size="md"
-                      type="text"
+                      selectedItem={value}
+                      onChange={({ selectedItem }) => onChange(selectedItem)}
+                      id="insurance-type"
+                      itemToString={(concept) =>
+                        config.insuaranceTypes.find((type) => type.concept === concept)?.label ?? ''
+                      }
+                      items={config.insuaranceTypes.map((type) => type.concept)}
+                      label={t('insuranceType', 'Insurance type')}
+                      titleText={t('insuranceType', 'Insurance type')}
+                      type="default"
                     />
                   );
                 }}
               />
             </Column>
           )}
-        <Column>
-          <Controller
-            control={control}
-            name="bedId"
-            render={({ field: { onChange, value }, fieldState: { error } }) => {
-              return (
-                <BedSelector
-                  beds={beds}
-                  isLoadingBeds={isLoading}
-                  currentPatient={patient}
-                  selectedBedId={value}
-                  error={error}
+          {paymentMethodObservable === config.conceptUuidForWardAdmission.insurancePaymentMethod &&
+            insuaranceTypeObservable === config.conceptUuidForWardAdmission.otherInsuaranceType && (
+              <Column>
+                <Controller
                   control={control}
-                  onChange={onChange}
+                  name="otherInsuranceType"
+                  render={({ field, fieldState: { error } }) => {
+                    return (
+                      <TextInput
+                        {...field}
+                        invalid={!!error?.message}
+                        invalidText={error?.message}
+                        id="other-insurance-type"
+                        labelText={t('otherInsuranceType', 'Other Insurance Type')}
+                        placeholder={t('pleaseSpecify', 'Please specify')}
+                        size="md"
+                        type="text"
+                      />
+                    );
+                  }}
                 />
-              );
-            }}
-          />
-        </Column>
-        <Column>
-          <TextInput
-            value={beds?.find((b) => b.bedId === bedIdObservable)?.bedType?.displayName ?? ''}
-            readOnly
-            labelText={t('bedType', 'Bed type')}
-            placeholder={t('notConfigured', 'Bed type not configured')}
-          />
-        </Column>
-
-        <Column>
-          <div className={styles.errorNotifications}>
-            {showErrorNotifications &&
-              Object.entries(errors).map(([key, value]) => {
+              </Column>
+            )}
+          <Column>
+            <Controller
+              control={control}
+              name="bedId"
+              render={({ field: { onChange, value }, fieldState: { error } }) => {
                 return (
-                  <Row key={key}>
-                    <Column>
-                      <InlineNotification kind="error" subtitle={value.message} lowContrast />
-                    </Column>
-                  </Row>
+                  <BedSelector
+                    beds={beds}
+                    isLoadingBeds={isLoading}
+                    currentPatient={patient}
+                    selectedBedId={value}
+                    error={error}
+                    onChange={onChange}
+                  />
                 );
-              })}
-          </div>
-        </Column>
-      </Stack>
+              }}
+            />
+          </Column>
+          <Column>
+            <TextInput
+              id="bed-type"
+              value={beds?.find((b) => b.bedId === bedIdObservable)?.bedType?.displayName ?? ''}
+              readOnly
+              labelText={t('bedType', 'Bed type')}
+              placeholder={t('notConfigured', 'Bed type not configured')}
+            />
+          </Column>
 
-      <ButtonSet className={styles.buttonSet}>
-        <Button
-          className={styles.button}
-          size="xl"
-          kind="secondary"
-          onClick={() => closeWorkspace({ ignoreChanges: true })}>
-          {t('cancel', 'Cancel')}
-        </Button>
-        <Button
-          className={styles.button}
-          type="submit"
-          size="xl"
-          disabled={
-            isSubmitting ||
-            isLoadingEmrConfiguration ||
-            errorFetchingEmrConfiguration ||
-            isLoading ||
-            isLoadingBedsAssignedToPatient
-          }>
-          {!isSubmitting ? t('admit', 'Admit') : t('admitting', 'Admitting...')}
-        </Button>
-      </ButtonSet>
-    </Form>
+          <Column>
+            <div className={styles.errorNotifications}>
+              {showErrorNotifications &&
+                Object.entries(errors).map(([key, value]) => {
+                  return (
+                    <Row key={key}>
+                      <Column>
+                        <InlineNotification kind="error" subtitle={(value as any).message} lowContrast />
+                      </Column>
+                    </Row>
+                  );
+                })}
+            </div>
+          </Column>
+        </Stack>
+
+        <ButtonSet className={styles.buttonSet}>
+          <Button
+            className={styles.button}
+            size="xl"
+            kind="secondary"
+            onClick={() => closeWorkspace({ discardUnsavedChanges: true })}>
+            {t('cancel', 'Cancel')}
+          </Button>
+          <Button
+            className={styles.button}
+            type="submit"
+            size="xl"
+            disabled={
+              isSubmitting ||
+              isLoadingEmrConfiguration ||
+              errorFetchingEmrConfiguration ||
+              isLoading ||
+              isLoadingBedsAssignedToPatient
+            }>
+            {!isSubmitting ? t('admit', 'Admit') : t('admitting', 'Admitting...')}
+          </Button>
+        </ButtonSet>
+      </Form>
+    </Workspace2>
   );
 };
 

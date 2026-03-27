@@ -1,6 +1,13 @@
 import { DataTableSkeleton, InlineLoading, Layer, Tile } from '@carbon/react';
-import { ErrorState, formatDatetime, parseDate, useConfig, usePatient } from '@openmrs/esm-framework';
-import { CardHeader, EmptyDataIllustration } from '@openmrs/esm-patient-common-lib/src';
+import {
+  ErrorState,
+  formatDatetime,
+  parseDate,
+  useConfig,
+  usePatient,
+  CardHeader,
+  EmptyCardIllustration,
+} from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { useMemo, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,7 +47,7 @@ const InpatientDetailView: FC<InpatientDetailViewProps> = ({ patientUuid }) => {
           <></>
         </CardHeader>
         <Tile className={styles.patientNotAdmitted}>
-          <EmptyDataIllustration />
+          <EmptyCardIllustration />
           <p>{t('noActiveVisit', 'This Patient Not currently admitted to ward')}</p>
         </Tile>
       </Layer>
@@ -88,7 +95,7 @@ const PatientAdmitted: FC<{
           <></>
         </CardHeader>
         <Tile className={styles.patientNotAdmitted}>
-          <EmptyDataIllustration />
+          <EmptyCardIllustration />
           <p>{t('patientNotAdmitted', 'This Patient Not currently admitted to ward')}</p>;
         </Tile>
       </Layer>

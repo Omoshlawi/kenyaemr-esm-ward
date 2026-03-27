@@ -10,6 +10,7 @@ import { type AdmissionLocationFetchResponse } from '../types/index';
 import useWardLocation from './useWardLocation';
 import { useState } from 'react';
 import useSWRImmutable from 'swr/immutable';
+import { type Location } from '@openmrs/esm-emr-api';
 
 const requestRep =
   'custom:(ward,totalBeds,occupiedBeds,bedLayouts:(rowNumber,bedType,columnNumber,bedNumber,bedId,bedUuid,status,location,patients:(person:full,identifiers,uuid)))';

@@ -158,7 +158,6 @@ export default function PatientBedSwapForm({
               currentPatient={patient}
               selectedBedId={value}
               error={error}
-              control={control}
               onChange={onChange}
             />
           )}
@@ -172,7 +171,7 @@ export default function PatientBedSwapForm({
         )}
       </div>
       <ButtonSet className={styles.buttonSet}>
-        <Button size="xl" kind="secondary" onClick={closeWorkspaceWithSavedChanges}>
+        <Button size="xl" kind="secondary" onClick={() => closeWorkspaceWithSavedChanges()}>
           {t('cancel', 'Cancel')}
         </Button>
         <Button

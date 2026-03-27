@@ -1,9 +1,9 @@
 import React from 'react';
 import { Button } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
-import { launchWorkspace, useLayoutType } from '@openmrs/esm-framework';
+import { launchWorkspace2, useLayoutType } from '@openmrs/esm-framework';
 import { useAdmissionRequestsWorkspaceContext } from '../admission-request-workspace/admission-requests-context';
-import type { WardPatientCardType, WardPatientWorkspaceProps } from '../../types';
+import type { WardPatientCardType } from '../../types';
 import AdmitPatientButton from '../admit-patient-button.component';
 import styles from './admission-request-card.scss';
 
@@ -13,13 +13,13 @@ const AdmissionRequestCardActions: WardPatientCardType = ({ wardPatient }) => {
   const responsiveSize = useLayoutType() === 'tablet' ? 'lg' : 'md';
 
   const launchPatientTransferForm = () => {
-    launchWorkspace<WardPatientWorkspaceProps>('patient-transfer-request-workspace', {
+    launchWorkspace2('patient-transfer-request-workspace', {
       wardPatient,
     });
   };
 
   const launchCancelAdmissionForm = () => {
-    launchWorkspace<WardPatientWorkspaceProps>('cancel-admission-request-workspace', {
+    launchWorkspace2('cancel-admission-request-workspace', {
       wardPatient,
     });
   };

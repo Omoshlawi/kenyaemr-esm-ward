@@ -102,7 +102,7 @@ const AdmittedPatients = () => {
           : '--';
 
       return {
-        id: patient.patient?.uuid ?? index,
+        id: patient.patient?.uuid ?? index.toString(),
         admissionDate,
         idNumber: getOpenmrsId(patient.patient?.identifiers ?? []) ?? '--',
         name: (
@@ -159,7 +159,11 @@ const AdmittedPatients = () => {
 
   return (
     <div>
-      <Search value={search} onChange={(e) => setSearch(e.target.value)} />
+      <Search
+        labelText={t('searchPatients', 'Search patients')}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
       <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
         {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
           <TableContainer>

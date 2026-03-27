@@ -1,7 +1,7 @@
 // Desclaimer: not using openmrs provided (EmptyState,ErrorState) to avoid repeated header titles and customize the message since provided ones are contexted to patient chart
 
 import { Tile } from '@carbon/react';
-import { EmptyDataIllustration } from '@openmrs/esm-patient-common-lib';
+import { EmptyCardIllustration } from '@openmrs/esm-framework';
 import React, { type FC } from 'react';
 import styles from './ward-patient.scss';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,7 @@ type EmptyStateProps = {
 export const EmptyState: FC<EmptyStateProps> = ({ message }) => {
   return (
     <Tile className={styles.empty}>
-      <EmptyDataIllustration />
+      <EmptyCardIllustration />
       <p>{message}</p>
     </Tile>
   );

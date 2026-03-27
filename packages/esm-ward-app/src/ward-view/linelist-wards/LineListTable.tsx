@@ -12,8 +12,7 @@ import {
   TableRow,
   Tile,
 } from '@carbon/react';
-import { ConfigurableLink, ErrorState, useConfig } from '@openmrs/esm-framework';
-import { CardHeader } from '@openmrs/esm-patient-common-lib';
+import { ConfigurableLink, ErrorState, useConfig, CardHeader } from '@openmrs/esm-framework';
 import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { useAdmisiionLocations } from '../../hooks/useAdmissionLocation';

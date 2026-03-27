@@ -1,6 +1,5 @@
 import { ComboButton, MenuItem } from '@carbon/react';
 import { evaluateAsBoolean, launchWorkspace, useConfig } from '@openmrs/esm-framework';
-import { launchStartVisitPrompt } from '@openmrs/esm-patient-common-lib';
 import dayjs from 'dayjs';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -45,9 +44,9 @@ const InpatientForms: FC<InpatientFormsProps> = ({ patientUuid, patient }) => {
   );
 
   const handleLaunchForm = (form: { label: string; uuid: string }) => {
-    if (!currentVisit) {
-      return launchStartVisitPrompt();
-    }
+    // if (!currentVisit) {
+    //   return launchStartVisitPrompt();
+    // }
     launchWorkspace('patient-form-entry-workspace', {
       workspaceTitle: form.label,
       mutateForm: () => {},

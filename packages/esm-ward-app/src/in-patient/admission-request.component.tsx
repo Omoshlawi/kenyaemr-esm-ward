@@ -1,5 +1,4 @@
 import {
-  Button,
   DataTable,
   DataTableSkeleton,
   Table,
@@ -9,15 +8,23 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import { formatDatetime, isDesktop, launchWorkspace, useConfig, useLayoutType } from '@openmrs/esm-framework';
-import { CardHeader, EmptyState, ErrorState } from '@openmrs/esm-patient-common-lib';
+import {
+  formatDatetime,
+  isDesktop,
+  useConfig,
+  useLayoutType,
+  ErrorCard,
+  CardHeader,
+  EmptyCard,
+  launchWorkspace2,
+} from '@openmrs/esm-framework';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Add } from '@carbon/react/icons';
 import type { WardConfigObject } from '../config-schema';
 import { useAdmissionRequest } from './in-patient.resource';
 import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
+import { usePatientChartStore } from '@openmrs/esm-patient-common-lib/src';
 
 type AdmissionRequestProps = {
   patientUuid: string;
@@ -26,6 +33,7 @@ type AdmissionRequestProps = {
 const AdmissionRequest: React.FC<AdmissionRequestProps> = ({ patientUuid }) => {
   const { t } = useTranslation();
   const layout = useLayoutType();
+  const { patient, visitContext, mutateVisitContext } = usePatientChartStore(patientUuid);
   const controlSize = isDesktop(layout) ? 'sm' : 'md';
   const { admissionRequestFormUuid } = useConfig<WardConfigObject>();
   const { admissionRequest, isLoading, error, mutate } = useAdmissionRequest(patientUuid);
@@ -53,14 +61,20 @@ const AdmissionRequest: React.FC<AdmissionRequestProps> = ({ patientUuid }) => {
   }, [t]);
 
   const handleLaunchAdmissionRequestForm = () => {
-    launchWorkspace('patient-form-entry-workspace', {
-      workspaceTitle: 'Admission Request',
-      mutateForm: mutate,
-      formInfo: {
-        formUuid: admissionRequestFormUuid,
+    launchWorkspace2(
+      'patient-form-entry-workspace',
+      {
+        form: { uuid: admissionRequestFormUuid },
         encounterUuid: '',
       },
-    });
+      {},
+      {
+        patient,
+        patientUuid,
+        visitContext,
+        mutateVisitContext,
+      },
+    );
   };
 
   if (isLoading) {
@@ -68,12 +82,12 @@ const AdmissionRequest: React.FC<AdmissionRequestProps> = ({ patientUuid }) => {
   }
 
   if (error) {
-    return <ErrorState error={error} headerTitle={t('admissionRequest', 'Admission Request')} />;
+    return <ErrorCard error={error} headerTitle={t('admissionRequest', 'Admission Request')} />;
   }
 
   if (admissionRequest.length === 0) {
     return (
-      <EmptyState
+      <EmptyCard
         displayText={t('admissionRequests', 'admission requests')}
         headerTitle={t('admissionRequest', 'Admission Request')}
         launchForm={isPatientAdmitted ? undefined : handleLaunchAdmissionRequestForm}

@@ -19,15 +19,14 @@ const DiagnosisInput = <T,>({ control, name }: Props<T>) => {
         return (
           <ComboBox
             id="diagnosis"
-            invalid={error?.message}
+            invalid={!!error?.message}
             invalidText={error?.message}
             itemToString={(concept) => diagnoses.find((c) => c.uuid === concept)?.display ?? ''}
             items={diagnoses.map((d) => d.uuid)}
             placeholder={t('diagnosis', 'Diagnosis')}
             titleText={t('majorComplaintOrDiagnosis', 'Major Complaint/Diagnosis')}
             onInputChange={onSearchTermChange}
-            type="default"
-            selectedItem={value}
+            selectedItem={value as string}
             helperText={isLoading ? 'Loading....' : undefined}
             onChange={({ selectedItem }) => {
               onChange(selectedItem);

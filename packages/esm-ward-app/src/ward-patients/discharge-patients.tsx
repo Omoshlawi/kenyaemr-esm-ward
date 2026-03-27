@@ -106,7 +106,11 @@ const DischargePatients = () => {
 
   return (
     <div>
-      <Search value={search} onChange={(e) => setSearch(e.target.value)} />
+      <Search
+        labelText={t('searchPatients', 'Search patients')}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
       <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
         {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
           <TableContainer>

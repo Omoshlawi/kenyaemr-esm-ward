@@ -12,7 +12,8 @@ import {
 } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
 import { useLocationsByTag } from '../hooks/useAdmissionLocation';
-import { type Location, navigate, setUserProperties, showSnackbar, useSession } from '@openmrs/esm-framework';
+import { navigate, setUserProperties, showSnackbar, useSession } from '@openmrs/esm-framework';
+import { type Location } from '@openmrs/esm-emr-api';
 import styles from './materal-ward/ward-switch.scss';
 
 interface WardSwitchModalProps {
@@ -94,7 +95,6 @@ const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
                 onChange={({ selectedItem }) => setSelectedWard(selectedItem)}
                 disabled={isLoading || isSaving}
                 size="md"
-                light={true}
                 downshiftProps={{ id: 'ward-switch-selector-downshift' }}
               />
             </div>

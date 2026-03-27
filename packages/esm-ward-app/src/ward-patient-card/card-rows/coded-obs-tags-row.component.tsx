@@ -65,7 +65,7 @@ const CodedObsTagsRow: React.FC<WardPatientCodedObsTagsRowProps> = ({ id, patien
         if (color) {
           return (
             <WardPatientResponsiveTooltip tooltipContent={getObsEncounterString(o, t)}>
-              <Tag type={color} key={`ward-coded-obs-tag-${o.uuid}`}>
+              <Tag type={color as any} key={`ward-coded-obs-tag-${o.uuid}`}>
                 {display}
               </Tag>
             </WardPatientResponsiveTooltip>
@@ -88,7 +88,7 @@ const CodedObsTagsRow: React.FC<WardPatientCodedObsTagsRowProps> = ({ id, patien
             {coloredOpsTags}
             {summaryTagTooltipText.length > 0 ? (
               <WardPatientResponsiveTooltip tooltipContent={summaryTagTooltipText}>
-                <Tag type={summaryLabelColor}>
+                <Tag type={summaryLabelColor as any}>
                   {t('countItems', '{{count}} {{item}}', {
                     count: summaryTagTooltipText.length,
                     item: summaryLabelToDisplay,

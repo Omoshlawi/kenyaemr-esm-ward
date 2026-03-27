@@ -109,7 +109,7 @@ const DischargeInPatients = () => {
         : '--';
 
       return {
-        id: patient.patient?.uuid ?? index,
+        id: patient.patient?.uuid ?? index.toString(),
         admissionDate,
         idNumber: getOpenmrsId(patient.patient?.identifiers ?? []) ?? '--',
         name: (
@@ -154,7 +154,11 @@ const DischargeInPatients = () => {
 
   return (
     <div>
-      <Search value={search} onChange={(e) => setSearch(e.target.value)} />
+      <Search
+        labelText={t('searchInpatients', 'Search inpatients')}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
       <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
         {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
           <TableContainer>

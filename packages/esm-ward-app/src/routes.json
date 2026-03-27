@@ -94,7 +94,7 @@
       "name": "ward-patient-workspace-banner",
       "slot": "ward-workspace-patient-banner-slot"
     },
-     {
+    {
       "name": "in-patient-dashboard-link",
       "component": "inPatientChartLink",
       "order": 7,
@@ -143,12 +143,6 @@
       "title": "inpatientNotesWorkspaceTitle"
     },
     {
-      "name": "admit-patient-form-workspace",
-      "component": "admitPatientFormWorkspace",
-      "title": "admissionRequests",
-      "type": "admission-requests"
-    },
-    {
       "name": "ward-patient-workspace",
       "component": "wardPatientWorkspace",
       "type": "ward",
@@ -160,12 +154,6 @@
       "component": "patientTransferAndSwapWorkspace",
       "title": "transfers",
       "type": "transfer-swap-bed-form"
-    },
-    {
-      "name": "patient-transfer-request-workspace",
-      "component": "patientTransferRequestWorkspace",
-      "title": "transferRequest",
-      "type": "transfer-request-form"
     },
     {
       "name": "patient-discharge-workspace",
@@ -181,12 +169,6 @@
       "title": "clinicalForms",
       "type": "ward-patient-clinical-forms",
       "width": "wider"
-    },
-    {
-      "name": "cancel-admission-request-workspace",
-      "component": "cancelAdmissionRequestWorkspace",
-      "title": "cancelAdmissionRequest",
-      "type": "cancel-admission-request"
     }
   ],
   "workspaceGroups": [
@@ -209,6 +191,35 @@
         "admission-requests-workspace",
         "create-admission-encounter-workspace"
       ]
+    }
+  ],
+  "workspaces2": [
+    {
+      "name": "patient-transfer-request-workspace",
+      "component": "patientTransferRequestWorkspace",
+      "window": "kenyaemr-esm-ward-window"
+    },
+    {
+      "name": "cancel-admission-request-workspace",
+      "component": "cancelAdmissionRequestWorkspace",
+      "window": "kenyaemr-esm-ward-window"
+    },
+    {
+      "name": "admit-patient-form-workspace",
+      "component": "admitPatientFormWorkspace",
+      "window": "kenyaemr-esm-ward-window"
+    }
+  ],
+  "workspaceWindows2":[
+    {
+      "name": "kenyaemr-esm-ward-window",
+      "group": "kenyaemr-esm-ward-group",
+      "canMaximize": true
+    }
+  ],
+  "workspaceGroups2":[
+    {
+      "name": "kenyaemr-esm-ward-group"
     }
   ]
 }

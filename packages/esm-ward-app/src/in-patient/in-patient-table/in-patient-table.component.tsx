@@ -16,9 +16,9 @@ import {
 import { Edit } from '@carbon/react/icons';
 import { type Encounter } from '../encounter-observations/visit.resource';
 import { useTranslation } from 'react-i18next';
-import { formatDatetime, launchWorkspace, usePagination, type Visit } from '@openmrs/esm-framework';
+import { formatDatetime, launchWorkspace, usePagination, type Visit, EmptyCard } from '@openmrs/esm-framework';
 import EncounterObservations from '../encounter-observations';
-import { EmptyState, PatientChartPagination } from '@openmrs/esm-patient-common-lib';
+import { PatientChartPagination } from '@openmrs/esm-patient-common-lib';
 import styles from './in-patient-table.scss';
 import { mutate } from 'swr';
 
@@ -68,7 +68,7 @@ const InPatientTable: React.FC<InPatientTableProps> = ({ tableRows }) => {
 
   if (results.length === 0) {
     return (
-      <EmptyState displayText={t('noEncounters', 'No encounters found')} headerTitle={t('encounters', 'Encounters')} />
+      <EmptyCard displayText={t('noEncounters', 'No encounters found')} headerTitle={t('encounters', 'Encounters')} />
     );
   }
 

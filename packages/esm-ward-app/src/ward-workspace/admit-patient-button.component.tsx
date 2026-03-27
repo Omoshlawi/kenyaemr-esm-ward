@@ -2,6 +2,7 @@ import { Button, OverflowMenuItem } from '@carbon/react';
 import {
   ArrowRightIcon,
   launchWorkspace,
+  launchWorkspace2,
   showSnackbar,
   useAppContext,
   useFeatureFlag,
@@ -10,7 +11,7 @@ import {
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import useWardLocation from '../hooks/useWardLocation';
-import type { DispositionType, WardPatient, WardPatientWorkspaceProps, WardViewContext } from '../types';
+import type { DispositionType, WardPatient, WardViewContext } from '../types';
 import { useAdmitPatient } from '../ward.resource';
 
 interface AdmitPatientButtonProps {
@@ -39,8 +40,7 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { admitPatient, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useAdmitPatient();
 
-  const launchPatientAdmissionForm = () =>
-    launchWorkspace<WardPatientWorkspaceProps>('admit-patient-form-workspace', { wardPatient });
+  const launchPatientAdmissionForm = () => launchWorkspace2('admit-patient-form-workspace', { wardPatient });
 
   const isBedManagementModuleInstalled = useFeatureFlag('bedmanagement-module');
 

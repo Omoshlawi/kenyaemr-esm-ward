@@ -88,6 +88,7 @@ export default function LocationSelector({
     <div className={styles.locationSelector}>
       <ResponsiveWrapper>
         <Search
+          labelText={t('searchLocations', 'Search locations')}
           onChange={handleSearch}
           value={searchTerm}
           placeholder={t('searchLocations', 'Search locations')}

@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { type FetchResponse, useSession } from '@openmrs/esm-framework';
+import { type Session, useSession } from '@openmrs/esm-framework';
 import { mockSession } from '__mocks__';
 import { useParams } from 'react-router-dom';
 import useWardLocation from './useWardLocation';
@@ -19,7 +19,7 @@ const mockUseLocation = useLocation as jest.Mock;
 
 describe.skip('useWardLocation', () => {
   beforeEach(() => {
-    mockUseSession.mockReturnValue(mockSession.data);
+    mockUseSession.mockReturnValue(mockSession.data as unknown as Session);
   });
 
   it('returns session location when locationUuidFromUrl is not provided', async () => {

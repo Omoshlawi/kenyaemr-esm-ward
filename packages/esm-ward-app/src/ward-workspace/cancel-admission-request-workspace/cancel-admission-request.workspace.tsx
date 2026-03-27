@@ -5,20 +5,26 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { ResponsiveWrapper, showSnackbar, useAppContext } from '@openmrs/esm-framework';
+import {
+  ResponsiveWrapper,
+  showSnackbar,
+  useAppContext,
+  Workspace2,
+  type Workspace2DefinitionProps,
+} from '@openmrs/esm-framework';
 import type { ObsPayload, WardPatientWorkspaceProps, WardViewContext } from '../../types';
 import { useCreateEncounter } from '../../ward.resource';
 import WardPatientWorkspaceBanner from '../patient-banner/patient-banner.component';
 import styles from './cancel-admission-request.scss';
 
 export default function CancelAdmissionRequestWorkspace({
-  closeWorkspaceWithSavedChanges,
-  wardPatient,
-  promptBeforeClosing,
-}: WardPatientWorkspaceProps) {
+  workspaceProps: { wardPatient },
+  closeWorkspace,
+}: Workspace2DefinitionProps<WardPatientWorkspaceProps>) {
   const { patient, visit } = wardPatient ?? {};
   const { t } = useTranslation();
   const [showErrorNotifications, setShowErrorNotifications] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { createEncounter, emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } =
     useCreateEncounter();
@@ -53,9 +59,8 @@ export default function CancelAdmissionRequestWorkspace({
   } = useForm<FormValues>({ resolver: zodResolver(zodSchema), defaultValues: formDefaultValues });
 
   useEffect(() => {
-    promptBeforeClosing(() => isDirty);
-    return () => promptBeforeClosing(null);
-  }, [isDirty, promptBeforeClosing]);
+    setHasUnsavedChanges(() => isDirty);
+  }, [isDirty]);
 
   const onSubmit = useCallback(
     (values: FormValues) => {
@@ -90,7 +95,7 @@ export default function CancelAdmissionRequestWorkspace({
         })
         .finally(() => {
           setIsSubmitting(false);
-          closeWorkspaceWithSavedChanges();
+          closeWorkspace({ discardUnsavedChanges: true });
           wardPatientGroupDetails.mutate();
         });
     },
@@ -102,7 +107,7 @@ export default function CancelAdmissionRequestWorkspace({
       createEncounter,
       patient,
       t,
-      closeWorkspaceWithSavedChanges,
+      closeWorkspace,
       wardPatientGroupDetails,
       visit?.uuid,
     ],
@@ -115,58 +120,60 @@ export default function CancelAdmissionRequestWorkspace({
 
   if (!wardPatientGroupDetails) return <></>;
   return (
-    <div className={styles.flexWrapper}>
-      <WardPatientWorkspaceBanner wardPatient={wardPatient} />
-      <Form
-        onSubmit={handleSubmit(onSubmit, onError)}
-        className={classNames(styles.formContainer, styles.workspaceContent)}>
-        <div>
-          {errorFetchingEmrConfiguration && (
-            <div className={styles.formError}>
-              <InlineNotification
-                kind="error"
-                title={t('somePartsOfTheFormDidntLoad', "Some parts of the form didn't load")}
-                subtitle={t(
-                  'fetchingEmrConfigurationFailed',
-                  'Fetching EMR configuration failed. Try refreshing the page or contact your system administrator.',
+    <Workspace2 title={t('cancelAdmissionRequest', 'Cancel admission request')} hasUnsavedChanges={hasUnsavedChanges}>
+      <div className={styles.flexWrapper}>
+        <WardPatientWorkspaceBanner wardPatient={wardPatient} />
+        <Form
+          onSubmit={handleSubmit(onSubmit, onError)}
+          className={classNames(styles.formContainer, styles.workspaceContent)}>
+          <div>
+            {errorFetchingEmrConfiguration && (
+              <div className={styles.formError}>
+                <InlineNotification
+                  kind="error"
+                  title={t('somePartsOfTheFormDidntLoad', "Some parts of the form didn't load")}
+                  subtitle={t(
+                    'fetchingEmrConfigurationFailed',
+                    'Fetching EMR configuration failed. Try refreshing the page or contact your system administrator.',
+                  )}
+                  lowContrast
+                  hideCloseButton
+                />
+              </div>
+            )}
+            <div className={styles.field}>
+              <h2 className={styles.productiveHeading02}>{t('clinicalNotes', 'Clinical notes')}</h2>
+              <Controller
+                name="note"
+                control={control}
+                render={({ field, fieldState: { error } }) => (
+                  <ResponsiveWrapper>
+                    <TextArea {...field} labelText={''} />
+                  </ResponsiveWrapper>
                 )}
-                lowContrast
-                hideCloseButton
               />
             </div>
-          )}
-          <div className={styles.field}>
-            <h2 className={styles.productiveHeading02}>{t('clinicalNotes', 'Clinical notes')}</h2>
-            <Controller
-              name="note"
-              control={control}
-              render={({ field, fieldState: { error } }) => (
-                <ResponsiveWrapper>
-                  <TextArea {...field} labelText={''} />
-                </ResponsiveWrapper>
-              )}
-            />
+            {showErrorNotifications && (
+              <div className={styles.notifications}>
+                {Object.values(errors).map((error) => (
+                  <InlineNotification key={error.message} lowContrast subtitle={error?.message} hideCloseButton />
+                ))}
+              </div>
+            )}
           </div>
-          {showErrorNotifications && (
-            <div className={styles.notifications}>
-              {Object.values(errors).map((error) => (
-                <InlineNotification key={error.message} lowContrast subtitle={error?.message} hideCloseButton />
-              ))}
-            </div>
-          )}
-        </div>
-        <ButtonSet className={styles.buttonSet}>
-          <Button size="xl" kind="secondary" onClick={closeWorkspaceWithSavedChanges}>
-            {t('cancel', 'Cancel')}
-          </Button>
-          <Button
-            type="submit"
-            size="xl"
-            disabled={isLoadingEmrConfiguration || isSubmitting || errorFetchingEmrConfiguration || !patient}>
-            {t('save', 'Save')}
-          </Button>
-        </ButtonSet>
-      </Form>
-    </div>
+          <ButtonSet className={styles.buttonSet}>
+            <Button size="xl" kind="secondary" onClick={() => closeWorkspace()}>
+              {t('cancel', 'Cancel')}
+            </Button>
+            <Button
+              type="submit"
+              size="xl"
+              disabled={isLoadingEmrConfiguration || isSubmitting || errorFetchingEmrConfiguration || !patient}>
+              {t('save', 'Save')}
+            </Button>
+          </ButtonSet>
+        </Form>
+      </div>
+    </Workspace2>
   );
 }

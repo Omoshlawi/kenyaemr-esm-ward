@@ -12,8 +12,6 @@ const Filters = () => {
             id="date-picker-single"
             labelText={t('date', 'Date')}
             onChange={() => {}}
-            onClose={() => {}}
-            onOpen={() => {}}
             placeholder="mm/dd/yyyy"
           />
         </DatePicker>
