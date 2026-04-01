@@ -1,33 +1,30 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { InlineLoading, InlineNotification } from '@carbon/react';
 import {
-  type DefaultWorkspaceProps,
   type Encounter,
   ExtensionSlot,
   useEmrConfiguration,
   usePatient,
+  Workspace2,
+  type Workspace2DefinitionProps,
 } from '@openmrs/esm-framework';
 import { usePatientDischarge } from './patient-discharge.resource';
 import { type WardPatient } from '../../types';
 
-type PatientDischargeWorkspaceProps = DefaultWorkspaceProps & {
+type PatientDischargeWorkspaceProps = {
   readonly patientUuid: string;
   readonly wardPatient: WardPatient;
   readonly formUuid: string;
   readonly dischargePatientOnSuccesfullSubmission?: boolean;
 };
 
-export function PatientDischargeWorkspace(props: PatientDischargeWorkspaceProps) {
+const PatientDischargeWorkspace: React.FC<Workspace2DefinitionProps<PatientDischargeWorkspaceProps>> = (props) => {
   const { t } = useTranslation();
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const {
-    patientUuid,
+    workspaceProps: { patientUuid, wardPatient, formUuid, dischargePatientOnSuccesfullSubmission = true },
     closeWorkspace,
-    closeWorkspaceWithSavedChanges,
-    wardPatient,
-    promptBeforeClosing,
-    formUuid,
-    dischargePatientOnSuccesfullSubmission = true,
   } = props;
   const { visit: currentVisit } = wardPatient ?? {};
   const { patient, isLoading: isLoadingPatient, error: patientError } = usePatient(patientUuid);
@@ -44,9 +41,9 @@ export function PatientDischargeWorkspace(props: PatientDischargeWorkspaceProps)
       patientUuid: patientUuid ?? null,
       patient,
       encounterUuid: '',
-      closeWorkspaceWithSavedChanges,
+      closeWorkspaceWithSavedChanges: () => closeWorkspace({ discardUnsavedChanges: false }),
       closeWorkspace,
-      promptBeforeClosing,
+      promptBeforeClosing: () => setHasUnsavedChanges(true),
       handlePostResponse: (encounter: Encounter) => {
         if (dischargePatientOnSuccesfullSubmission)
           handleDischarge(encounter, wardPatient, emrConfiguration as Record<string, unknown>, currentVisit);
@@ -57,9 +54,8 @@ export function PatientDischargeWorkspace(props: PatientDischargeWorkspaceProps)
       currentVisit,
       patient,
       closeWorkspace,
-      promptBeforeClosing,
+      setHasUnsavedChanges,
       emrConfiguration,
-      closeWorkspaceWithSavedChanges,
       handleDischarge,
       dischargePatientOnSuccesfullSubmission,
       formUuid,
@@ -91,11 +87,13 @@ export function PatientDischargeWorkspace(props: PatientDischargeWorkspaceProps)
   }
 
   return (
-    <div>
-      {/* <pre>{JSON.stringify(currentVisit, null, 2)}</pre> */}
-      {patient && <ExtensionSlot name="form-widget-slot" state={state} />}
-    </div>
+    <Workspace2 title={t('discharge', 'Discharge')} hasUnsavedChanges={hasUnsavedChanges}>
+      <div>
+        {/* <pre>{JSON.stringify(currentVisit, null, 2)}</pre> */}
+        {patient && <ExtensionSlot name="form-widget-slot" state={state} />}
+      </div>
+    </Workspace2>
   );
-}
+};
 
 export default PatientDischargeWorkspace;

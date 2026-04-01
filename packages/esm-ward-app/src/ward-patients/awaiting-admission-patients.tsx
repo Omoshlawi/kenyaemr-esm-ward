@@ -57,7 +57,7 @@ const AwaitingAdmissionPatients = () => {
   ];
 
   const launchPatientTransferForm = (wardPatient: WardPatient) => {
-    launchWorkspace2('patient-transfer-request-workspace', {
+    launchWorkspace2('patient-admit-or-transfer-request-form', {
       wardPatient,
     });
   };

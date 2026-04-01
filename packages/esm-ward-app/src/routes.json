@@ -149,15 +149,6 @@
       "title": "Ward patient",
       "width": "extra-wide"
     },
-    
-    {
-      "name": "patient-discharge-workspace",
-      "component": "patientDischargeWorkspace",
-      "title": "discharge",
-      "width": "extra-wide",
-      "canMaximize": true,
-      "type": "ward-patient-discharge"
-    },
     {
       "name": "ward-patient-clinical-forms-workspace",
       "component": "patientClinicalFormsWorkspace",
@@ -218,16 +209,27 @@
       "name": "patient-bed-swap-form",
       "component": "patientBedSwapForm",
       "window": "kenyaemr-esm-ward-window"
+    },
+    {
+      "name": "patient-discharge-workspace",
+      "component": "patientDischargeWorkspace",
+      "window": "kenyaemr-form-entry-window"
     }
   ],
-  "workspaceWindows2":[
+  "workspaceWindows2": [
     {
       "name": "kenyaemr-esm-ward-window",
       "group": "kenyaemr-esm-ward-group",
       "canMaximize": true
+    },
+    {
+      "name": "kenyaemr-form-entry-window",
+      "group": "kenyaemr-esm-ward-group",
+      "canMaximize": true,
+      "width": "extra-wide"
     }
   ],
-  "workspaceGroups2":[
+  "workspaceGroups2": [
     {
       "name": "kenyaemr-esm-ward-group"
     }
