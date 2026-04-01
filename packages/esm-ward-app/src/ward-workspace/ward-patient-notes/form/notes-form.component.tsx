@@ -4,14 +4,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { Button, Column, Form, InlineLoading, InlineNotification, Row, Stack, TextArea } from '@carbon/react';
-import {
-  type DefaultWorkspaceProps,
-  type PatientUuid,
-  ResponsiveWrapper,
-  showSnackbar,
-  translateFrom,
-  useSession,
-} from '@openmrs/esm-framework';
+import { type PatientUuid, ResponsiveWrapper, showSnackbar, translateFrom, useSession } from '@openmrs/esm-framework';
 import { moduleName } from '../../../constant';
 import { savePatientNote } from '../notes.resource';
 import useEmrConfiguration from '../../../hooks/useEmrConfiguration';
@@ -20,8 +13,10 @@ import { type EncounterPayload } from '../../../types';
 
 type NotesFormData = z.infer<typeof noteFormSchema>;
 
-interface PatientNotesFormProps extends DefaultWorkspaceProps {
+interface PatientNotesFormProps {
   patientUuid: PatientUuid;
+  closeWorkspace: (options?: { closeWindow?: boolean; discardUnsavedChanges?: boolean }) => Promise<boolean>;
+  setHasUnsavedChanges?: (hasUnsavedChanges: boolean) => void;
 }
 
 const noteFormSchema = z.object({
@@ -31,11 +26,7 @@ const noteFormSchema = z.object({
   }),
 });
 
-const PatientNotesForm: React.FC<PatientNotesFormProps> = ({
-  closeWorkspaceWithSavedChanges,
-  patientUuid,
-  promptBeforeClosing,
-}) => {
+const PatientNotesForm: React.FC<PatientNotesFormProps> = ({ patientUuid, closeWorkspace, setHasUnsavedChanges }) => {
   const { emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useEmrConfiguration();
   const { t } = useTranslation();
   const session = useSession();
@@ -56,8 +47,8 @@ const PatientNotesForm: React.FC<PatientNotesFormProps> = ({
   });
 
   useEffect(() => {
-    promptBeforeClosing(() => isDirty);
-  }, [isDirty, promptBeforeClosing]);
+    setHasUnsavedChanges?.(isDirty);
+  }, [isDirty, setHasUnsavedChanges]);
 
   const locationUuid = session?.sessionLocation?.uuid;
   const providerUuid = session?.currentProvider?.uuid;
@@ -91,7 +82,7 @@ const PatientNotesForm: React.FC<PatientNotesFormProps> = ({
 
       savePatientNote(notePayload, abortController)
         .then(() => {
-          closeWorkspaceWithSavedChanges();
+          closeWorkspace({ discardUnsavedChanges: true });
           showSnackbar({
             isLowContrast: true,
             kind: 'success',
@@ -110,7 +101,7 @@ const PatientNotesForm: React.FC<PatientNotesFormProps> = ({
         .finally(() => setIsSubmitting(false));
     },
     [
-      closeWorkspaceWithSavedChanges,
+      closeWorkspace,
       emrConfiguration?.clinicianEncounterRole.uuid,
       emrConfiguration?.consultFreeTextCommentsConcept.uuid,
       emrConfiguration?.inpatientNoteEncounterType.uuid,

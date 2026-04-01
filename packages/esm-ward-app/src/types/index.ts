@@ -50,7 +50,7 @@ export type WardPatient = {
   inpatientRequest: InpatientRequest;
 };
 
-export interface WardPatientWorkspaceProps extends DefaultWorkspaceProps {
+export interface WardPatientWorkspaceProps {
   wardPatient: WardPatient;
 }
 

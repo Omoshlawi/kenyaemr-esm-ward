@@ -1,10 +1,4 @@
-import {
-  ActionMenuButton,
-  getGlobalStore,
-  launchWorkspace,
-  MovementIcon,
-  type DefaultWorkspaceProps,
-} from '@openmrs/esm-framework';
+import { ActionMenuButton, launchWorkspace2, MovementIcon, type DefaultWorkspaceProps } from '@openmrs/esm-framework';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,7 +7,7 @@ interface PatientTransferAndSwapSiderailIconProps extends DefaultWorkspaceProps 
 export default function PatientTransferAndSwapSiderailIcon(additionalProps: PatientTransferAndSwapSiderailIconProps) {
   const { t } = useTranslation();
   const handler = () => {
-    launchWorkspace('patient-transfer-swap-workspace');
+    launchWorkspace2('patient-transfer-swap-workspace');
   };
   return (
     <ActionMenuButton

@@ -149,12 +149,7 @@
       "title": "Ward patient",
       "width": "extra-wide"
     },
-    {
-      "name": "patient-transfer-swap-workspace",
-      "component": "patientTransferAndSwapWorkspace",
-      "title": "transfers",
-      "type": "transfer-swap-bed-form"
-    },
+    
     {
       "name": "patient-discharge-workspace",
       "component": "patientDischargeWorkspace",
@@ -207,6 +202,21 @@
     {
       "name": "admit-patient-form-workspace",
       "component": "admitPatientFormWorkspace",
+      "window": "kenyaemr-esm-ward-window"
+    },
+    {
+      "name": "patient-transfer-swap-workspace",
+      "component": "patientTransferAndSwapWorkspace",
+      "window": "kenyaemr-esm-ward-window"
+    },
+    {
+      "name": "patient-admit-or-transfer-request-form",
+      "component": "patientAdmitOrTransferRequestForm",
+      "window": "kenyaemr-esm-ward-window"
+    },
+    {
+      "name": "patient-bed-swap-form",
+      "component": "patientBedSwapForm",
       "window": "kenyaemr-esm-ward-window"
     }
   ],

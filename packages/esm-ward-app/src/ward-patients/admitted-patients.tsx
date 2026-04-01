@@ -15,7 +15,7 @@ import {
 } from '@carbon/react';
 import {
   formatDatetime,
-  launchWorkspace,
+  launchWorkspace2,
   parseDate,
   useAppContext,
   useConfig,
@@ -117,7 +117,7 @@ const AdmittedPatients = () => {
             <OverflowMenuItem
               itemText={t('interWardTransfer', 'Interward Trasfer')}
               onClick={() =>
-                launchWorkspace('patient-transfer-swap-workspace', {
+                launchWorkspace2('patient-admit-or-transfer-request-form', {
                   workspaceTitle: 'Trasfer',
                   wardPatient: patient,
                   withContentSwitcher: false,
@@ -128,7 +128,7 @@ const AdmittedPatients = () => {
             <OverflowMenuItem
               itemText={t('bedSwap', 'Bed Swap')}
               onClick={() =>
-                launchWorkspace('patient-transfer-swap-workspace', {
+                launchWorkspace2('patient-bed-swap-form', {
                   workspaceTitle: 'Bed Swap',
                   wardPatient: patient,
                   withContentSwitcher: false,
@@ -139,7 +139,7 @@ const AdmittedPatients = () => {
             <OverflowMenuItem
               itemText={t('discharge', 'Discharge')}
               onClick={() => {
-                launchWorkspace('patient-discharge-workspace', {
+                launchWorkspace2('patient-discharge-workspace', {
                   wardPatient: patient,
                   patientUuid: patient.patient.uuid,
                   formUuid: config.inpatientDischargeFormUuid,

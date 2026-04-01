@@ -93,6 +93,15 @@ export const patientClinicalFormsWorkspace = getAsyncLifecycle(
   options,
 );
 
+export const patientAdmitOrTransferRequestForm = getAsyncLifecycle(
+  () => import('./ward-workspace/patient-transfer-bed-swap/patient-admit-or-transfer-request-form.component'),
+  options,
+);
+
+export const patientBedSwapForm = getAsyncLifecycle(
+  () => import('./ward-workspace/patient-transfer-bed-swap/patient-bed-swap-form.component'),
+  options,
+);
 // t('cancelAdmissionRequest', 'Cancel admission request')
 export const cancelAdmissionRequestWorkspace = getAsyncLifecycle(
   () => import('./ward-workspace/cancel-admission-request-workspace/cancel-admission-request.workspace'),

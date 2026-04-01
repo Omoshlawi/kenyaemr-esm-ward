@@ -1,17 +1,19 @@
 import { ComboButton, MenuItem } from '@carbon/react';
-import { evaluateAsBoolean, launchWorkspace, useConfig } from '@openmrs/esm-framework';
+import { evaluateAsBoolean, launchWorkspace, launchWorkspace2, useConfig } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../config-schema';
 import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
 import { useAdmissionLocationTags } from './in-patient.resource';
+import { usePatientChartStore } from '@openmrs/esm-patient-common-lib/src';
 type InpatientFormsProps = {
   patientUuid: string;
   patient: fhir.Patient;
 };
 const InpatientForms: FC<InpatientFormsProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
+  const { visitContext, mutateVisitContext } = usePatientChartStore(patientUuid);
   const { admissionEncounter, isLoading, error, currentVisit, isPatientAdmitted } =
     useCurrentPatientAdmissionEncounter(patientUuid);
   const {
@@ -44,18 +46,20 @@ const InpatientForms: FC<InpatientFormsProps> = ({ patientUuid, patient }) => {
   );
 
   const handleLaunchForm = (form: { label: string; uuid: string }) => {
-    // if (!currentVisit) {
-    //   return launchStartVisitPrompt();
-    // }
-    launchWorkspace('patient-form-entry-workspace', {
-      workspaceTitle: form.label,
-      mutateForm: () => {},
-      formInfo: {
+    launchWorkspace2(
+      'patient-form-entry-workspace',
+      {
+        form: { uuid: form.uuid },
         encounterUuid: '',
-        formUuid: form.uuid,
-        additionalProps: {},
       },
-    });
+      {},
+      {
+        patient,
+        patientUuid,
+        visitContext,
+        mutateVisitContext,
+      },
+    );
   };
 
   if (!isPatientAdmitted) {

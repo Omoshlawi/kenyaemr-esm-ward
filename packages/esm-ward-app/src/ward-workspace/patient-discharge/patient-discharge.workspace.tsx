@@ -2,14 +2,16 @@ import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ButtonSet, InlineNotification } from '@carbon/react';
 import { Exit } from '@carbon/react/icons';
-import { ExtensionSlot, showSnackbar, useAppContext } from '@openmrs/esm-framework';
+import { ExtensionSlot, showSnackbar, useAppContext, type Workspace2DefinitionProps } from '@openmrs/esm-framework';
 import { type WardPatientWorkspaceProps, type WardViewContext } from '../../types';
 import { removePatientFromBed, useCreateEncounter } from '../../ward.resource';
 import WardPatientWorkspaceBanner from '../patient-banner/patient-banner.component';
 import styles from './patient-discharge.scss';
 
-export default function PatientDischargeWorkspace(props: WardPatientWorkspaceProps) {
-  const { wardPatient, closeWorkspaceWithSavedChanges } = props;
+export default function PatientDischargeWorkspace({
+  workspaceProps: { wardPatient },
+  closeWorkspace,
+}: Workspace2DefinitionProps<WardPatientWorkspaceProps>) {
   const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { createEncounter, emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } =
@@ -45,10 +47,10 @@ export default function PatientDischargeWorkspace(props: WardPatientWorkspacePro
       })
       .finally(() => {
         setIsSubmitting(false);
-        closeWorkspaceWithSavedChanges();
+        closeWorkspace({ discardUnsavedChanges: true });
         wardPatientGroupDetails.mutate();
       });
-  }, [createEncounter, wardPatient, emrConfiguration, t, closeWorkspaceWithSavedChanges, wardPatientGroupDetails]);
+  }, [createEncounter, wardPatient, emrConfiguration, t, closeWorkspace, wardPatientGroupDetails]);
 
   if (!wardPatientGroupDetails) return <></>;
   if (!wardPatient?.visit) return <InlineNotification kind="error" title={t('noVisit', 'No visit found')} />;
@@ -56,7 +58,7 @@ export default function PatientDischargeWorkspace(props: WardPatientWorkspacePro
   return (
     <div className={styles.workspaceContent}>
       <div className={styles.patientWorkspaceBanner}>
-        <WardPatientWorkspaceBanner wardPatient={props?.wardPatient} />
+        <WardPatientWorkspaceBanner wardPatient={wardPatient} />
       </div>
       <div className={styles.workspaceForm}>
         <div>

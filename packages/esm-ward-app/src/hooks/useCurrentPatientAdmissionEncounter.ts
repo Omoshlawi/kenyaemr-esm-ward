@@ -17,7 +17,12 @@ import { useMemo } from 'react';
  * }
  */
 const useCurrentPatientAdmissionEncounter = (patientUuid: string) => {
-  const { currentVisit, error: visitError, isLoading: isLoadingVisit, mutate: mutateVisit } = useVisit(patientUuid);
+  const {
+    activeVisit: currentVisit,
+    error: visitError,
+    isLoading: isLoadingVisit,
+    mutate: mutateVisit,
+  } = useVisit(patientUuid);
   const { emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useEmrConfiguration();
 
   // Admission or Tranfer encounter depending on wether patient was transfered or admitted directly
