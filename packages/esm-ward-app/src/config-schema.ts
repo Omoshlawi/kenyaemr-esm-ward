@@ -470,6 +470,16 @@ export const configSchema: ConfigSchema = {
         label: 'Preoperative Questionnaire',
         tags: [],
       },
+      {
+        uuid: 'b8368c5e-7b3b-419e-bd33-bb05cdf34952',
+        label: "Doctor's Follow up Note",
+        tags: [],
+      },
+      {
+        uuid: 'e8054795-3df5-435d-9ae3-6ae3a6a1857f',
+        label: 'Pre- Anaesthesia Checklist',
+        tags: [],
+      },
     ],
   },
   inPatientVisitTypeUuid: {
