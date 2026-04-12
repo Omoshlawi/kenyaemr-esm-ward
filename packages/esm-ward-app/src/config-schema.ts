@@ -487,6 +487,29 @@ export const configSchema: ConfigSchema = {
     _description: 'The visit type uuid for in-patient',
     _default: 'a73e2ac6-263b-47fc-99fc-e0f2c09fc914',
   },
+  postProcedureEncounterTypeUuid: {
+    _description: 'Post Procedure encounter type Uuid',
+    _type: Type.UUID,
+    _default: '13beea61-7d3d-4860-abe3-d5b874f736fb',
+  },
+  postProcedureConceptUuids: {
+    _description: 'Concept UUIDs for the Post Procedure form',
+    _type: Type.Object,
+    _default: {
+      surgeryDateTime: '160715AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      operativeProcedure: '166635AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      procedurePerformed: '1651AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      anaesthesiaType: '164254AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      patientPosition: '159633AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      incisionLocation: '163049AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      incisionType: 'b9879725-26f6-4aa4-8777-bc7f75d388c1',
+      closureMethod: '166629AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      findings: '160632AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      histologySpecimen: '161934AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      specimenType: '163761AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      procedureNotes: '160716AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+  },
 };
 
 export interface WardConfigObject {
@@ -541,6 +564,21 @@ export interface WardConfigObject {
     tags: Array<{ uuid: string; tag: string }>;
   }>;
   inPatientVisitTypeUuid: string;
+  postProcedureEncounterTypeUuid: string;
+  postProcedureConceptUuids: {
+    surgeryDateTime: string;
+    operativeProcedure: string;
+    procedurePerformed: string;
+    anaesthesiaType: string;
+    patientPosition: string;
+    incisionLocation: string;
+    incisionType: string;
+    closureMethod: string;
+    findings: string;
+    histologySpecimen: string;
+    specimenType: string;
+    procedureNotes: string;
+  };
 }
 
 export interface PendingItemsElementConfig {

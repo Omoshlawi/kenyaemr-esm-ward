@@ -27,6 +27,7 @@ import {
   PatientGenderCell,
 } from './patient-cells';
 import { EmptyState, ErrorState } from './table-state-components';
+import PostProcedureSummaryLauncher from '../discharge-printouts/PostProcedureSummaryLauncher';
 
 const DischargePatients = () => {
   const { t } = useTranslation();
@@ -44,6 +45,7 @@ const DischargePatients = () => {
     setCurrPageSize,
     totalCount,
   } = useIpdDischargeEncounter();
+
   const headers = [
     { key: 'admissionDate', header: t('admissionDate', 'Admission Date') },
     { key: 'dischargeDate', header: t('dischargeDate', 'Discharge Date') },
@@ -55,10 +57,11 @@ const DischargePatients = () => {
     { key: 'daysAdmitted', header: t('durationOnWard', 'Duration on Ward') },
     { key: 'action', header: t('action', 'Action') },
   ];
+
   const tableRows = useMemo(() => {
     return encounters
       ?.filter((encounter) => encounter.patient.name.toLowerCase().includes(search.toLowerCase()))
-      ?.map((encounter, index) => {
+      ?.map((encounter) => {
         return {
           id: encounter.uuid,
           dischargeDate: encounter.encounterDateTime ? formatDatetime(parseDate(encounter.encounterDateTime)) : '--',
@@ -66,13 +69,13 @@ const DischargePatients = () => {
             <PatientAdmissionDateCell patientUuid={encounter.patient.uuid} encounterUuid={encounter.uuid} />
           ),
           idNumber: encounter.patient.openmrsId,
-          name: <HyperLinkPatientCell patientName={encounter.patient.name} patientUuid={encounter.patient.uuid} />, //encounter.patient.name,
+          name: <HyperLinkPatientCell patientName={encounter.patient.name} patientUuid={encounter.patient.uuid} />,
           gender: <PatientGenderCell patientUuid={encounter.patient.uuid} />,
           age: <PatientAgeCell patientUuid={encounter.patient.uuid} />,
           bedNumber: '--',
           daysAdmitted: <PatientDayInWardCell patientUuid={encounter.patient.uuid} encounterUuid={encounter.uuid} />,
           action: (
-            <OverflowMenu size={'sm'} flipped>
+            <OverflowMenu size="sm" flipped>
               <OverflowMenuItem
                 itemText={t('dischargeSummary', 'Discharge Summary')}
                 onClick={() => {
@@ -80,6 +83,18 @@ const DischargePatients = () => {
                     size: 'lg',
                     onClose: () => dispose(),
                     printout: <DischargeSummary dischargeEncounterUuid={encounter.uuid} patient={encounter.patient} />,
+                  });
+                }}
+              />
+              <OverflowMenuItem
+                itemText={t('postOperationNotes', 'Post Operation Notes')}
+                onClick={() => {
+                  const dispose = showModal('patient-discharge-document-preview-modal', {
+                    size: 'lg',
+                    onClose: () => dispose(),
+                    printout: (
+                      <PostProcedureSummaryLauncher encounterUuid={encounter.uuid} patient={encounter.patient} />
+                    ),
                   });
                 }}
               />
@@ -101,7 +116,6 @@ const DischargePatients = () => {
 
   if (isLoading) return <DataTableSkeleton />;
   if (error) return <ErrorState error={error} />;
-
   if (!encounters?.length) return <EmptyState message={t('noDischargedPatients', 'No Discharged patients')} />;
 
   return (
@@ -118,28 +132,22 @@ const DischargePatients = () => {
               <TableHead>
                 <TableRow>
                   {headers.map((header) => (
-                    <TableHeader
-                      key={header.key}
-                      {...getHeaderProps({
-                        header,
-                      })}>
+                    <TableHeader key={header.key} {...getHeaderProps({ header })}>
                       {header.header}
                     </TableHeader>
                   ))}
                 </TableRow>
               </TableHead>
               <TableBody>
-                {rows.map((row) => {
-                  return (
-                    <TableRow key={row.id} {...getRowProps({ row })}>
-                      {row.cells.map((cell) => (
-                        <TableCell key={cell.id} {...getCellProps({ cell })}>
-                          {cell.value}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  );
-                })}
+                {rows.map((row) => (
+                  <TableRow key={row.id} {...getRowProps({ row })}>
+                    {row.cells.map((cell) => (
+                      <TableCell key={cell.id} {...getCellProps({ cell })}>
+                        {cell.value}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
             {paginated && !isLoading && (
@@ -150,7 +158,7 @@ const DischargePatients = () => {
                 pageSize={currPageSize}
                 pageSizes={pageSizes}
                 totalItems={totalCount}
-                size={'sm'}
+                size="sm"
                 onChange={({ page: newPage, pageSize }) => {
                   if (newPage !== currentPage) {
                     goTo(newPage);
