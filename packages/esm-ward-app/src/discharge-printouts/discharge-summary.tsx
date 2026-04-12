@@ -4,7 +4,6 @@ import dayjs from 'dayjs';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
-import { useProvider } from '../ward-workspace/admit-patient-form-workspace/patient-admission.resources';
 import {
   DATE_FORMART,
   getTreatmentDisplayText,
@@ -34,7 +33,6 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
     display: diagnoses,
   } = usePatientDiagnosis(dischargeEncounterUuid);
   const session = useSession();
-  const { error: errorProvider, isLoading: isLoadingProvider, provider } = useProvider(session.currentProvider.uuid);
   const { emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useEmrConfiguration();
   const {
     isLoading: isLoadingOders,
@@ -47,6 +45,7 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
     dischargeinstructions,
     physicalExaminations,
   } = usePatientOrders(dischargeEncounterUuid);
+
   const admissionDate = useMemo(() => {
     const admisionEncounter = encounter?.visit?.encounters?.find(
       (e) => e.encounterType.uuid === emrConfiguration?.admissionEncounterType?.uuid,
@@ -55,16 +54,19 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
     return admisionEncounter.encounterDatetime;
   }, [encounter, emrConfiguration]);
 
-  if (
-    isLoading ||
-    isLoadingPatient ||
-    isLoadingEmrConfiguration ||
-    isLoadingDiagnosis ||
-    isLoadingProvider ||
-    isLoadingOders
-  )
+  const consultantName = useMemo(() => {
+    const providers = encounter?.encounterProviders;
+    if (!providers?.length) return null;
+    const last = providers[providers.length - 1];
+    const raw = last?.provider?.display ?? '';
+    const parts = raw.split(' - ');
+    return parts.length > 1 ? parts.slice(1).join(' - ') : raw;
+  }, [encounter]);
+
+  if (isLoading || isLoadingPatient || isLoadingEmrConfiguration || isLoadingDiagnosis || isLoadingOders)
     return <InlineLoading />;
-  if (error || patientError || errorFetchingEmrConfiguration || diagnosisError || errorProvider || orderserror)
+
+  if (error || patientError || errorFetchingEmrConfiguration || diagnosisError || orderserror)
     return (
       <InlineNotification
         kind="error"
@@ -73,11 +75,11 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
           patientError?.message ??
           errorFetchingEmrConfiguration?.message ??
           diagnosisError?.message ??
-          errorProvider?.message ??
           orderserror?.message
         }
       />
     );
+
   return (
     <div className={styles.content}>
       <div className={styles.header}>
@@ -101,7 +103,7 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
         />
       </div>
       <div className={styles.cols2}>
-        <FieldInput name={t('nameOfConsultant', 'Name of consultant')} value={provider?.display?.split('-')?.at(-1)} />
+        <FieldInput name={t('nameOfConsultant', 'Name of consultant')} value={consultantName} />
         <FieldInput name={t('department', 'Department')} value={encounter.location?.display} />
       </div>
 
@@ -156,7 +158,7 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
         <p>{dischargeinstructions ?? t('noInstructions', 'No instructions')}</p>
       </div>
       <div className={styles.cols2}>
-        <FieldInput name={t('name', 'Name')} value={provider?.display?.split('-')?.at(-1)} />
+        <FieldInput name={t('name', 'Name')} value={consultantName} />
         <FieldInput name={t('signature', 'Signature')} />
       </div>
       <div className={styles.cols2}>
