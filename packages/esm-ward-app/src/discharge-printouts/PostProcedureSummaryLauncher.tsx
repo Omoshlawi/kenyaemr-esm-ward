@@ -1,4 +1,3 @@
-// PostProcedureSummaryLauncher.tsx
 import React, { type FC } from 'react';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
 import { InlineLoading } from '@carbon/react';
