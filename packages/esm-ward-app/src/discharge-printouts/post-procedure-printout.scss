@@ -1,0 +1,124 @@
+@use '@carbon/type';
+@use '@carbon/layout';
+@use '@carbon/colors';
+
+.content {
+  padding: 6rem;
+  margin: 0 auto;
+  max-width: 800px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #000;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-06;
+
+  @media print {
+    padding: 0.5in;
+    font-size: 12px;
+    line-height: 1.4;
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+.header {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  font-weight: bold;
+  padding-top: layout.$spacing-05;
+  padding-bottom: layout.$spacing-05;
+  gap: layout.$spacing-03;
+  text-transform: uppercase;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  width: 100%;
+}
+
+.fieldLabel {
+  @include type.type-style('label-01');
+  text-transform: uppercase;
+  color: colors.$gray-60;
+  letter-spacing: 0.06em;
+}
+
+.fieldValue {
+  @include type.type-style('body-compact-01');
+  font-weight: 500;
+  color: colors.$gray-100;
+  border-bottom: 1px dotted colors.$gray-100;
+  padding-bottom: layout.$spacing-02;
+  min-height: layout.$spacing-06;
+  text-transform: uppercase;
+}
+
+.signatureField {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  width: 100%;
+}
+
+.sigLine {
+  display: block;
+  border-bottom: 1px dotted colors.$gray-100;
+  min-height: layout.$spacing-06;
+  flex: 1;
+}
+
+.txtUpper {
+  text-transform: uppercase;
+  @include type.type-style('heading-01');
+}
+
+.txtTitle {
+  text-transform: capitalize;
+  @include type.type-style('body-01');
+}
+.notesText {
+  @include type.type-style('body-01');
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  border-bottom: 1px dotted colors.$gray-100;
+  padding-bottom: layout.$spacing-03;
+  min-height: layout.$spacing-07;
+}
+
+@mixin gridByColumnCount($columns: 3, $gap: layout.$spacing-05) {
+  display: grid;
+  grid-template-columns: repeat($columns, 1fr);
+  gap: $gap;
+  align-items: baseline;
+
+  @media print {
+    padding: 0;
+    gap: layout.$spacing-03;
+    border: none;
+    grid-template-columns: repeat($columns, 1fr);
+  }
+}
+
+.cols1 {
+  @include gridByColumnCount(1);
+}
+.cols2 {
+  @include gridByColumnCount(2);
+}
+.cols3 {
+  @include gridByColumnCount(3);
+}
+.cols4 {
+  @include gridByColumnCount(4);
+}
+.cols7 {
+  @include gridByColumnCount(7);
+}
