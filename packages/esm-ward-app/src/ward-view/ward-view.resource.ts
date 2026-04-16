@@ -5,8 +5,8 @@ import {
   type Location,
   type Patient,
 } from '@openmrs/esm-framework';
-import type { TFunction } from 'i18next';
 import { useMemo } from 'react';
+import type { TFunction } from 'react-i18next';
 import {
   type PendingItemsElementConfig,
   type ColoredObsTagsElementConfig,
