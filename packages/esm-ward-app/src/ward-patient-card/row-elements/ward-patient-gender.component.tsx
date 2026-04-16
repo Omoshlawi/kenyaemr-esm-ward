@@ -1,7 +1,6 @@
 import { type Patient } from '@openmrs/esm-framework';
-import { type TFunction } from 'i18next';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, type TFunction } from 'react-i18next';
 
 const WardPatientGender: React.FC<{ patient: Patient }> = ({ patient }) => {
   const { t } = useTranslation();
