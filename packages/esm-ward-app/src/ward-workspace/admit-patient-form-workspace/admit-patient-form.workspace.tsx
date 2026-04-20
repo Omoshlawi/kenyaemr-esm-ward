@@ -338,9 +338,10 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
                       selectedItem={value}
                       onChange={({ selectedItem }) => onChange(selectedItem)}
                       id="insurance-type"
-                      itemToString={(concept) =>
-                        config.insuaranceTypes.find((type) => type.concept === concept)?.label ?? ''
-                      }
+                      itemToString={(concept) => {
+                        const display = config.insuaranceTypes.find((type) => type.concept === concept)?.label;
+                        return display ? t(display) : '';
+                      }}
                       items={config.insuaranceTypes.map((type) => type.concept)}
                       label={t('insuranceType', 'Insurance type')}
                       titleText={t('insuranceType', 'Insurance type')}
