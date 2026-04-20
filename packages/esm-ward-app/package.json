@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "source": true,
   "license": "MPL-2.0",
-  "homepage": "https://github.com/openmrs/openmrs-esm-patient-management#readme",
+  "homepage": "https://github.com/palladium-hub/kenyaemr-esm-ward-app#readme",
   "scripts": {
     "analyze": "rspack --mode=production --env analyze=true",
     "build": "rspack --mode=production",
