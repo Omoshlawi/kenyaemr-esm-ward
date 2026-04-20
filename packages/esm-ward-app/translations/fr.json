@@ -11,7 +11,7 @@
   "admissionRequests": "Demandes d’admission",
   "admissionRequestsCount_one": "{{count}} demande d’admission",
   "admissionRequestsCount_other": "{{count}} demandes d’admission",
-  "admissions": "Admissions",
+  "admissions": "Hospitalisations",
   "admissionType": "Type d’admission",
   "admit": "Admettre",
   "admitElsewhere": "Admettre ailleurs",
