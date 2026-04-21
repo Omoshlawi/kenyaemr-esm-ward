@@ -1,8 +1,9 @@
 {
   "$schema": "https://json.openmrs.org/routes.schema.json",
   "backendDependencies": {
-    "webservices.rest": "^2.2.0",
-    "emrapi": "^2.0.0 || 2.0.0-SNAPSHOT"
+    "webservices.rest": ">=3.0.0 <4.0.0",
+    "emrapi": ">=3.0.0 <4.0.0",
+    "bedmanagement": ">=7.0.0"
   },
   "optionalBackendDependencies": {
     "bedmanagement": {
