@@ -43,7 +43,7 @@ const PatientDischargeWorkspace: React.FC<Workspace2DefinitionProps<PatientDisch
       encounterUuid: '',
       closeWorkspaceWithSavedChanges: () => closeWorkspace({ discardUnsavedChanges: true }),
       closeWorkspace,
-      promptBeforeClosing: () => setHasUnsavedChanges(true),
+      promptBeforeClosing: (func) => setHasUnsavedChanges(func()),
       handlePostResponse: (encounter: Encounter) => {
         if (dischargePatientOnSuccesfullSubmission)
           handleDischarge(encounter, wardPatient, emrConfiguration as Record<string, unknown>, currentVisit);

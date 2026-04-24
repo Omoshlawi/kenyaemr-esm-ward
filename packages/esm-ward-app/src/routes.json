@@ -215,6 +215,11 @@
       "name": "patient-discharge-workspace",
       "component": "patientDischargeWorkspace",
       "window": "kenyaemr-form-entry-window"
+    },
+    {
+      "name": "discharge-appointment-form-workspace",
+      "component": "@kenyaemr/esm-appointments-app#exportedAppointmentForm",
+      "window": "kenyaemr-form-entry-window"
     }
   ],
   "workspaceWindows2": [
