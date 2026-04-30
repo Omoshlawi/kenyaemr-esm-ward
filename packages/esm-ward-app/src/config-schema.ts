@@ -510,6 +510,11 @@ export const configSchema: ConfigSchema = {
       procedureNotes: '160716AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     },
   },
+  paymentMethods: {
+    _type: Type.Array,
+    _description: 'List of payment methods used when printing gatepass',
+    _default: ['Cash [ ]', 'Cheque [ ]', 'SHA [ ]', 'Scheme [ ]', 'M.R.M [ ]'],
+  },
 };
 
 export interface WardConfigObject {
@@ -579,6 +584,7 @@ export interface WardConfigObject {
     specimenType: string;
     procedureNotes: string;
   };
+  paymentMethods: Array<string>;
 }
 
 export interface PendingItemsElementConfig {

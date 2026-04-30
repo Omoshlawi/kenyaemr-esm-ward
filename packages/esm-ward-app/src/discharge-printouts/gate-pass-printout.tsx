@@ -1,5 +1,5 @@
 import { InlineLoading, InlineNotification } from '@carbon/react';
-import { useEmrConfiguration, usePatient, useSession } from '@openmrs/esm-framework';
+import { useConfig, useEmrConfiguration, usePatient, useSession } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { useMemo, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
 import styles from './discharge-printouts.scss';
 import FieldInput from './field-input';
 import { DATE_FORMART, TIME_FORMART } from './discharge-printout.resource';
+import type { WardConfigObject } from '../config-schema';
 
 type GatePassPrintoutProps = {
   dischargeEncounterUuid: string;
@@ -19,7 +20,7 @@ type GatePassPrintoutProps = {
 
 const GatePassPrintout: FC<GatePassPrintoutProps> = ({ dischargeEncounterUuid, patient: _patient }) => {
   const { t } = useTranslation();
-
+  const { paymentMethods } = useConfig<WardConfigObject>();
   const { encounter, error, isLoading } = useEncounterDetails(dischargeEncounterUuid);
   const { isLoading: isLoadingPatient, patient, error: patientError } = usePatient(_patient.uuid);
   const session = useSession();
@@ -73,11 +74,9 @@ const GatePassPrintout: FC<GatePassPrintoutProps> = ({ dischargeEncounterUuid, p
         <p>{t('methodsOfPayment', 'Method of payment (tick as approximately)')}</p>
         <br />
         <div className={styles.cols7}>
-          <span>{t('cashCheckBox', 'Cash [ ]')}</span>
-          <span>{t('chequCheckBox', 'Cheque [ ]')}</span>
-          <span>{t('shaCheckBox', 'SHA [ ]')}</span>
-          <span>{t('scheme', 'Scheme [ ]')}</span>
-          <span>{t('mrm', 'M.R.M [ ]')}</span>
+          {paymentMethods.map((paymentMethod) => (
+            <span key={paymentMethod}>{t(paymentMethod, paymentMethod)}</span>
+          ))}
           <FieldInput name={t('other', 'Other')} />
           <FieldInput name="." delimiter="." />
         </div>
