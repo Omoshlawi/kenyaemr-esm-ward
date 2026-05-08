@@ -16,8 +16,34 @@
 
 .detailsContainer {
   display: grid;
-
-  grid-template-columns: 1fr 1fr;
-
+  grid-template-columns: repeat(2, 1fr);
   gap: layout.$spacing-05;
+  padding: layout.$spacing-05;
+}
+
+.detailTile {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  border-left: 3px solid colors.$blue-60;
+  padding: layout.$spacing-05;
+}
+
+.tileIcon {
+  color: colors.$blue-60;
+  margin-bottom: layout.$spacing-02;
+}
+
+.tileLabel {
+  @include type.type-style('label-01');
+  color: colors.$gray-60;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tileValue {
+  @include type.type-style('heading-02');
+  color: colors.$gray-100;
+  margin: 0;
 }
