@@ -39,7 +39,7 @@ const AwaitingAdmissionPatients = () => {
   const [pageSize, setPageSize] = useState(5);
   const searchResults = useMemo(() => {
     return inpatientRequests?.filter((req) =>
-      req.patient?.person?.display.toLowerCase().includes(search.toLowerCase()),
+      req?.patient?.person?.display.toLowerCase().includes(search.toLowerCase()),
     );
   }, [inpatientRequests, search]);
   const { paginated, results, totalPages, currentPage, goTo } = usePagination(searchResults, pageSize);

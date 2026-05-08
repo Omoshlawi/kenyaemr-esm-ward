@@ -30,7 +30,9 @@ export function useWardPatientGrouping(overrideLocation?: string) {
         }
       }
       for (const inpatientRequest of inpatientRequests) {
-        _patientsNotInCurrentWard.add(inpatientRequest.patient.uuid);
+        if (inpatientRequest?.patient) {
+          _patientsNotInCurrentWard.add(inpatientRequest.patient.uuid);
+        }
       }
 
       for (const admission of inpatientAdmissions) {
