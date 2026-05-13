@@ -2,6 +2,8 @@ import { type Encounter, type FetchResponse, openmrsFetch, restBaseUrl, useConfi
 import useSWR from 'swr';
 import type { WardConfigObject } from '../config-schema';
 import type { InpatientRequest as AdmissionRequest } from '../types';
+import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
+import { useMemo } from 'react';
 
 export const usePatientEncounters = (patientUuid: string) => {
   const { inPatientForms } = useConfig<WardConfigObject>();
@@ -69,5 +71,35 @@ export const useAdmissionLocationTags = (locationUuid?: string) => {
     isLoading,
     error,
     mutate,
+  };
+};
+/**
+ * Show partography component when patient is a female patient, admitted to labour ward
+ * @param patientUuid string
+ */
+export const useShowPatography = (patient: fhir.Patient) => {
+  const isFemale = patient?.gender?.toLowerCase() === 'female';
+
+  const {
+    admissionEncounter,
+    error: admissionError,
+    isLoading: isloadingAdmission,
+    isPatientAdmitted,
+  } = useCurrentPatientAdmissionEncounter(patient?.id);
+  const {
+    error: tagsError,
+    isLoading: isloadingTags,
+    tags,
+  } = useAdmissionLocationTags(admissionEncounter?.location?.uuid);
+  const { inpatientLocationTags } = useConfig<WardConfigObject>();
+  const admissionLocationIsLabourWard = useMemo(
+    () => Object.values(inpatientLocationTags).every((tag) => tags.some((t) => t.uuid === tag)),
+    [inpatientLocationTags, tags],
+  );
+
+  return {
+    isLoading: isloadingAdmission || isloadingTags,
+    error: admissionError ?? tagsError,
+    showPartography: isFemale && isPatientAdmitted && admissionLocationIsLabourWard,
   };
 };
