@@ -515,6 +515,12 @@ export const configSchema: ConfigSchema = {
     _description: 'List of payment methods used when printing gatepass',
     _default: ['Cash [ ]', 'Cheque [ ]', 'SHA [ ]', 'Scheme [ ]', 'M.R.M [ ]'],
   },
+  inpatientLocationTags: {
+    _default: {
+      maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
+      labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
+    },
+  },
 };
 
 export interface WardConfigObject {
@@ -585,6 +591,10 @@ export interface WardConfigObject {
     procedureNotes: string;
   };
   paymentMethods: Array<string>;
+  inpatientLocationTags: {
+    maternityWard: string;
+    labourWard: string;
+  };
 }
 
 export interface PendingItemsElementConfig {
