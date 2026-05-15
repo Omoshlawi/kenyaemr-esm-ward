@@ -153,7 +153,19 @@ export const inPatientChartLink = getSyncLifecycle(
   options,
 );
 
-export const inPatientChartDashboard = getAsyncLifecycle(() => import('./in-patient/in-patient.component'), options);
+export const inPatientChartDashboard = getAsyncLifecycle(
+  () => import('./in-patient/inpatient-tabs.component'),
+  options,
+);
+export const inPatientAdmissionRequest = getAsyncLifecycle(
+  () => import('./in-patient/admission-request.component'),
+  options,
+);
+export const inPatientDetailView = getAsyncLifecycle(
+  () => import('./in-patient/inpatient-detail-view.component'),
+  options,
+);
+export const inPatientPartographView = getAsyncLifecycle(() => import('./in-patient/partograph.component'), options);
 
 export function startupApp() {
   registerBreadcrumbs([]);
