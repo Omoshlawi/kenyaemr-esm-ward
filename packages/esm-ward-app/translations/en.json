@@ -187,6 +187,8 @@
   "other": "Other",
   "otherInsuranceType": "Other Insurance Type",
   "paperNo": "Paper No",
+  "partograph": "Partograph",
+  "partographReason": "Can only show partograph for female patients in Labour Ward",
   "Patient": "patient",
   "patientAbscondend": "Patient Absconded",
   "patientAdmittedButBedNotAssigned": "Patient admitted successfully but fail to assign bed to patient",

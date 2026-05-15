@@ -165,6 +165,7 @@ export const inPatientDetailView = getAsyncLifecycle(
   () => import('./in-patient/inpatient-detail-view.component'),
   options,
 );
+export const inPatientPartographView = getAsyncLifecycle(() => import('./in-patient/partograph.component'), options);
 
 export function startupApp() {
   registerBreadcrumbs([]);

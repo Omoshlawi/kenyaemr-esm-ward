@@ -132,6 +132,15 @@
         "fullWidth": false,
         "title": "inpatientDetails"
       }
+    },
+    {
+      "name": "inpatient-partograph-view",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "inPatientPartographView",
+      "meta": {
+        "fullWidth": false,
+        "title": "partograph"
+      }
     }
   ],
   "modals": [
