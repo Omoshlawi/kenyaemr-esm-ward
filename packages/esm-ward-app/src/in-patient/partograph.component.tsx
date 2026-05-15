@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 type PartographProps = {
   patientUuid: string;
-  patient: FHIRResource;
+  patient: fhir.Patient;
 };
 // t("partograph", "Partograph")
 const Partograph: FC<PartographProps> = ({ patient, patientUuid }) => {
