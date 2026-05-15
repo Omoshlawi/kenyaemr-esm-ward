@@ -1,12 +1,15 @@
 import { DataTableSkeleton, InlineLoading, Layer, Tile } from '@carbon/react';
+import { Alarm, Asleep, Calendar, Location } from '@carbon/react/icons';
 import {
   ErrorState,
+  ExtensionSlot,
   formatDatetime,
   parseDate,
   useConfig,
   usePatient,
   CardHeader,
   EmptyCardIllustration,
+  HospitalBedIcon,
 } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { useMemo, type FC } from 'react';
@@ -107,29 +110,34 @@ const PatientAdmitted: FC<{
         <InpatientForms patientUuid={patientUuid} patient={patient} />
       </CardHeader>
       <div className={styles.detailsContainer}>
-        <Tile>
-          <strong>{t('dateOfAdmission', 'Date of Admission')}</strong>
-          <p>{formatDatetime(dateOfAdmission)}</p>
+        <Tile className={styles.detailTile}>
+          <Calendar size={20} className={styles.tileIcon} />
+          <p className={styles.tileLabel}>{t('dateOfAdmission', 'Date of Admission')}</p>
+          <p className={styles.tileValue}>{dateOfAdmission ? formatDatetime(dateOfAdmission) : '--'}</p>
         </Tile>
-        <Tile>
-          <strong>{t('daysInWard', 'Days in ward')}</strong>
-          <p>{dayasInWard}</p>
+        <Tile className={styles.detailTile}>
+          <Alarm size={20} className={styles.tileIcon} />
+          <p className={styles.tileLabel}>{t('daysInWard', 'Days in ward')}</p>
+          <p className={styles.tileValue}>{dayasInWard}</p>
         </Tile>
-        <Tile>
-          <strong>{t('ward', 'Ward')}</strong>
-          <p>{admissionEncounter?.location?.display}</p>
+        <Tile className={styles.detailTile}>
+          <Location size={20} className={styles.tileIcon} />
+          <p className={styles.tileLabel}>{t('ward', 'Ward')}</p>
+          <p className={styles.tileValue}>{admissionEncounter?.location?.display ?? '--'}</p>
         </Tile>
-        <Tile>
+        <Tile className={styles.detailTile}>
           {isLoading ? (
             <InlineLoading />
           ) : (
             <>
-              <strong>{t('bed', 'Bed')}</strong>
-              <p>{bedLayout?.bedNumber}</p>
+              <HospitalBedIcon size={20} className={styles.tileIcon} />
+              <p className={styles.tileLabel}>{t('bed', 'Bed')}</p>
+              <p className={styles.tileValue}>{bedLayout?.bedNumber ?? '--'}</p>
             </>
           )}
         </Tile>
       </div>
+      <ExtensionSlot name="inpatient-obs-slot" state={{ patientUuid }} />
     </Layer>
   );
 };

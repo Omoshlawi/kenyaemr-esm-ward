@@ -17,14 +17,15 @@ import {
   CardHeader,
   EmptyCard,
   launchWorkspace2,
+  type Encounter,
 } from '@openmrs/esm-framework';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { WardConfigObject } from '../config-schema';
-import { useAdmissionRequest } from './in-patient.resource';
 import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
 import { usePatientChartStore } from '@openmrs/esm-patient-common-lib/src';
+import { useAdmissionRequest } from './in-patient.resource';
 
 type AdmissionRequestProps = {
   patientUuid: string;
@@ -62,12 +63,14 @@ const AdmissionRequest: React.FC<AdmissionRequestProps> = ({ patientUuid }) => {
 
   const handleLaunchAdmissionRequestForm = () => {
     launchWorkspace2(
-      'patient-form-entry-workspace',
+      'ward-form-entry-workspace',
       {
         form: { uuid: admissionRequestFormUuid },
         encounterUuid: '',
+        handlePostResponse: (encounter: Encounter) => {
+          mutate();
+        },
       },
-      {},
       {
         patient,
         patientUuid,

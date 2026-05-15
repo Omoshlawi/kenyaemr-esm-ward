@@ -9,7 +9,6 @@ import { configSchema } from './config-schema';
 import { moduleName } from './constant';
 import { createDashboardLink } from './createDashboardLink.component';
 import { inPatientMeta } from './in-patient/in-patient.meta';
-import InPatient from './in-patient/in-patient.component';
 
 export const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 
@@ -154,7 +153,7 @@ export const inPatientChartLink = getSyncLifecycle(
   options,
 );
 
-export const inPatientChartDashboard = getSyncLifecycle(InPatient, options);
+export const inPatientChartDashboard = getAsyncLifecycle(() => import('./in-patient/in-patient.component'), options);
 
 export function startupApp() {
   registerBreadcrumbs([]);
