@@ -11,7 +11,7 @@ import {
 } from '@openmrs/esm-framework';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ComponentContext } from '@openmrs/esm-framework/src/internal';
+import { ComponentContext, translateFrom } from '@openmrs/esm-framework/src/internal';
 import styles from './inpatient.scss';
 import { moduleName } from '../constant';
 
@@ -44,7 +44,7 @@ const InpatientTabs: FC<InpatientTabsProps> = ({ patientUuid }) => {
       <Tabs>
         <TabList contained>
           {sortedExtensions.map((ext) => (
-            <Tab key={ext.name}>{t(ext.meta.title, ext.meta.title)}</Tab>
+            <Tab key={ext.name}>{translateFrom(ext.moduleName, ext.meta.title, ext.meta.title)}</Tab>
           ))}
         </TabList>
         <TabPanels
