@@ -114,6 +114,24 @@
       "meta": {
         "fullWidth": false
       }
+    },
+    {
+      "name": "in-patient-admission-requests",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "inPatientAdmissionRequest",
+      "meta": {
+        "fullWidth": false,
+        "title": "admissionRequests"
+      }
+    },
+    {
+      "name": "in-patient-detail-view",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "inPatientDetailView",
+      "meta": {
+        "fullWidth": false,
+        "title": "inpatientDetails"
+      }
     }
   ],
   "modals": [
@@ -224,7 +242,7 @@
     {
       "name": "ward-form-entry-workspace",
       "component": "@openmrs/esm-patient-forms-app#exportedPatientFormEntryWorkspace",
-      "window":"ward-form-entry-workspace-window"
+      "window": "ward-form-entry-workspace-window"
     }
   ],
   "workspaceWindows2": [
@@ -240,9 +258,9 @@
       "width": "extra-wide"
     },
     {
-      "name":"ward-form-entry-workspace-window",
-      "group":"patient-chart",
-      "width":"wider"
+      "name": "ward-form-entry-workspace-window",
+      "group": "patient-chart",
+      "width": "wider"
     }
   ],
   "workspaceGroups2": [

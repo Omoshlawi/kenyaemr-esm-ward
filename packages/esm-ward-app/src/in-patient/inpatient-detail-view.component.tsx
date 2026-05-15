@@ -1,15 +1,15 @@
 import { DataTableSkeleton, InlineLoading, Layer, Tile } from '@carbon/react';
-import { Alarm, Asleep, Calendar, Location } from '@carbon/react/icons';
+import { Alarm, Calendar, Location } from '@carbon/react/icons';
 import {
+  CardHeader,
+  EmptyCardIllustration,
   ErrorState,
   ExtensionSlot,
   formatDatetime,
+  HospitalBedIcon,
   parseDate,
   useConfig,
   usePatient,
-  CardHeader,
-  EmptyCardIllustration,
-  HospitalBedIcon,
 } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { useMemo, type FC } from 'react';
@@ -24,6 +24,7 @@ type InpatientDetailViewProps = {
   patientUuid: string;
 };
 
+// t('inpatientDetails', 'Inpatient Detail') - Required for tab title translation
 const InpatientDetailView: FC<InpatientDetailViewProps> = ({ patientUuid }) => {
   const { isLoading: isLoadingPatient, patient, error } = usePatient(patientUuid);
   const {

@@ -18,6 +18,7 @@ import {
   EmptyCard,
   launchWorkspace2,
   type Encounter,
+  parseDate,
 } from '@openmrs/esm-framework';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +31,7 @@ import { useAdmissionRequest } from './in-patient.resource';
 type AdmissionRequestProps = {
   patientUuid: string;
 };
-
+// t('admissionRequests', 'Admission Requests') - Required for tab title translation
 const AdmissionRequest: React.FC<AdmissionRequestProps> = ({ patientUuid }) => {
   const { t } = useTranslation();
   const layout = useLayoutType();
@@ -46,9 +47,11 @@ const AdmissionRequest: React.FC<AdmissionRequestProps> = ({ patientUuid }) => {
       admissionLocation: admissionRequest.dispositionLocation?.display,
       admissionType: admissionRequest.dispositionType,
       disposition: admissionRequest.disposition.display,
-      requestDatetime: formatDatetime(new Date(admissionRequest.dispositionEncounter.encounterDatetime), {
-        mode: 'standard',
-      }),
+      requestDatetime: admissionRequest?.dispositionEncounter?.encounterDatetime
+        ? formatDatetime(parseDate(admissionRequest.dispositionEncounter.encounterDatetime), {
+            mode: 'standard',
+          })
+        : '--',
     }));
   }, [admissionRequest]);
 
