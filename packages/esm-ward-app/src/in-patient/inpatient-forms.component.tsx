@@ -7,10 +7,13 @@ import { type WardConfigObject } from '../config-schema';
 import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
 import { useAdmissionLocationTags } from './in-patient.resource';
 import { usePatientChartStore } from '@openmrs/esm-patient-common-lib/src';
+import styles from './inpatient.scss';
+
 type InpatientFormsProps = {
   patientUuid: string;
   patient: fhir.Patient;
 };
+
 const InpatientForms: FC<InpatientFormsProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
   const { visitContext, mutateVisitContext } = usePatientChartStore(patientUuid);
@@ -39,7 +42,6 @@ const InpatientForms: FC<InpatientFormsProps> = ({ patientUuid, patient }) => {
           ? !form.tags.some((tag) => tags.some((t) => t.uuid === tag.uuid))
           : false;
 
-        // Keep the form if it should NOT be hidden by either condition
         return !shouldHideBasedOnExpression && !shouldHideBasedOnTags;
       }),
     [inPatientForms, patient.birthDate, patient.gender, tags],
@@ -69,10 +71,12 @@ const InpatientForms: FC<InpatientFormsProps> = ({ patientUuid, patient }) => {
   if (isloadingTags || isLoading) return null;
 
   return (
-    <ComboButton size="sm" label={t('inPatientForms', 'In-Patient Forms')}>
-      {filteredForms.map((form) => (
-        <MenuItem key={form.uuid} onClick={() => handleLaunchForm(form)} label={form.label} />
-      ))}
+    <ComboButton size="sm" label={t('inPatientForms', 'In-Patient Forms')} menuAlignment="bottom-end">
+      <div className={styles.scrollableMenu}>
+        {filteredForms.map((form) => (
+          <MenuItem key={form.uuid} onClick={() => handleLaunchForm(form)} label={form.label} />
+        ))}
+      </div>
     </ComboButton>
   );
 };
