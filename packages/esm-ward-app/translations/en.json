@@ -213,6 +213,7 @@
   "notConfigured": "Bed type not configured",
   "note": "Note",
   "notes": "Notes",
+  "notesHelperText": "Document the assessment, complaints, treatment updates, and shift observations.",
   "notesPlaceholder": "Enter structural physical evaluations, patient complaints, or general nursing shift updates",
   "notesRequired": "Progress notes cannot be left blank",
   "notesRequiredForCancellingRequest": "Notes required for cancelling admission or transfer request",
