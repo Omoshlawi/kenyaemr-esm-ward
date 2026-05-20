@@ -515,13 +515,75 @@ export const configSchema: ConfigSchema = {
     _description: 'List of payment methods used when printing gatepass',
     _default: ['Cash [ ]', 'Cheque [ ]', 'SHA [ ]', 'Scheme [ ]', 'M.R.M [ ]'],
   },
+  nursingCardex: {
+    _type: Type.Object,
+    _description: 'Nursing Cardex form concept UUIDs, form field paths and encounter role.',
+    _default: {
+      encounterRoleUuid: 'a0b03050-c99b-11e0-9572-0800200c9a66',
+      concepts: {
+        nursingNotes: '164231AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        actionTaken: '1282AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        yes: '1065AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        no: '1066AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        medicationGivenGroup: '159369AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        fluidsGivenGroup: '161911AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        nameField: '164231AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        timeField: '9c4c7722-ba3e-4bdf-ab97-c04170100037',
+        encounterType: 'b6569074-3b8c-43ba-bd4a-98c445405035',
+        formUuid: '1f81d5e2-3569-40cf-bbb9-361a53ba409b',
+      },
+      formFieldPaths: {
+        nursingNotes: 'nursingNotes~9',
+        actionTaken: 'actionTaKen~10',
+        medicationName: 'medicatIonName~11',
+        medicationMeta: 'medicatIonMeta~11m',
+        medicationTime: 'TtakEn~12',
+        medicationGroup: 'medsRepeat~13',
+        actionTakenFluids: 'actionTaKenIVfluids~14',
+        fluidName: 'flUidName~15',
+        fluidMeta: 'flUidMeta~15m',
+        fluidTime: 'fluiDsTtakEn~16',
+        fluidGroup: 'fluiDsRepeat~17',
+      },
+    },
+  },
   inpatientLocationTags: {
     _default: {
       maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
       labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
     },
   },
-};
+  treatmentChartCardexEncounterTypeUuid: {
+    _description: 'Encounter type uuid for the cardex section of the treatment chart',
+    _type: Type.UUID,
+    _default: 'b6569074-3b8c-43ba-bd4a-98c445405035',
+  },
+  treatmentChartCardexFormUuid: {
+    _description: 'Form uuid for the cardex section of the treatment chart',
+    _type: Type.UUID,
+    _default: '1f81d5e2-3569-40cf-bbb9-361a53ba409b',
+  },
+  treatmentChartMedicationGroupUuid: {
+    _description: 'Concept uuid for the medication group in the cardex section of the treatment chart',
+    _type: Type.UUID,
+    _default: '159369AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  },
+  treatmentChartFluidGroupUuid: {
+    _description: 'Concept uuid for the fluids group in the cardex section of the treatment chart',
+    _type: Type.UUID,
+    _default: '161911AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  },
+  treatmentChartNameConceptUuid: {
+    _description: 'Concept uuid for the name field in the cardex section of the treatment chart',
+    _type: Type.UUID,
+    _default: '164231AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  },
+  treatmentChartTimeConceptUuid: {
+    _description: 'Concept uuid for the time field in the cardex section of the treatment chart',
+    _type: Type.UUID,
+    _default: '9c4c7722-ba3e-4bdf-ab97-c04170100037',
+  },
+} as const;
 
 export interface WardConfigObject {
   patientCardElements: {
@@ -591,12 +653,45 @@ export interface WardConfigObject {
     procedureNotes: string;
   };
   paymentMethods: Array<string>;
+  nursingCardex: {
+    encounterRoleUuid: string;
+    concepts: {
+      nursingNotes: string;
+      actionTaken: string;
+      yes: string;
+      no: string;
+      medicationGivenGroup: string;
+      fluidsGivenGroup: string;
+      nameField: string;
+      timeField: string;
+      encounterType: string;
+      formUuid: string;
+    };
+    formFieldPaths: {
+      nursingNotes: string;
+      actionTaken: string;
+      medicationName: string;
+      medicationMeta: string;
+      medicationTime: string;
+      medicationGroup: string;
+      actionTakenFluids: string;
+      fluidName: string;
+      fluidMeta: string;
+      fluidTime: string;
+      fluidGroup: string;
+    };
+  };
   inpatientLocationTags: {
     maternityWard: string;
     labourWard: string;
   };
+  treatmentChartCardexEncounterTypeUuid: string;
+  treatmentChartCardexFormUuid: string;
+  treatmentChartMedicationGroupUuid: string;
+  treatmentChartFluidGroupUuid: string;
+  treatmentChartNameConceptUuid: string;
+  treatmentChartTimeConceptUuid: string;
 }
-
 export interface PendingItemsElementConfig {
   id: string;
   showPendingItems: boolean;

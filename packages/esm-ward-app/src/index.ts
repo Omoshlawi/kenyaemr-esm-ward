@@ -165,6 +165,14 @@ export const inPatientDetailView = getAsyncLifecycle(
   () => import('./in-patient/inpatient-detail-view.component'),
   options,
 );
+export const nursingCardexPlanWorkspace = getAsyncLifecycle(
+  () => import('./in-patient/treatmentChart/nursing-cardex-plan.workspace'),
+  options,
+);
+export const inPatientTreatmentChart = getAsyncLifecycle(
+  () => import('./in-patient/treatmentChart/treatment-chart-dashboard.component'),
+  options,
+);
 export const inPatientPartographView = getAsyncLifecycle(() => import('./in-patient/partograph.component'), options);
 
 export function startupApp() {

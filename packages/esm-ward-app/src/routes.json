@@ -141,6 +141,15 @@
         "fullWidth": false,
         "title": "partograph"
       }
+    },
+    {
+      "name": "in-patient-treatment-chart",
+      "component": "inPatientTreatmentChart",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "meta": {
+        "fullWidth": false,
+        "title": "treatmentChart"
+      }
     }
   ],
   "modals": [
@@ -252,11 +261,21 @@
       "name": "ward-form-entry-workspace",
       "component": "@openmrs/esm-patient-forms-app#exportedPatientFormEntryWorkspace",
       "window": "ward-form-entry-workspace-window"
+    },
+    {
+      "name": "nursing-cardex-plan-workspace",
+      "component": "nursingCardexPlanWorkspace",
+      "window": "ewf-nursing-cardex"
     }
   ],
   "workspaceWindows2": [
     {
       "name": "kenyaemr-esm-ward-window",
+      "group": "kenyaemr-esm-ward-group",
+      "canMaximize": true
+    },
+    {
+      "name": "ewf-nursing-cardex",
       "group": "kenyaemr-esm-ward-group",
       "canMaximize": true
     },
