@@ -1,19 +1,6 @@
+import { Form, Layer, RadioButton, RadioButtonGroup, Stack, TextArea, TextInput } from '@carbon/react';
+import { formatDate, getPatientName, Workspace2 } from '@openmrs/esm-framework';
 import React, { useMemo } from 'react';
-import {
-  Button,
-  ButtonSet,
-  Form,
-  Layer,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-  RadioButton,
-  RadioButtonGroup,
-  Stack,
-  TextArea,
-  TextInput,
-} from '@carbon/react';
-import { formatDate, getPatientName } from '@openmrs/esm-framework';
 import { useTranslation } from 'react-i18next';
 import styles from './nursing-cardex-plan-form.scss';
 
@@ -23,15 +10,14 @@ type NursingCardexPlanFormProps = {
   patient: Record<string, unknown>;
 };
 
-const NursingCardexPlanForm: React.FC<NursingCardexPlanFormProps> = ({ closeModal, patientUuid, patient }) => {
+const NursingCardexPlanForm: React.FC<NursingCardexPlanFormProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
   const today = useMemo(() => formatDate(new Date(), { mode: 'wide', time: false }), []);
   const patientName = useMemo(() => getPatientName(patient as any) || patientUuid, [patient, patientUuid]);
 
   return (
-    <>
-      <ModalHeader className={styles.modalHeader}>{t('nursingCardexPlanForm', 'Nursing Cardex Plan Form')}</ModalHeader>
-      <ModalBody className={styles.modalBody}>
+    <Workspace2 title={t('nursingCardexPlanForm', 'Nursing Cardex Plan Form')}>
+      <div className={styles.workspaceBody}>
         <Form aria-label={t('nursingCardexPlanForm', 'Nursing Cardex Plan Form')} className={styles.form}>
           <Stack gap={6}>
             <section className={styles.formSection}>
@@ -118,18 +104,8 @@ const NursingCardexPlanForm: React.FC<NursingCardexPlanFormProps> = ({ closeModa
             </section>
           </Stack>
         </Form>
-      </ModalBody>
-      <ModalFooter className={styles.modalFooter}>
-        <ButtonSet className={styles.buttonSet}>
-          <Button kind="secondary" onClick={closeModal}>
-            {t('cancel', 'Cancel')}
-          </Button>
-          <Button kind="primary" onClick={closeModal}>
-            {t('save', 'Save')}
-          </Button>
-        </ButtonSet>
-      </ModalFooter>
-    </>
+      </div>
+    </Workspace2>
   );
 };
 

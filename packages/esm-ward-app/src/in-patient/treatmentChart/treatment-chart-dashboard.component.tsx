@@ -11,8 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from '@carbon/react';
-import { launchWorkspace2 } from '@openmrs/esm-framework';
-import React, { useEffect, useMemo, useState } from 'react';
+import { launchWorkspace2, usePagination } from '@openmrs/esm-framework';
+import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type NursingCardexPlanWorkspaceProps } from './nursing-cardex-plan.workspace';
 import { useNursingTreatmentSheet } from './nursing-treatment-sheet.resource';
@@ -24,11 +25,30 @@ type TreatmentChartDashboardProps = {
 };
 
 // t('treatmentChart', 'Treatment Chart')
+// t('failed-to-load-nursing-treatment-sheet', 'Failed to load nursing treatment sheet')
+// t('loading', 'Loading...')
+// t('nursingTreatmentSheet', 'Nursing Treatment Sheet')
+// t('add', 'Add')
+// t('name', 'Name')
+// t('dose', 'Dose')
+// t('route', 'Route')
+// t('frequencies', 'Frequencies')
+// t('timeTaken', 'Time taken')
+// t('dateGiven', 'Date Given')
+// t('provider', 'Provider')
+// t('medicationAdministered', 'Medication Administered')
+// t('noMedicationData', 'No medication records found')
+// t('fluidName', 'Fluid name')
+// t('volume', 'Volume')
+// t('frequency', 'Frequency')
+// t('rate', 'Rate')
+// t('duration', 'Duration')
+// t('timeGiven', 'Time Given')
+// t('fluidsAndParenteralNutritionSection', 'Fluids and Parenteral Nutrition Section')
+// t('noFluidData', 'No fluid records found')
 const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
-  const [medicationPage, setMedicationPage] = useState(1);
   const [medicationPageSize, setMedicationPageSize] = useState(5);
-  const [fluidPage, setFluidPage] = useState(1);
   const [fluidPageSize, setFluidPageSize] = useState(5);
 
   const {
@@ -41,30 +61,42 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
   const medicationRows = allMedicationRows;
   const fluidRows = allFluidRows;
 
-  useEffect(() => {
-    setMedicationPage(1);
-  }, [medicationRows.length]);
-
-  useEffect(() => {
-    setFluidPage(1);
-  }, [fluidRows.length]);
-
-  const paginatedMedicationRows = useMemo(() => {
-    const startIndex = (medicationPage - 1) * medicationPageSize;
-    return medicationRows.slice(startIndex, startIndex + medicationPageSize);
-  }, [medicationPage, medicationPageSize, medicationRows]);
-
-  const paginatedFluidRows = useMemo(() => {
-    const startIndex = (fluidPage - 1) * fluidPageSize;
-    return fluidRows.slice(startIndex, startIndex + fluidPageSize);
-  }, [fluidPage, fluidPageSize, fluidRows]);
+  const {
+    results: paginatedMedicationRows,
+    currentPage: medicationPage,
+    goTo: goToMedicationPage,
+  } = usePagination(medicationRows, medicationPageSize);
+  const {
+    results: paginatedFluidRows,
+    currentPage: fluidPage,
+    goTo: goToFluidPage,
+  } = usePagination(fluidRows, fluidPageSize);
+  const { pageSizes: medicationPageSizes } = usePaginationInfo(
+    medicationPageSize,
+    medicationRows.length,
+    medicationPage,
+    paginatedMedicationRows.length,
+  );
+  const { pageSizes: fluidPageSizes } = usePaginationInfo(
+    fluidPageSize,
+    fluidRows.length,
+    fluidPage,
+    paginatedFluidRows.length,
+  );
 
   if (isLoading) {
     return <InlineLoading description={t('loading', 'Loading...')} />;
   }
 
   if (error) {
-    return <InlineNotification kind="error" lowContrast hideCloseButton title={error} />;
+    return (
+      <InlineNotification
+        kind="error"
+        lowContrast
+        hideCloseButton
+        title={t('failed-to-load-nursing-treatment-sheet', 'Failed to load nursing treatment sheet')}
+      />
+    );
   }
 
   return (
@@ -124,10 +156,10 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
       <Pagination
         page={medicationPage}
         pageSize={medicationPageSize}
-        pageSizes={[5, 10, 20]}
+        pageSizes={medicationPageSizes}
         totalItems={medicationRows.length}
         onChange={({ page, pageSize }) => {
-          setMedicationPage(page);
+          goToMedicationPage(page);
           setMedicationPageSize(pageSize);
         }}
       />
@@ -171,10 +203,10 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
         <Pagination
           page={fluidPage}
           pageSize={fluidPageSize}
-          pageSizes={[5, 10, 20]}
+          pageSizes={fluidPageSizes}
           totalItems={fluidRows.length}
           onChange={({ page, pageSize }) => {
-            setFluidPage(page);
+            goToFluidPage(page);
             setFluidPageSize(pageSize);
           }}
         />

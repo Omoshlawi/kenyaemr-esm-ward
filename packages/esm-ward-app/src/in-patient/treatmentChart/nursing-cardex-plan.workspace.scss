@@ -52,27 +52,28 @@
 }
 
 .notesField {
-  display: block;
+  display: grid;
+  gap: layout.$spacing-03;
 }
 
-.notesField :global(.cds--label) {
+.notesLabel {
   font-weight: 600;
   color: colors.$gray-90;
 }
 
-.notesField :global(.cds--form__helper-text) {
+.notesHelperText {
+  margin: 0;
   color: colors.$gray-70;
-  margin-bottom: layout.$spacing-03;
 }
 
-.notesField :global(.cds--text-area) {
+.notesTextArea {
   min-height: 10rem;
   background: colors.$white;
   border: 1px solid colors.$gray-30;
   border-radius: 4px;
 }
 
-.notesField :global(.cds--text-area::placeholder) {
+.notesTextArea::placeholder {
   color: colors.$gray-50;
 }
 

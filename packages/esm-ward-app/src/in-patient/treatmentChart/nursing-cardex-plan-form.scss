@@ -1,38 +1,7 @@
 @use '@carbon/layout';
 @use '@carbon/colors';
 
-.sidePanelModal :global(.cds--modal-container) {
-  position: fixed;
-  inset: 0 0 0 auto;
-  width: min(42rem, 100vw);
-  max-width: 42rem;
-  height: 100vh;
-  max-height: 100vh;
-  border-radius: 0;
-}
-
-.sidePanelModal :global(.cds--modal-header),
-.sidePanelModal :global(.cds--modal-content),
-.sidePanelModal :global(.cds--modal-footer) {
-  padding-left: layout.$spacing-06;
-  padding-right: layout.$spacing-06;
-}
-
-.sidePanelModal :global(.cds--modal-content) {
-  padding-bottom: layout.$spacing-07;
-}
-
-.sidePanelModal :global(.cds--modal-close) {
-  top: layout.$spacing-05;
-  right: layout.$spacing-05;
-}
-
-.modalHeader {
-  padding-top: layout.$spacing-06;
-  border-bottom: 1px solid colors.$gray-20;
-}
-
-.modalBody {
+.workspaceBody {
   background: colors.$white;
 }
 
@@ -69,18 +38,4 @@
   padding: layout.$spacing-04;
   background: colors.$gray-10;
   border-radius: 0.25rem;
-}
-
-.modalFooter {
-  border-top: 1px solid colors.$gray-20;
-}
-
-.buttonSet {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.buttonSet :global(.cds--btn) {
-  max-width: none;
 }

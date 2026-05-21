@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import useSWR from 'swr';
 import { type FetchResponse, openmrsFetch, restBaseUrl, useConfig } from '@openmrs/esm-framework';
 import { type WardConfigObject } from '../../config-schema';
-
-const CARDEX_META_PREFIX = '__CARDEX_META__:';
+import { CARDEX_META_PREFIX } from './nursing-cardex-plan.resource';
+import { t } from 'i18next';
 
 const REP =
   'custom:(uuid,encounterDatetime,form:(uuid),' +
@@ -41,7 +41,7 @@ export type CardexRow = {
   itemAndAdministrationInstructions: string;
 };
 
-type CardexOrderMeta = {
+export type CardexOrderMeta = {
   orderUuid?: string;
   orderDisplay?: string;
   dose?: number;
@@ -72,12 +72,36 @@ const fmtTime = (raw: string) => {
   if (!raw) {
     return '--';
   }
-  const iso = raw.includes('T') ? raw : raw.replace(' ', 'T');
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) {
-    return raw;
+
+  // Extract hours and minutes from various datetime formats without timezone conversion.
+  // Matches: 2026-05-21 12:09:00, 2026-05-21T12:09:00, 2026-05-21T12:09:00.000, 2026-05-21T12:09:00.000+0000, 2026-05-21T12:09:00.000+00:00, etc.
+  const dateTimeMatch = raw.match(
+    /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:[Z+-]\d{2}:?\d{2})?$/,
+  );
+  let hours = 0;
+  let minutes = 0;
+
+  if (dateTimeMatch) {
+    hours = parseInt(dateTimeMatch[2], 10);
+    minutes = parseInt(dateTimeMatch[3], 10);
+  } else {
+    const timeOnlyMatch = raw.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+    if (timeOnlyMatch) {
+      hours = parseInt(timeOnlyMatch[1], 10);
+      minutes = parseInt(timeOnlyMatch[2], 10);
+    } else {
+      return raw;
+    }
   }
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const localized = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(1970, 0, 1, hours, minutes)));
+
+  return localized;
 };
 
 const fmtDate = (raw?: string) => {
@@ -102,40 +126,30 @@ const parseCardexMeta = (raw: string): CardexOrderMeta | undefined => {
   }
 };
 
+const emptyValue = '--';
+
 const formatDose = (meta?: CardexOrderMeta) => {
   if (!meta) {
-    return '--';
+    return emptyValue;
   }
   const pieces = [meta.dose, meta.doseUnits].map((v) => (v ?? '').toString().trim()).filter(Boolean);
-  return pieces.length ? pieces.join(' ') : '--';
+  return pieces.length ? pieces.join(' ') : emptyValue;
 };
 
 const formatVolume = (meta?: CardexOrderMeta) => {
   if (!meta) {
-    return '--';
+    return emptyValue;
   }
   const pieces = [meta.quantity, meta.quantityUnits].map((v) => (v ?? '').toString().trim()).filter(Boolean);
-  return pieces.length ? pieces.join(' ') : '--';
+  return pieces.length ? pieces.join(' ') : emptyValue;
 };
 
 const formatDuration = (meta?: CardexOrderMeta) => {
   if (!meta) {
-    return '--';
+    return emptyValue;
   }
   const pieces = [meta.duration, meta.durationUnits].map((v) => (v ?? '').toString().trim()).filter(Boolean);
-  return pieces.length ? pieces.join(' ') : '--';
-};
-
-const formatItemAndAdministrationInstructions = (meta?: CardexOrderMeta) => {
-  if (!meta) {
-    return '--';
-  }
-  return [
-    `Volume: ${formatVolume(meta)}`,
-    `Frequency: ${meta.frequency || '--'}`,
-    `Route: ${meta.route || '--'}`,
-    `Duration: ${formatDuration(meta)}`,
-  ].join(' | ');
+  return pieces.length ? pieces.join(' ') : emptyValue;
 };
 
 const hasCardexGroupObs = (enc: RawEncounter, medicationGroupUuid: string, fluidGroupUuid: string) =>
@@ -185,7 +199,7 @@ const extractRows = (
           frequency: metadata?.frequency || '--',
           volume: formatVolume(metadata),
           duration: formatDuration(metadata),
-          itemAndAdministrationInstructions: formatItemAndAdministrationInstructions(metadata),
+          itemAndAdministrationInstructions: emptyValue,
         };
       });
   });
@@ -200,8 +214,12 @@ export function useNursingTreatmentSheet(patientUuid: string) {
     treatmentChartTimeConceptUuid,
   } = useConfig<WardConfigObject>();
 
+  const encounterTypeQuery = treatmentChartCardexEncounterTypeUuid
+    ? `&encounterType=${treatmentChartCardexEncounterTypeUuid}`
+    : '';
+
   const url = patientUuid
-    ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${treatmentChartCardexEncounterTypeUuid}&v=${encodeURIComponent(
+    ? `${restBaseUrl}/encounter?patient=${patientUuid}${encounterTypeQuery}&v=${encodeURIComponent(
         REP,
       )}&limit=100&order=desc`
     : null;
@@ -259,7 +277,7 @@ export function useNursingTreatmentSheet(patientUuid: string) {
     fluidAndNutritionRows,
     encounters,
     isLoading,
-    error: error ? 'Failed to load nursing treatment sheet' : undefined,
+    error: error ? { message: t('failed-to-load-nursing-treatment-sheet') } : undefined,
     mutate,
   };
 }

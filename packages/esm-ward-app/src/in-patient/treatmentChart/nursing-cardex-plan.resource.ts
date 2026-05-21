@@ -1,46 +1,29 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
 import { type FetchResponse, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
+import { type Order } from '@openmrs/esm-patient-common-lib';
 
-export type ActiveOrder = {
-  uuid: string;
+export const CARDEX_META_PREFIX = '__CARDEX_META__:';
+
+type UuidDisplayResource = {
+  uuid?: string;
   display?: string;
-  drug?: {
-    uuid?: string;
-    display?: string;
-  };
-  dose?: number;
-  doseUnits?: {
-    uuid?: string;
-    display?: string;
-  };
-  route?: {
-    uuid?: string;
-    display?: string;
-  };
-  frequency?: {
-    uuid?: string;
-    display?: string;
-  };
-  quantity?: number;
-  quantityUnits?: {
-    uuid?: string;
-    display?: string;
-  };
-  duration?: number;
-  durationUnits?: {
-    uuid?: string;
-    display?: string;
-  };
-  orderer?: {
-    uuid?: string;
-    display?: string;
-    person?: {
-      uuid?: string;
-      display?: string;
-    };
-  };
 };
+
+export type ActiveOrder = Pick<Order, 'uuid'> &
+  Partial<Pick<Order, 'display' | 'dose' | 'quantity' | 'duration'>> & {
+    drug?: Order['drug'] | UuidDisplayResource | null;
+    doseUnits?: Order['doseUnits'] | UuidDisplayResource | null;
+    route?: Order['route'] | UuidDisplayResource | null;
+    frequency?: Order['frequency'] | UuidDisplayResource | null;
+    quantityUnits?: Order['quantityUnits'] | UuidDisplayResource | null;
+    durationUnits?: Order['durationUnits'] | UuidDisplayResource | null;
+    orderer?:
+      | (Order['orderer'] & {
+          person?: Order['orderer']['person'] & { uuid?: string };
+        })
+      | null;
+  };
 
 export type ActiveOrderResponse = {
   results: Array<ActiveOrder>;
@@ -107,10 +90,31 @@ export function useActiveNursingOrders(patientUuid?: string) {
   };
 }
 
+export function toEncounterDatetimeFromTime(time: string): string | null {
+  if (!time) {
+    return null;
+  }
+
+  const [hours, minutes] = time.split(':').map((value) => Number(value));
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hoursStr = String(hours).padStart(2, '0');
+  const minsStr = String(minutes).padStart(2, '0');
+  const secs = '00';
+
+  return `${year}-${month}-${day} ${hoursStr}:${minsStr}:${secs}`;
+}
+
 export function saveNursingCardexEncounter(payload: unknown) {
   return openmrsFetch(`${restBaseUrl}/encounter`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: payload,
+    body: payload as Record<string, unknown>,
   });
 }
