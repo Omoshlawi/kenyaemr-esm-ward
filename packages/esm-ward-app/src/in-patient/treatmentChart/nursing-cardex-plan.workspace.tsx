@@ -24,20 +24,13 @@ import {
   Workspace2,
   type Workspace2DefinitionProps,
 } from '@openmrs/esm-framework';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useSWRConfig } from 'swr';
 import { type WardConfigObject } from '../../config-schema';
-import {
-  CARDEX_META_PREFIX,
-  getOrderLabel,
-  saveNursingCardexEncounter,
-  toEncounterDatetimeFromTime,
-  useActiveNursingOrders,
-  type ActiveOrder,
-  type OrderOption,
-} from './nursing-cardex-plan.resource';
+import { saveNursingCardexEncounter, useActiveNursingOrders, type OrderOption } from './nursing-cardex-plan.resource';
+import { buildNursingCardexEncounterPayload } from './nursing-cardex-payload-builder';
 import { useNursingCardexFormSchema, type CardexFormValues, type CardexRow } from './use-nursing-cardex-form-schema';
 import styles from './nursing-cardex-plan.workspace.scss';
 
@@ -90,41 +83,6 @@ const NursingCardexPlanWorkspace: React.FC<
     isLoading: isLoadingActiveOrders,
   } = useActiveNursingOrders(patientUuid);
 
-  const toCardexOrderMeta = useCallback(
-    (order: ActiveOrder) => ({
-      metadataVersion: '2.0',
-      orderUuid: order.uuid,
-      orderDisplay: getOrderLabel(order),
-      drugUuid: order.drug?.uuid,
-      drugDisplay: order.drug?.display,
-      dose: order.dose,
-      doseUnits: order.doseUnits?.display,
-      doseUnitsUuid: order.doseUnits?.uuid,
-      route: order.route?.display,
-      routeUuid: order.route?.uuid,
-      frequency: order.frequency?.display,
-      frequencyUuid: order.frequency?.uuid,
-      quantity: order.quantity,
-      quantityUnits: order.quantityUnits?.display,
-      quantityUnitsUuid: order.quantityUnits?.uuid,
-      duration: order.duration,
-      durationUnits: order.durationUnits?.display,
-      durationUnitsUuid: order.durationUnits?.uuid,
-      provider: order.orderer?.person?.display || order.orderer?.display,
-      ordererUuid: order.orderer?.uuid,
-      ordererPersonUuid: order.orderer?.person?.uuid,
-      conceptUuids: {
-        encounterType: NURSING_CONCEPTS.encounterType,
-        form: NURSING_CONCEPTS.formUuid,
-        medicationGroup: NURSING_CONCEPTS.medicationGivenGroup,
-        fluidGroup: NURSING_CONCEPTS.fluidsGivenGroup,
-        nameField: NURSING_CONCEPTS.nameField,
-        timeField: NURSING_CONCEPTS.timeField,
-      },
-    }),
-    [NURSING_CONCEPTS],
-  );
-
   const {
     control,
     handleSubmit,
@@ -172,6 +130,7 @@ const NursingCardexPlanWorkspace: React.FC<
   const fluidsAdministered = useWatch({ control, name: 'fluidsAdministered' }) ?? '';
   const watchedFluidRows = useWatch({ control, name: 'fluidRows' });
   const fluidRows = useMemo(() => watchedFluidRows ?? [], [watchedFluidRows]);
+  const [isSubmittingEncounter, setIsSubmittingEncounter] = useState(false);
   const initialRouteRef = useRef<string>(`${window.location.pathname}${window.location.search}${window.location.hash}`);
   const initialPatientUuidRef = useRef<string | undefined>(patientUuid);
   const hasAutoClosedRef = useRef(false);
@@ -300,7 +259,7 @@ const NursingCardexPlanWorkspace: React.FC<
   );
 
   const onSubmit = useCallback(
-    (values: CardexFormValues) => {
+    async (values: CardexFormValues) => {
       if (
         !patientUuid ||
         !sessionLocation?.uuid ||
@@ -323,169 +282,43 @@ const NursingCardexPlanWorkspace: React.FC<
 
       clearErrors(['medicationRows', 'fluidRows']);
 
-      // Build O3-compliant observations array
-      const observationPayload: Array<any> = [
-        {
-          concept: NURSING_CONCEPTS.nursingNotes,
-          value: values.nursingNotes,
-          formFieldNamespace: 'O3',
-          formFieldPath: FORM_FIELD_PATHS.nursingNotes,
-        },
-        {
-          concept: NURSING_CONCEPTS.actionTaken,
-          value: values.medicationAdministered === 'yes' ? NURSING_CONCEPTS.yes : NURSING_CONCEPTS.no,
-          formFieldNamespace: 'O3',
-          formFieldPath: FORM_FIELD_PATHS.actionTaken,
-        },
-        {
-          concept: NURSING_CONCEPTS.actionTaken,
-          value: values.fluidsAdministered === 'yes' ? NURSING_CONCEPTS.yes : NURSING_CONCEPTS.no,
-          formFieldNamespace: 'O3',
-          formFieldPath: FORM_FIELD_PATHS.actionTakenFluids,
-        },
-      ];
+      const encounterPayload = buildNursingCardexEncounterPayload({
+        values,
+        patientUuid,
+        currentVisitUuid: currentVisit.uuid,
+        sessionLocationUuid: sessionLocation.uuid,
+        currentProviderUuid: currentProvider.uuid,
+        encounterRoleUuid: ENCOUNTER_ROLE_UUID,
+        concepts: NURSING_CONCEPTS,
+        formFieldPaths: FORM_FIELD_PATHS,
+        activeOrdersByUuid,
+        activeOrdersByName,
+      });
 
-      // Add medication obs groups
-      if (values.medicationAdministered === 'yes') {
-        values.medicationRows.forEach((row: CardexRow) => {
-          if (!row.name?.trim() && !row.time?.trim()) {
-            return;
-          }
-
-          const groupMembers: Array<any> = [];
-          if (row.name?.trim()) {
-            groupMembers.push({
-              concept: NURSING_CONCEPTS.nameField,
-              value: row.name.trim(),
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.medicationName,
-            });
-          }
-
-          const selectedOrder =
-            (row.orderUuid ? activeOrdersByUuid.get(row.orderUuid) : undefined) ||
-            activeOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
-          if (selectedOrder) {
-            groupMembers.push({
-              concept: NURSING_CONCEPTS.nameField,
-              value: `${CARDEX_META_PREFIX}${JSON.stringify(toCardexOrderMeta(selectedOrder))}`,
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.medicationMeta,
-            });
-          }
-
-          const timeValue = toEncounterDatetimeFromTime(row.time);
-          if (timeValue) {
-            groupMembers.push({
-              concept: NURSING_CONCEPTS.timeField,
-              value: timeValue,
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.medicationTime,
-            });
-          }
-
-          if (groupMembers.length > 0) {
-            observationPayload.push({
-              concept: NURSING_CONCEPTS.medicationGivenGroup,
-              groupMembers,
-              voided: false,
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.medicationGroup,
-            });
-          }
+      try {
+        setIsSubmittingEncounter(true);
+        await saveNursingCardexEncounter(encounterPayload);
+        const treatmentChartKeyPrefix = `${restBaseUrl}/encounter?patient=${patientUuid}`;
+        mutateCache((key) => typeof key === 'string' && key.startsWith(treatmentChartKeyPrefix), undefined, {
+          revalidate: true,
         });
+
+        showSnackbar({
+          title: t('cardexSaved', 'Cardex nursing plan saved'),
+          kind: 'success',
+          subtitle: t('cardexSavedDescription', 'Encounter posted successfully.'),
+        });
+        closeWorkspace({ discardUnsavedChanges: true });
+      } catch (error) {
+        showSnackbar({
+          title: t('failedToSaveCardex', 'Failed to save cardex nursing plan'),
+          kind: 'error',
+          subtitle:
+            error instanceof Error ? error.message : t('unexpectedError', 'An unexpected error occurred while saving.'),
+        });
+      } finally {
+        setIsSubmittingEncounter(false);
       }
-
-      // Add fluid obs groups
-      if (values.fluidsAdministered === 'yes') {
-        values.fluidRows.forEach((row: CardexRow) => {
-          if (!row.name?.trim() && !row.time?.trim()) {
-            return;
-          }
-
-          const groupMembers: Array<any> = [];
-          if (row.name?.trim()) {
-            groupMembers.push({
-              concept: NURSING_CONCEPTS.nameField,
-              value: row.name.trim(),
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.fluidName,
-            });
-          }
-
-          const selectedOrder =
-            (row.orderUuid ? activeOrdersByUuid.get(row.orderUuid) : undefined) ||
-            activeOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
-          if (selectedOrder) {
-            groupMembers.push({
-              concept: NURSING_CONCEPTS.nameField,
-              value: `${CARDEX_META_PREFIX}${JSON.stringify(toCardexOrderMeta(selectedOrder))}`,
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.fluidMeta,
-            });
-          }
-
-          const timeValue = toEncounterDatetimeFromTime(row.time);
-          if (timeValue) {
-            groupMembers.push({
-              concept: NURSING_CONCEPTS.timeField,
-              value: timeValue,
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.fluidTime,
-            });
-          }
-
-          if (groupMembers.length > 0) {
-            observationPayload.push({
-              concept: NURSING_CONCEPTS.fluidsGivenGroup,
-              groupMembers,
-              voided: false,
-              formFieldNamespace: 'O3',
-              formFieldPath: FORM_FIELD_PATHS.fluidGroup,
-            });
-          }
-        });
-      }
-
-      // Build O3-compliant encounter payload
-      const encounterPayload = {
-        encounterProviders: [
-          {
-            provider: currentProvider.uuid,
-            encounterRole: ENCOUNTER_ROLE_UUID,
-          },
-        ],
-        patient: patientUuid,
-        visit: currentVisit.uuid,
-        location: sessionLocation.uuid,
-        encounterType: NURSING_CONCEPTS.encounterType,
-        form: NURSING_CONCEPTS.formUuid,
-        obs: observationPayload,
-        orders: [],
-        diagnoses: [],
-      };
-
-      saveNursingCardexEncounter(encounterPayload)
-        .then(() => {
-          const treatmentChartKeyPrefix = `${restBaseUrl}/encounter?patient=${patientUuid}`;
-          mutateCache((key) => typeof key === 'string' && key.startsWith(treatmentChartKeyPrefix), undefined, {
-            revalidate: true,
-          });
-
-          showSnackbar({
-            title: t('cardexSaved', 'Cardex nursing plan saved'),
-            kind: 'success',
-            subtitle: t('cardexSavedDescription', 'Encounter posted successfully.'),
-          });
-          closeWorkspace({ discardUnsavedChanges: true });
-        })
-        .catch((error) => {
-          showSnackbar({
-            title: t('failedToSaveCardex', 'Failed to save cardex nursing plan'),
-            kind: 'error',
-            subtitle: error?.message || t('unexpectedError', 'An unexpected error occurred while saving.'),
-          });
-        });
     },
     [
       patientUuid,
@@ -497,9 +330,9 @@ const NursingCardexPlanWorkspace: React.FC<
       NURSING_CONCEPTS,
       FORM_FIELD_PATHS,
       ENCOUNTER_ROLE_UUID,
-      toCardexOrderMeta,
       closeWorkspace,
       clearErrors,
+      setIsSubmittingEncounter,
       mutateCache,
       t,
     ],
@@ -763,11 +596,12 @@ const NursingCardexPlanWorkspace: React.FC<
             <Button
               className={styles.button}
               kind="secondary"
+              disabled={isSubmittingEncounter}
               onClick={() => closeWorkspace({ discardUnsavedChanges: true })}>
               {t('cancel', 'Cancel')}
             </Button>
-            <Button className={styles.button} kind="primary" type="submit">
-              {t('saveAndClose', 'Save and close')}
+            <Button className={styles.button} kind="primary" type="submit" disabled={isSubmittingEncounter}>
+              {isSubmittingEncounter ? t('savingCardex', 'Saving...') : t('saveAndClose', 'Save and close')}
             </Button>
           </ButtonSet>
         </Form>
