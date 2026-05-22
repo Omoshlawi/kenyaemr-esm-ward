@@ -110,6 +110,7 @@
   "errorLoadingWards": "Error loading wards",
   "errorMessageForSettingDefaultWard": "Proceed to selected ward view, your preference has not been set, you can try again",
   "errorSettingDefaultWard": "Error setting default ward view",
+  "failed-to-load-nursing-treatment-sheet": "Failed to load nursing treatment sheet",
   "failedToSaveCardex": "Failed to save cardex nursing plan",
   "female": "Female",
   "fetchingEmrConfigurationFailed": "Fetching EMR configuration failed. Try refreshing the page or contact your system administrator.",

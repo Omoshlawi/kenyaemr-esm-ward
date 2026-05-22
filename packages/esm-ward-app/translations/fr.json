@@ -113,6 +113,7 @@
   "errorLoadingWards": "Erreur lors du chargement des services",
   "errorMessageForSettingDefaultWard": "Accédez au service sélectionné, votre préférence n’a pas été enregistrée",
   "errorSettingDefaultWard": "Erreur lors de la définition du service par défaut",
+  "failed-to-load-nursing-treatment-sheet": "Failed to load nursing treatment sheet",
   "failedToSaveCardex": "Failed to save cardex nursing plan",
   "female": "Femme",
   "fetchingEmrConfigurationFailed": "Échec du chargement de la configuration EMR",

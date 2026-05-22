@@ -24,11 +24,10 @@ import {
   Workspace2,
   type Workspace2DefinitionProps,
 } from '@openmrs/esm-framework';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useSWRConfig } from 'swr';
-import { z } from 'zod';
 import { type WardConfigObject } from '../../config-schema';
 import {
   CARDEX_META_PREFIX,
@@ -39,6 +38,7 @@ import {
   type ActiveOrder,
   type OrderOption,
 } from './nursing-cardex-plan.resource';
+import { useNursingCardexFormSchema, type CardexFormValues, type CardexRow } from './use-nursing-cardex-form-schema';
 import styles from './nursing-cardex-plan.workspace.scss';
 
 export type NursingCardexPlanWorkspaceProps = {
@@ -58,14 +58,6 @@ type FluidRow = {
   orderUuid?: string;
 };
 
-type CardexFormValues = {
-  nursingNotes: string;
-  medicationAdministered: '' | 'yes' | 'no';
-  medicationRows: MedicationRow[];
-  fluidsAdministered: '' | 'yes' | 'no';
-  fluidRows: FluidRow[];
-};
-
 type RowField = { id: string };
 
 const NursingCardexPlanWorkspace: React.FC<
@@ -78,78 +70,18 @@ const NursingCardexPlanWorkspace: React.FC<
   const { currentVisit } = useVisit(patientUuid ?? '');
   const { nursingCardex } = useConfig<WardConfigObject>();
   const today = useMemo(() => formatDate(new Date(), { mode: 'wide', time: false }), []);
-  const patientName = useMemo(() => getPatientName(patient as any) || patientUuid, [patient, patientUuid]);
+  const patientName = useMemo(() => getPatientName(patient as any) || patientUuid || '', [patient, patientUuid]);
   const currentTimeMax = useMemo(() => {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes}`;
   }, []);
-  const NURSING_CONCEPTS = nursingCardex.concepts;
-  const FORM_FIELD_PATHS = nursingCardex.formFieldPaths;
-  const ENCOUNTER_ROLE_UUID = nursingCardex.encounterRoleUuid;
+  const NURSING_CONCEPTS = nursingCardex?.concepts;
+  const FORM_FIELD_PATHS = nursingCardex?.formFieldPaths;
+  const ENCOUNTER_ROLE_UUID = nursingCardex?.encounterRoleUuid;
 
-  const cardexSchema = useMemo(() => {
-    const rowSchema = z.object({
-      name: z.string().trim().optional().default(''),
-      time: z.string().optional().default(''),
-      orderUuid: z.string().optional(),
-    });
-
-    return z
-      .object({
-        nursingNotes: z.string().trim().min(1, t('notesRequired', 'Progress notes cannot be left blank')),
-        medicationAdministered: z.enum(['', 'yes', 'no']),
-        medicationRows: z.array(rowSchema),
-        fluidsAdministered: z.enum(['', 'yes', 'no']),
-        fluidRows: z.array(rowSchema),
-      })
-      .superRefine((values, context) => {
-        if (values.medicationAdministered === 'yes') {
-          if (!values.medicationRows.length) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['medicationRows'],
-              message: t('medicationRowRequired', 'Add at least one medication row.'),
-            });
-          } else if (values.medicationRows.some((row) => !row.name?.trim() || !row.time?.trim())) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['medicationRows'],
-              message: t('medicationFieldsRequired', 'Medication name and time are required for each row.'),
-            });
-          } else if (values.medicationRows.some((row) => row.time > currentTimeMax)) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['medicationRows'],
-              message: t('futureTimeError', 'Cannot select a future time'),
-            });
-          }
-        }
-
-        if (values.fluidsAdministered === 'yes') {
-          if (!values.fluidRows.length) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['fluidRows'],
-              message: t('fluidRowRequired', 'Add at least one fluid row.'),
-            });
-          } else if (values.fluidRows.some((row) => !row.name?.trim() || !row.time?.trim())) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['fluidRows'],
-              message: t('fluidFieldsRequired', 'Fluid name and time are required for each row.'),
-            });
-          } else if (values.fluidRows.some((row) => row.time > currentTimeMax)) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['fluidRows'],
-              message: t('futureTimeError', 'Cannot select a future time'),
-            });
-          }
-        }
-      });
-  }, [currentTimeMax, t]);
+  const cardexSchema = useNursingCardexFormSchema(currentTimeMax, t);
 
   const {
     options: activeOrderOptions,
@@ -240,11 +172,69 @@ const NursingCardexPlanWorkspace: React.FC<
   const fluidsAdministered = useWatch({ control, name: 'fluidsAdministered' }) ?? '';
   const watchedFluidRows = useWatch({ control, name: 'fluidRows' });
   const fluidRows = useMemo(() => watchedFluidRows ?? [], [watchedFluidRows]);
+  const initialRouteRef = useRef<string>(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  const initialPatientUuidRef = useRef<string | undefined>(patientUuid);
+  const hasAutoClosedRef = useRef(false);
+
+  useEffect(() => {
+    if (hasAutoClosedRef.current) return;
+
+    if (!patientUuid) {
+      hasAutoClosedRef.current = true;
+      closeWorkspace({ discardUnsavedChanges: true });
+      return;
+    }
+
+    if (initialPatientUuidRef.current && patientUuid !== initialPatientUuidRef.current) {
+      hasAutoClosedRef.current = true;
+      closeWorkspace({ discardUnsavedChanges: true });
+    }
+  }, [closeWorkspace, patientUuid]);
+
+  useEffect(() => {
+    const closeOnRouteChange = () => {
+      if (hasAutoClosedRef.current) return;
+
+      const currentRoute = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (currentRoute !== initialRouteRef.current) {
+        hasAutoClosedRef.current = true;
+        closeWorkspace({ discardUnsavedChanges: true });
+      }
+    };
+
+    const handleLocationChange = () => closeOnRouteChange();
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+
+    window.history.pushState = function (...args) {
+      const result = originalPushState.apply(this, args);
+      window.dispatchEvent(new Event('locationchange'));
+      return result;
+    };
+
+    window.history.replaceState = function (...args) {
+      const result = originalReplaceState.apply(this, args);
+      window.dispatchEvent(new Event('locationchange'));
+      return result;
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    window.addEventListener('locationchange', handleLocationChange);
+
+    return () => {
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+      window.removeEventListener('locationchange', handleLocationChange);
+    };
+  }, [closeWorkspace]);
 
   const handleMedicationAdministeredChange = useCallback(
     (value: string) => {
       if (value === 'no' && medicationAdministered === 'yes') {
-        const hasEnteredMedicationData = medicationRows.some((row) => row.name.trim() || row.time.trim());
+        const hasEnteredMedicationData = medicationRows.some((row: CardexRow) => row.name?.trim() || row.time?.trim());
         if (hasEnteredMedicationData) {
           const shouldClear = window.confirm(
             t(
@@ -269,7 +259,6 @@ const NursingCardexPlanWorkspace: React.FC<
         return;
       }
 
-      // Reset rows when toggled away from Yes so a new Yes starts fresh.
       if (value !== 'yes') {
         replaceMedication([]);
       }
@@ -280,7 +269,7 @@ const NursingCardexPlanWorkspace: React.FC<
   const handleFluidsAdministeredChange = useCallback(
     (value: string) => {
       if (value === 'no' && fluidsAdministered === 'yes') {
-        const hasEnteredFluidData = fluidRows.some((row) => row.name.trim() || row.time.trim());
+        const hasEnteredFluidData = fluidRows.some((row: CardexRow) => row.name?.trim() || row.time?.trim());
         if (hasEnteredFluidData) {
           const shouldClear = window.confirm(
             t('confirmFluidClear', 'Changing to No will discard entered fluid rows. Do you want to continue?'),
@@ -312,38 +301,22 @@ const NursingCardexPlanWorkspace: React.FC<
 
   const onSubmit = useCallback(
     (values: CardexFormValues) => {
-      if (!patientUuid) {
+      if (
+        !patientUuid ||
+        !sessionLocation?.uuid ||
+        !currentProvider?.uuid ||
+        !currentVisit?.uuid ||
+        !NURSING_CONCEPTS ||
+        !FORM_FIELD_PATHS ||
+        !ENCOUNTER_ROLE_UUID
+      ) {
         showSnackbar({
-          title: t('missingPatient', 'Missing patient'),
+          title: t('missingContext', 'Missing context'),
           kind: 'error',
-          subtitle: t('missingPatientDescription', 'Cannot save cardex plan without patient context.'),
-        });
-        return;
-      }
-
-      if (!sessionLocation?.uuid) {
-        showSnackbar({
-          title: t('missingLocation', 'Missing location'),
-          kind: 'error',
-          subtitle: t('missingLocationDescription', 'Cannot save cardex plan without a session location.'),
-        });
-        return;
-      }
-
-      if (!currentProvider?.uuid) {
-        showSnackbar({
-          title: t('missingProvider', 'Missing provider'),
-          kind: 'error',
-          subtitle: t('missingProviderDescription', 'Cannot save cardex plan without a current provider.'),
-        });
-        return;
-      }
-
-      if (!currentVisit?.uuid) {
-        showSnackbar({
-          title: t('missingVisit', 'Missing visit'),
-          kind: 'error',
-          subtitle: t('missingVisitDescription', 'Cannot save cardex plan without an active visit.'),
+          subtitle: t(
+            'missingContextDescription',
+            'Cannot save: patient, location, provider, active visit, or cardex config is missing.',
+          ),
         });
         return;
       }
@@ -374,7 +347,7 @@ const NursingCardexPlanWorkspace: React.FC<
 
       // Add medication obs groups
       if (values.medicationAdministered === 'yes') {
-        values.medicationRows.forEach((row) => {
+        values.medicationRows.forEach((row: CardexRow) => {
           if (!row.name?.trim() && !row.time?.trim()) {
             return;
           }
@@ -391,7 +364,7 @@ const NursingCardexPlanWorkspace: React.FC<
 
           const selectedOrder =
             (row.orderUuid ? activeOrdersByUuid.get(row.orderUuid) : undefined) ||
-            activeOrdersByName.get(row.name.trim().toLowerCase());
+            activeOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
           if (selectedOrder) {
             groupMembers.push({
               concept: NURSING_CONCEPTS.nameField,
@@ -425,7 +398,7 @@ const NursingCardexPlanWorkspace: React.FC<
 
       // Add fluid obs groups
       if (values.fluidsAdministered === 'yes') {
-        values.fluidRows.forEach((row) => {
+        values.fluidRows.forEach((row: CardexRow) => {
           if (!row.name?.trim() && !row.time?.trim()) {
             return;
           }
@@ -442,7 +415,7 @@ const NursingCardexPlanWorkspace: React.FC<
 
           const selectedOrder =
             (row.orderUuid ? activeOrdersByUuid.get(row.orderUuid) : undefined) ||
-            activeOrdersByName.get(row.name.trim().toLowerCase());
+            activeOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
           if (selectedOrder) {
             groupMembers.push({
               concept: NURSING_CONCEPTS.nameField,
@@ -787,7 +760,10 @@ const NursingCardexPlanWorkspace: React.FC<
           </div>
 
           <ButtonSet className={styles.buttonSet}>
-            <Button className={styles.button} kind="secondary" onClick={() => closeWorkspace()}>
+            <Button
+              className={styles.button}
+              kind="secondary"
+              onClick={() => closeWorkspace({ discardUnsavedChanges: true })}>
               {t('cancel', 'Cancel')}
             </Button>
             <Button className={styles.button} kind="primary" type="submit">

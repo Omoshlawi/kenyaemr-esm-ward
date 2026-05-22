@@ -24,28 +24,6 @@ type TreatmentChartDashboardProps = {
   patient: Record<string, unknown>;
 };
 
-// t('treatmentChart', 'Treatment Chart')
-// t('failed-to-load-nursing-treatment-sheet', 'Failed to load nursing treatment sheet')
-// t('loading', 'Loading...')
-// t('nursingTreatmentSheet', 'Nursing Treatment Sheet')
-// t('add', 'Add')
-// t('name', 'Name')
-// t('dose', 'Dose')
-// t('route', 'Route')
-// t('frequencies', 'Frequencies')
-// t('timeTaken', 'Time taken')
-// t('dateGiven', 'Date Given')
-// t('provider', 'Provider')
-// t('medicationAdministered', 'Medication Administered')
-// t('noMedicationData', 'No medication records found')
-// t('fluidName', 'Fluid name')
-// t('volume', 'Volume')
-// t('frequency', 'Frequency')
-// t('rate', 'Rate')
-// t('duration', 'Duration')
-// t('timeGiven', 'Time Given')
-// t('fluidsAndParenteralNutritionSection', 'Fluids and Parenteral Nutrition Section')
-// t('noFluidData', 'No fluid records found')
 const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
   const [medicationPageSize, setMedicationPageSize] = useState(5);
@@ -94,7 +72,7 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
         kind="error"
         lowContrast
         hideCloseButton
-        title={t('failed-to-load-nursing-treatment-sheet', 'Failed to load nursing treatment sheet')}
+        title={t('failedToLoadNursingTreatmentSheet', 'Failed to load nursing treatment sheet')}
       />
     );
   }
@@ -156,7 +134,7 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
       <Pagination
         page={medicationPage}
         pageSize={medicationPageSize}
-        pageSizes={medicationPageSizes}
+        pageSizes={medicationPageSizes?.length ? medicationPageSizes : [medicationPageSize]}
         totalItems={medicationRows.length}
         onChange={({ page, pageSize }) => {
           goToMedicationPage(page);
@@ -203,7 +181,7 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
         <Pagination
           page={fluidPage}
           pageSize={fluidPageSize}
-          pageSizes={fluidPageSizes}
+          pageSizes={fluidPageSizes?.length ? fluidPageSizes : [fluidPageSize]}
           totalItems={fluidRows.length}
           onChange={({ page, pageSize }) => {
             goToFluidPage(page);

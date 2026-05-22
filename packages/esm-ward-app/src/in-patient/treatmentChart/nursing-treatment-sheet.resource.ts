@@ -73,8 +73,6 @@ const fmtTime = (raw: string) => {
     return '--';
   }
 
-  // Extract hours and minutes from various datetime formats without timezone conversion.
-  // Matches: 2026-05-21 12:09:00, 2026-05-21T12:09:00, 2026-05-21T12:09:00.000, 2026-05-21T12:09:00.000+0000, 2026-05-21T12:09:00.000+00:00, etc.
   const dateTimeMatch = raw.match(
     /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:[Z+-]\d{2}:?\d{2})?$/,
   );
@@ -153,12 +151,12 @@ const formatDuration = (meta?: CardexOrderMeta) => {
 };
 
 const hasCardexGroupObs = (enc: RawEncounter, medicationGroupUuid: string, fluidGroupUuid: string) =>
-  (enc.obs ?? []).some((obs) => obs.concept.uuid === medicationGroupUuid || obs.concept.uuid === fluidGroupUuid);
+  (enc.obs ?? []).some((obs) => obs?.concept?.uuid === medicationGroupUuid || obs?.concept?.uuid === fluidGroupUuid);
 
 const getEncounterSortTime = (enc: RawEncounter, treatmentChartTimeConceptUuid: string) => {
   const groupTimes = (enc.obs ?? [])
     .flatMap((obs) => obs.groupMembers ?? [])
-    .filter((member) => member.concept.uuid === treatmentChartTimeConceptUuid)
+    .filter((member) => member?.concept?.uuid === treatmentChartTimeConceptUuid)
     .map((member) => toStr(member.value).replace(' ', 'T'));
 
   const candidate = enc.encounterDatetime || groupTimes[0] || '';
@@ -176,17 +174,17 @@ const extractRows = (
     const provider = enc.encounterProviders?.[0]?.provider?.person?.display ?? '--';
     return (enc.obs ?? [])
       .filter(
-        (obs) => obs.concept.uuid === groupConcept && Array.isArray(obs.groupMembers) && obs.groupMembers.length > 0,
+        (obs) => obs?.concept?.uuid === groupConcept && Array.isArray(obs.groupMembers) && obs.groupMembers.length > 0,
       )
       .map((group) => {
         const nameMember = group.groupMembers!.find(
-          (m) => m.concept.uuid === treatmentChartNameConceptUuid && !toStr(m.value).startsWith(CARDEX_META_PREFIX),
+          (m) => m?.concept?.uuid === treatmentChartNameConceptUuid && !toStr(m.value).startsWith(CARDEX_META_PREFIX),
         );
         const metaMember = group.groupMembers!.find(
-          (m) => m.concept.uuid === treatmentChartNameConceptUuid && toStr(m.value).startsWith(CARDEX_META_PREFIX),
+          (m) => m?.concept?.uuid === treatmentChartNameConceptUuid && toStr(m.value).startsWith(CARDEX_META_PREFIX),
         );
         const metadata = parseCardexMeta(toStr(metaMember?.value));
-        const timeMember = group.groupMembers!.find((m) => m.concept.uuid === treatmentChartTimeConceptUuid);
+        const timeMember = group.groupMembers!.find((m) => m?.concept?.uuid === treatmentChartTimeConceptUuid);
         const rawTime = toStr(timeMember?.value);
         return {
           id: group.uuid,
@@ -277,7 +275,9 @@ export function useNursingTreatmentSheet(patientUuid: string) {
     fluidAndNutritionRows,
     encounters,
     isLoading,
-    error: error ? { message: t('failed-to-load-nursing-treatment-sheet') } : undefined,
+    error: error
+      ? { message: t('failedToLoadNursingTreatmentSheet', 'Failed to load nursing treatment sheet') }
+      : undefined,
     mutate,
   };
 }
