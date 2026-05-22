@@ -2,6 +2,7 @@ import {
   Button,
   ButtonSet,
   ComboBox,
+  Dropdown,
   Form,
   InlineNotification,
   Layer,
@@ -70,6 +71,25 @@ const NursingCardexPlanWorkspace: React.FC<
     const minutes = String(now.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes}`;
   }, []);
+  const { currentHour, currentMinute } = useMemo(() => {
+    const [hour, minute] = currentTimeMax.split(':').map(Number);
+    return {
+      currentHour: Number.isNaN(hour) ? 0 : hour,
+      currentMinute: Number.isNaN(minute) ? 0 : minute,
+    };
+  }, [currentTimeMax]);
+  const hourOptions = useMemo(() => {
+    const totalHoursToShow = Math.min(currentHour + 1, 12);
+    return Array.from({ length: totalHoursToShow }, (_, index) => String(currentHour - index).padStart(2, '0'));
+  }, [currentHour]);
+  const getMinuteOptionsForHour = useCallback(
+    (hourValue: string) => {
+      const selectedHour = Number(hourValue);
+      const maxMinute = selectedHour === currentHour ? currentMinute : 59;
+      return Array.from({ length: maxMinute + 1 }, (_, index) => String(maxMinute - index).padStart(2, '0'));
+    },
+    [currentHour, currentMinute],
+  );
   const NURSING_CONCEPTS = nursingCardex?.concepts;
   const FORM_FIELD_PATHS = nursingCardex?.formFieldPaths;
   const ENCOUNTER_ROLE_UUID = nursingCardex?.encounterRoleUuid;
@@ -214,7 +234,7 @@ const NursingCardexPlanWorkspace: React.FC<
       clearErrors('medicationRows');
 
       if (value === 'yes' && medicationRows.length === 0) {
-        appendMedication({ name: '', time: '', orderUuid: undefined });
+        appendMedication({ name: '', time: currentTimeMax, orderUuid: undefined });
         return;
       }
 
@@ -222,7 +242,16 @@ const NursingCardexPlanWorkspace: React.FC<
         replaceMedication([]);
       }
     },
-    [appendMedication, clearErrors, medicationAdministered, medicationRows, replaceMedication, setValue, t],
+    [
+      appendMedication,
+      clearErrors,
+      currentTimeMax,
+      medicationAdministered,
+      medicationRows,
+      replaceMedication,
+      setValue,
+      t,
+    ],
   );
 
   const handleFluidsAdministeredChange = useCallback(
@@ -246,7 +275,7 @@ const NursingCardexPlanWorkspace: React.FC<
       clearErrors('fluidRows');
 
       if (value === 'yes' && fluidRows.length === 0) {
-        appendFluid({ name: '', time: '', orderUuid: undefined });
+        appendFluid({ name: '', time: currentTimeMax, orderUuid: undefined });
         return;
       }
 
@@ -255,7 +284,7 @@ const NursingCardexPlanWorkspace: React.FC<
         replaceFluid([]);
       }
     },
-    [appendFluid, clearErrors, fluidRows, fluidsAdministered, replaceFluid, setValue, t],
+    [appendFluid, clearErrors, currentTimeMax, fluidRows, fluidsAdministered, replaceFluid, setValue, t],
   );
 
   const onSubmit = useCallback(
@@ -383,6 +412,12 @@ const NursingCardexPlanWorkspace: React.FC<
       <Stack gap={4}>
         {fields.map((field, index) => {
           const row = rows[index] ?? { name: '', time: '', orderUuid: undefined };
+          const [rowHourCandidate, rowMinuteCandidate] = (row.time || currentTimeMax).split(':');
+          const selectedHour = hourOptions.includes(rowHourCandidate) ? rowHourCandidate : (hourOptions[0] ?? '00');
+          const minuteOptions = getMinuteOptionsForHour(selectedHour);
+          const selectedMinute = minuteOptions.includes(rowMinuteCandidate)
+            ? rowMinuteCandidate
+            : (minuteOptions[0] ?? '00');
 
           return (
             <Stack key={field.id} gap={3} className={rowStackClassName}>
@@ -418,17 +453,44 @@ const NursingCardexPlanWorkspace: React.FC<
                 />
               </Layer>
               <Layer className={timeFieldClassName}>
-                <TextInput
-                  id={`${idPrefix}-time-${field.id}`}
-                  labelText={t('timeTaken', 'Time Taken')}
-                  type="time"
-                  max={currentTimeMax}
-                  value={row.time}
-                  onChange={(e: any) => {
-                    clearError();
-                    updateRow(index, { ...row, time: e.target.value });
-                  }}
-                />
+                <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr 1fr' }}>
+                  <Dropdown
+                    id={`${idPrefix}-hour-${field.id}`}
+                    titleText={t('hour', 'Hour')}
+                    label={t('selectHour', 'Select hour')}
+                    items={hourOptions}
+                    itemToString={(item: string | null) => item ?? ''}
+                    selectedItem={selectedHour}
+                    onChange={({ selectedItem }) => {
+                      if (!selectedItem) {
+                        return;
+                      }
+
+                      clearError();
+                      const nextMinuteOptions = getMinuteOptionsForHour(selectedItem);
+                      const nextMinute = nextMinuteOptions.includes(selectedMinute)
+                        ? selectedMinute
+                        : (nextMinuteOptions[0] ?? '00');
+                      updateRow(index, { ...row, time: `${selectedItem}:${nextMinute}` });
+                    }}
+                  />
+                  <Dropdown
+                    id={`${idPrefix}-minute-${field.id}`}
+                    titleText={t('minute', 'Minute')}
+                    label={t('selectMinute', 'Select minute')}
+                    items={minuteOptions}
+                    itemToString={(item: string | null) => item ?? ''}
+                    selectedItem={selectedMinute}
+                    onChange={({ selectedItem }) => {
+                      if (!selectedItem) {
+                        return;
+                      }
+
+                      clearError();
+                      updateRow(index, { ...row, time: `${selectedHour}:${selectedItem}` });
+                    }}
+                  />
+                </div>
               </Layer>
               <Button kind="danger" onClick={() => removeRow(index)}>
                 {t('remove', 'Remove')}
@@ -547,7 +609,7 @@ const NursingCardexPlanWorkspace: React.FC<
                       removeRow: removeMedication,
                       addRow: () => {
                         clearErrors('medicationRows');
-                        appendMedication({ name: '', time: '', orderUuid: undefined });
+                        appendMedication({ name: '', time: currentTimeMax, orderUuid: undefined });
                       },
                     })}
 
@@ -584,7 +646,7 @@ const NursingCardexPlanWorkspace: React.FC<
                       removeRow: removeFluid,
                       addRow: () => {
                         clearErrors('fluidRows');
-                        appendFluid({ name: '', time: '', orderUuid: undefined });
+                        appendFluid({ name: '', time: currentTimeMax, orderUuid: undefined });
                       },
                     })}
                 </Stack>

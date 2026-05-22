@@ -23,7 +23,8 @@ type TreatmentChartDashboardProps = {
   patientUuid: string;
   patient: Record<string, unknown>;
 };
-
+// Note: Needed for translation. Do not remove
+// t('treatmentChart', 'Treatment Chart')
 const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
   const [medicationPageSize, setMedicationPageSize] = useState(5);

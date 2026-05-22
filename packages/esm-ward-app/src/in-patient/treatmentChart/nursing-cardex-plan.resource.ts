@@ -2,9 +2,7 @@ import { useMemo } from 'react';
 import useSWR from 'swr';
 import { type FetchResponse, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
 import { type Order } from '@openmrs/esm-patient-common-lib';
-
 export const CARDEX_META_PREFIX = '__CARDEX_META__:';
-
 type UuidDisplayResource = {
   uuid?: string;
   display?: string;
@@ -89,7 +87,6 @@ export function useActiveNursingOrders(patientUuid?: string) {
     byName,
   };
 }
-
 export function toEncounterDatetimeFromTime(time: string): string | null {
   if (!time) {
     return null;
