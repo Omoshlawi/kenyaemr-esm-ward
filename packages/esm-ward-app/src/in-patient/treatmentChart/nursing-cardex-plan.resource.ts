@@ -8,8 +8,12 @@ type UuidDisplayResource = {
   display?: string;
 };
 
-export type ActiveOrder = Pick<Order, 'uuid'> &
+export type MedicationOrder = Pick<Order, 'uuid'> &
   Partial<Pick<Order, 'display' | 'dose' | 'quantity' | 'duration'>> & {
+    dateActivated?: string | null;
+    scheduledDate?: string | null;
+    dateStopped?: string | null;
+    autoExpireDate?: string | null;
     drug?: Order['drug'] | UuidDisplayResource | null;
     doseUnits?: Order['doseUnits'] | UuidDisplayResource | null;
     route?: Order['route'] | UuidDisplayResource | null;
@@ -23,8 +27,8 @@ export type ActiveOrder = Pick<Order, 'uuid'> &
       | null;
   };
 
-export type ActiveOrderResponse = {
-  results: Array<ActiveOrder>;
+export type MedicationOrderResponse = {
+  results: Array<MedicationOrder>;
 };
 
 export type OrderOption = {
@@ -32,17 +36,21 @@ export type OrderOption = {
   label: string;
 };
 
-const activeOrdersRepresentation =
-  'custom:(uuid,display,drug:(uuid,display),dose,doseUnits:(uuid,display),route:(uuid,display),frequency:(uuid,display),quantity,quantityUnits:(uuid,display),duration,durationUnits:(uuid,display),orderer:(uuid,display,person:(uuid,display)))';
+const inpatientCareSettingUuid = '6f0c9a92-6f24-11e3-af88-005056821db0';
+const drugOrderTypeUuid = '131168f4-15f5-102d-96e4-000c29c2a5d7';
+const medicationOrdersRepresentation =
+  'custom:(uuid,dateActivated,scheduledDate,dateStopped,autoExpireDate,drug:(display),dose,doseUnits:(display),route:(display),frequency:(display),orderer:(display),quantity,quantityUnits:(display),duration,durationUnits:(display))';
 
-export const getOrderLabel = (order: ActiveOrder) => order?.drug?.display?.trim() || order?.display?.trim() || '';
+export const getOrderLabel = (order: MedicationOrder) => order?.drug?.display?.trim() || order?.display?.trim() || '';
 
-export function useActiveNursingOrders(patientUuid?: string) {
-  const activeOrdersUrl = patientUuid
-    ? `${restBaseUrl}/order?patient=${patientUuid}&status=ACTIVE&v=${activeOrdersRepresentation}`
+export function usePastMedicationOrders(patientUuid?: string) {
+  const medicationOrdersUrl = patientUuid
+    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&orderTypes=${drugOrderTypeUuid}&excludeDiscontinueOrders=true&v=${encodeURIComponent(
+        medicationOrdersRepresentation,
+      )}`
     : null;
 
-  const { data, isLoading } = useSWR<FetchResponse<ActiveOrderResponse>>(activeOrdersUrl, openmrsFetch);
+  const { data, isLoading } = useSWR<FetchResponse<MedicationOrderResponse>>(medicationOrdersUrl, openmrsFetch);
 
   const orders = useMemo(() => data?.data?.results ?? [], [data]);
 

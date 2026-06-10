@@ -21,6 +21,41 @@
   gap: layout.$spacing-03;
 }
 
+.tableSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: layout.$spacing-05;
+  margin-top: layout.$spacing-05;
+  margin-bottom: layout.$spacing-03;
+}
+
+.tableSectionHeader h4 {
+  margin: 0;
+}
+
+.downloadHeader {
+  width: 8rem;
+}
+
+.downloadSelect {
+  width: 7rem;
+  height: 2rem;
+  padding: 0 layout.$spacing-03;
+  border: 1px solid #8d8d8d;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #161616;
+  font-size: 0.875rem;
+}
+
 .fluidSection {
   margin-top: layout.$spacing-05;
+}
+
+@media (max-width: 42rem) {
+  .tableSectionHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

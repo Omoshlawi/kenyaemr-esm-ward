@@ -8,7 +8,6 @@ export type CardexRow = {
 };
 
 export type CardexFormValues = {
-  nursingNotes: string;
   medicationAdministered: '' | 'yes' | 'no';
   medicationRows: CardexRow[];
   fluidsAdministered: '' | 'yes' | 'no';
@@ -27,7 +26,6 @@ export function useNursingCardexFormSchema(currentTimeMax: string, t: Translator
 
     return z
       .object({
-        nursingNotes: z.string().trim().min(1, t('notesRequired', 'Progress notes cannot be left blank')),
         medicationAdministered: z.enum(['', 'yes', 'no']),
         medicationRows: z.array(rowSchema),
         fluidsAdministered: z.enum(['', 'yes', 'no']),
