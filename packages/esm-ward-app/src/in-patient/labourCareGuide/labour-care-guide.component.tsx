@@ -12,6 +12,9 @@ import {
 } from '@openmrs/esm-framework';
 import { Button, InlineLoading } from '@carbon/react';
 import useSWR from 'swr';
+import type { WardConfigObject } from '../../config-schema';
+import useCurrentPatientAdmissionEncounter from '../../hooks/useCurrentPatientAdmissionEncounter';
+import { useAdmissionLocationTags } from '../in-patient.resource';
 import SupportiveCare from './graphs/supportive-care.component';
 import Baby from './graphs/baby.component';
 import Woman from './graphs/woman.component';
@@ -64,9 +67,101 @@ type LabourCareGuideProps = {
   patientUuid: string;
 };
 
+type LabourCareGuideContentProps = LabourCareGuideProps & {
+  patient: any;
+};
+
+const getPatientGenderValue = (patient: any): string => {
+  const gender = patient?.gender;
+  if (typeof gender === 'string') {
+    return gender;
+  }
+
+  if (gender && typeof gender === 'object') {
+    return String(gender.display ?? gender.name ?? gender.value ?? '');
+  }
+
+  return '';
+};
+
+const isMalePatient = (patient: any): boolean => {
+  const gender = getPatientGenderValue(patient).trim().toLowerCase();
+  return gender === 'm' || gender === 'male' || gender.startsWith('male ');
+};
+
+const isFemalePatient = (patient: any): boolean => {
+  const gender = getPatientGenderValue(patient).trim().toLowerCase();
+  return gender === 'f' || gender === 'female' || gender.startsWith('female ');
+};
+
+const LabourCareGuideEligibilityNotice: React.FC<{ patientUuid: string; message: string }> = ({
+  patientUuid,
+  message,
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <div className={styles.container} data-patient-uuid={patientUuid}>
+      <div className={styles.canvas}>
+        <h2 className={styles.title}>{t('whoLabourCareGuide', 'LABOUR CARE GUIDE')}</h2>
+        <div className={styles.formNotFilledNotice}>
+          <p>{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
   const { t } = useTranslation();
-  const { patient } = usePatient(patientUuid);
+  const { patient, isLoading } = usePatient(patientUuid);
+  const { inpatientLocationTags } = useConfig<WardConfigObject>();
+  const {
+    admissionEncounter,
+    isLoading: isLoadingAdmission,
+    isPatientAdmitted,
+  } = useCurrentPatientAdmissionEncounter(patientUuid);
+  const { tags, isLoading: isLoadingTags } = useAdmissionLocationTags(admissionEncounter?.location?.uuid);
+
+  const isAdmittedToAllowedWard = React.useMemo(() => {
+    const allowedWardTags = [
+      inpatientLocationTags?.labourWard,
+      inpatientLocationTags?.antenatalWard,
+      inpatientLocationTags?.maternityWard,
+    ].filter(Boolean);
+    return allowedWardTags.some((tagUuid) => tags.some((tag) => tag.uuid === tagUuid));
+  }, [inpatientLocationTags, tags]);
+
+  if (isLoading || isLoadingAdmission || isLoadingTags) {
+    return <InlineLoading description={t('loading', 'Loading...')} />;
+  }
+
+  if (isMalePatient(patient) || !isFemalePatient(patient)) {
+    return (
+      <LabourCareGuideEligibilityNotice
+        patientUuid={patientUuid}
+        message={t('labourCareGuideFemalePatientsOnly', 'Labour Care Guide can only show for female patients.')}
+      />
+    );
+  }
+
+  if (!isPatientAdmitted || !isAdmittedToAllowedWard) {
+    return (
+      <LabourCareGuideEligibilityNotice
+        patientUuid={patientUuid}
+        message={t(
+          'labourCareGuideFemaleLabourOrAntenatalWardOnly',
+          'Labour Care Guide can only show for female patients in Labour Ward or Antenatal Ward.',
+        )}
+      />
+    );
+  }
+
+  return <LabourCareGuideContent patientUuid={patientUuid} patient={patient} />;
+};
+
+const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patientUuid, patient }) => {
+  const { t } = useTranslation();
   const config = useConfig();
   const { broadcastAlert: broadcastAlertToGlobalContext } = useGlobalCdsAlert();
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = React.useState(false);

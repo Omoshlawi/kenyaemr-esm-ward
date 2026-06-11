@@ -339,7 +339,7 @@
   "transferToDispositionLocation": "Transfer to {{location}}",
   "transferType": "Transfer type",
   "treatment": "Treatment",
-  "treatmentChart": "Treatment Chart",
+  "treatmentChart": "Treatment Sheet",
   "typeOfTransfer": "Type of transfer",
   "unAssignBed": "Un Assign bed",
   "unexpectedError": "An unexpected error occurred while saving.",
