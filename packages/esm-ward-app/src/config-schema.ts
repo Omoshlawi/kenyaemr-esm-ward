@@ -881,36 +881,37 @@ export const configSchema: ConfigSchema = {
   inpatientLocationTags: {
     _default: {
       maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
+      antenatalWard: 'dab3c2bb-0b0b-4ebd-8f99-3ad44996d311',
       labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
     },
   },
   treatmentChartCardexEncounterTypeUuid: {
-    _description: 'Encounter type uuid for the cardex section of the treatment chart',
+    _description: 'Encounter type uuid for the cardex section of the treatment sheet',
     _type: Type.UUID,
     _default: 'b6569074-3b8c-43ba-bd4a-98c445405035',
   },
   treatmentChartCardexFormUuid: {
-    _description: 'Form uuid for the cardex section of the treatment chart',
+    _description: 'Form uuid for the cardex section of the treatment sheet',
     _type: Type.UUID,
     _default: '1f81d5e2-3569-40cf-bbb9-361a53ba409b',
   },
   treatmentChartMedicationGroupUuid: {
-    _description: 'Concept uuid for the medication group in the cardex section of the treatment chart',
+    _description: 'Concept uuid for the medication group in the cardex section of the treatment sheet',
     _type: Type.UUID,
     _default: '159369AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   },
   treatmentChartFluidGroupUuid: {
-    _description: 'Concept uuid for the fluids group in the cardex section of the treatment chart',
+    _description: 'Concept uuid for the fluids group in the cardex section of the treatment sheet',
     _type: Type.UUID,
     _default: '161911AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   },
   treatmentChartNameConceptUuid: {
-    _description: 'Concept uuid for the name field in the cardex section of the treatment chart',
+    _description: 'Concept uuid for the name field in the cardex section of the treatment sheet',
     _type: Type.UUID,
     _default: '164231AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   },
   treatmentChartTimeConceptUuid: {
-    _description: 'Concept uuid for the time field in the cardex section of the treatment chart',
+    _description: 'Concept uuid for the time field in the cardex section of the treatment sheet',
     _type: Type.UUID,
     _default: '9c4c7722-ba3e-4bdf-ab97-c04170100037',
   },
@@ -1019,6 +1020,7 @@ export interface WardConfigObject {
   };
   inpatientLocationTags: {
     maternityWard: string;
+    antenatalWard: string;
     labourWard: string;
   };
   treatmentChartCardexEncounterTypeUuid: string;

@@ -114,7 +114,7 @@ const printTable = (title: string, exportDateLabel: string, columns: ExportColum
 };
 
 // Note: Needed for translation. Do not remove
-// t('treatmentChart', 'Treatment Chart')
+// t('treatmentChart', 'Treatment sheet')
 const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
   const [medicationPageSize, setMedicationPageSize] = useState(5);
