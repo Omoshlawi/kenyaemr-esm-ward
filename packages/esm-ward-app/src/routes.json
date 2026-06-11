@@ -150,6 +150,25 @@
         "fullWidth": false,
         "title": "treatmentChart"
       }
+    },
+        {
+      "name": "global-cds-alert-banner",
+      "slot": "patient-chart-clinical-encounter-slot",
+      "component": "globalCdsAlertBanner",
+      "order": 99,
+      "online": true,
+      "offline": false
+    },
+        {
+      "name": "maternal-and-child-health-labour-care-guide",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "labourCareGuide",
+      "meta":{
+          "title": "Labour Care Guide"
+       },
+      "order": 0,
+      "online": true,
+      "offline": false
     }
   ],
   "modals": [

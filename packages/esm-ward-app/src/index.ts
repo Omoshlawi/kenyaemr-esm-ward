@@ -173,6 +173,14 @@ export const inPatientTreatmentChart = getAsyncLifecycle(
   () => import('./in-patient/treatmentChart/treatment-chart-dashboard.component'),
   options,
 );
+export const labourCareGuide = getAsyncLifecycle(
+  () => import('./in-patient/labourCareGuide/labour-care-guide.component'),
+  options,
+);
+export const globalCdsAlertBanner = getAsyncLifecycle(
+  () => import('./in-patient/labourCareGuide/global-cds-alerts/global-cds-alert-banner.component'),
+  options,
+);
 export const inPatientPartographView = getAsyncLifecycle(() => import('./in-patient/partograph.component'), options);
 
 export function startupApp() {

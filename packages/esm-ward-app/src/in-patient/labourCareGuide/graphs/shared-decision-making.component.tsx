@@ -1,0 +1,536 @@
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  DataTable,
+  Pagination,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@carbon/react';
+import styles from '../labour-care-guide.scss';
+import type { SharedDecisionMakingEntry } from '../resources/shared-decision-making.resource';
+import { resolveSharedDecisionActionDisplayLabel } from '../labour-care-guide.utils';
+import {
+  formatHHMM,
+  getPointSlotState,
+  getStageAwarePointSlotIndexForTime,
+  SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS,
+  SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
+  type LcgSlotState,
+} from '../time-slot-utils';
+import { SectionToolbar } from '../components/section-toolbar.component';
+
+interface SharedDecisionMakingProps {
+  activeFirstStageHours: number[];
+  secondStageHours: number[];
+  onAddClick?: () => void;
+  showViewToggle?: boolean;
+  firstStageCutoffSlotIndex?: number;
+  baseTime?: string;
+  entries?: SharedDecisionMakingEntry[];
+  secondStageStartTime?: string;
+  stopSlotIndex?: number;
+}
+
+const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
+  activeFirstStageHours,
+  secondStageHours,
+  onAddClick,
+  showViewToggle = true,
+  firstStageCutoffSlotIndex,
+  baseTime,
+  entries = [],
+  secondStageStartTime,
+  stopSlotIndex,
+}) => {
+  const { t } = useTranslation();
+  const [isTableView, setIsTableView] = React.useState(false);
+  const [now, setNow] = React.useState(() => new Date());
+  const [firstRowIndex, setFirstRowIndex] = React.useState(0);
+  const [currentPageSize, setCurrentPageSize] = React.useState(10);
+  const totalSlots = activeFirstStageHours.length + secondStageHours.length;
+  const graphEntries = React.useMemo(() => entries.filter((entry) => !entry.isEmergency), [entries]);
+  const showEmergencyReasonColumn = React.useMemo(() => entries.some((entry) => entry.isEmergency), [entries]);
+
+  React.useEffect(() => {
+    const msUntilNextMinute = 60_000 - (Date.now() % 60_000);
+    let intervalId: number | undefined;
+    const timeoutId = window.setTimeout(() => {
+      setNow(new Date());
+      intervalId = window.setInterval(() => setNow(new Date()), 60_000);
+    }, msUntilNextMinute);
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const getEntryTime = React.useCallback(
+    (entry: SharedDecisionMakingEntry) => entry.time ?? formatHHMM(new Date(entry.encounterDatetime)),
+    [],
+  );
+
+  const assessmentSlotEntries = React.useMemo(() => {
+    const map = new Map<number, { secondary?: SharedDecisionMakingEntry }>();
+    if (!baseTime) return map;
+    const sorted = [...graphEntries].sort(
+      (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
+    );
+    for (const entry of sorted) {
+      const time = getEntryTime(entry);
+      const secondarySlotIndex = getStageAwarePointSlotIndexForTime(
+        baseTime,
+        time,
+        activeFirstStageHours.length,
+        secondStageHours.length,
+        secondStageStartTime,
+        SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS,
+        firstStageCutoffSlotIndex,
+      );
+      if (secondarySlotIndex !== null) {
+        const existingGroup = map.get(secondarySlotIndex) ?? {};
+        if (!existingGroup.secondary) {
+          existingGroup.secondary = entry;
+          map.set(secondarySlotIndex, existingGroup);
+        }
+      }
+    }
+    return map;
+  }, [
+    activeFirstStageHours.length,
+    baseTime,
+    getEntryTime,
+    graphEntries,
+    secondStageHours.length,
+    secondStageStartTime,
+    firstStageCutoffSlotIndex,
+  ]);
+
+  const planSlotEntries = React.useMemo(() => {
+    const map = new Map<number, SharedDecisionMakingEntry>();
+    if (!baseTime) return map;
+    const sorted = [...graphEntries].sort(
+      (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
+    );
+    for (const entry of sorted) {
+      const slotIndex = getStageAwarePointSlotIndexForTime(
+        baseTime,
+        getEntryTime(entry),
+        activeFirstStageHours.length,
+        secondStageHours.length,
+        secondStageStartTime,
+        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
+        firstStageCutoffSlotIndex,
+      );
+      if (slotIndex !== null && !map.has(slotIndex)) {
+        map.set(slotIndex, entry);
+      }
+    }
+    return map;
+  }, [
+    activeFirstStageHours.length,
+    baseTime,
+    getEntryTime,
+    graphEntries,
+    secondStageHours.length,
+    secondStageStartTime,
+    firstStageCutoffSlotIndex,
+  ]);
+
+  const actionSlotEntries = React.useMemo(() => {
+    const map = new Map<number, SharedDecisionMakingEntry>();
+    if (!baseTime) return map;
+    const sorted = [...graphEntries].sort(
+      (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
+    );
+    for (const entry of sorted) {
+      const slotIndex = getStageAwarePointSlotIndexForTime(
+        baseTime,
+        getEntryTime(entry),
+        activeFirstStageHours.length,
+        secondStageHours.length,
+        secondStageStartTime,
+        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
+        firstStageCutoffSlotIndex,
+      );
+      if (slotIndex !== null && !map.has(slotIndex)) {
+        map.set(slotIndex, entry);
+      }
+    }
+    return map;
+  }, [
+    activeFirstStageHours.length,
+    baseTime,
+    getEntryTime,
+    graphEntries,
+    secondStageHours.length,
+    secondStageStartTime,
+    firstStageCutoffSlotIndex,
+  ]);
+
+  const incidentSlotLabels = React.useMemo(() => {
+    const map = new Map<number, string>();
+    if (!baseTime) return map;
+
+    const sorted = [...graphEntries].sort(
+      (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
+    );
+
+    for (const entry of sorted) {
+      const displayLabel = resolveSharedDecisionActionDisplayLabel(entry.action);
+      if (displayLabel !== 'Transferred to CS' && displayLabel !== 'Referral') {
+        continue;
+      }
+
+      const slotIndex = getStageAwarePointSlotIndexForTime(
+        baseTime,
+        getEntryTime(entry),
+        activeFirstStageHours.length,
+        secondStageHours.length,
+        secondStageStartTime,
+        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
+        firstStageCutoffSlotIndex,
+      );
+
+      if (slotIndex !== null && !map.has(slotIndex)) {
+        map.set(slotIndex, displayLabel);
+      }
+    }
+
+    return map;
+  }, [
+    activeFirstStageHours.length,
+    baseTime,
+    getEntryTime,
+    graphEntries,
+    secondStageHours.length,
+    secondStageStartTime,
+    firstStageCutoffSlotIndex,
+  ]);
+
+  const getCellClassName = (
+    slotState: LcgSlotState | null,
+    isFirstStageLocked: boolean,
+    isTall = true,
+    hasEntry = false,
+  ) => {
+    const classNames = [styles.entryCell, isTall ? styles.sharedDecisionTallCell : styles.sharedDecisionShortCell];
+
+    if (isFirstStageLocked || slotState === 'locked' || hasEntry) {
+      classNames.push(styles.lockedEntryCell);
+    } else if (slotState === 'active') {
+      classNames.push(styles.activeEntryCell);
+    }
+
+    return classNames.join(' ');
+  };
+
+  const tableHeaders = React.useMemo(
+    () => [
+      { key: 'time', header: t('time', 'Time') },
+      { key: 'assessment', header: t('assessment', 'Assessment') },
+      { key: 'plan', header: t('plan', 'Plan') },
+      { key: 'action', header: t('action', 'Action') },
+      ...(showEmergencyReasonColumn ? [{ key: 'reason', header: t('reason', 'Reason') }] : []),
+    ],
+    [showEmergencyReasonColumn, t],
+  );
+
+  const tableRows = React.useMemo(
+    () =>
+      entries.map((entry) => {
+        const emergencyReason = entry.emergencyReason?.trim();
+        return {
+          id: entry.id,
+          time: formatHHMM(new Date(entry.encounterDatetime)),
+          assessment: entry.assessment || '-',
+          plan: entry.plan || '-',
+          action: entry.action || '-',
+          reason: entry.isEmergency
+            ? emergencyReason
+              ? t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: emergencyReason })
+              : t('emergencyEntry', 'Emergency entry')
+            : '',
+          isEmergency: Boolean(entry.isEmergency),
+        };
+      }),
+    [entries, t],
+  );
+
+  const emergencyRowIds = React.useMemo(
+    () => new Set(tableRows.filter((r) => r.isEmergency).map((r) => r.id)),
+    [tableRows],
+  );
+
+  return (
+    <div className={styles.sectionBlock}>
+      <div className={styles.sectionHeaderControls}>
+        <SectionToolbar
+          showViewToggle={showViewToggle}
+          viewMode={isTableView ? 'table' : 'graph'}
+          onViewModeChange={(mode) => setIsTableView(mode === 'table')}
+          onAddClick={onAddClick}
+        />
+      </div>
+
+      {!isTableView && (
+        <table className={styles.gridTable}>
+          <tbody>
+            {/* ASSESSMENT row — uses hourly and half-grid timing, like the BABY upper row */}
+            <tr>
+              <td className={styles.verticalLabel} rowSpan={3}>
+                {t('sharedDecisionMaking', 'SHARED DECISION-MAKING')}
+              </td>
+              <td className={styles.parameterWideCell} colSpan={2}>
+                {t('assessment', 'ASSESSMENT')}
+              </td>
+
+              {activeFirstStageHours.map((hour, idx) => {
+                const isFirstStageLocked = firstStageCutoffSlotIndex !== undefined && idx > firstStageCutoffSlotIndex;
+                const isPostStop = Boolean(stopSlotIndex !== undefined && idx > stopSlotIndex);
+                const isPreStop = Boolean(stopSlotIndex !== undefined && idx < stopSlotIndex);
+                const rawSecondaryState = baseTime
+                  ? getPointSlotState(baseTime, idx, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS)
+                  : null;
+                const secondarySlotState = isPostStop
+                  ? 'locked'
+                  : isPreStop && rawSecondaryState === 'active'
+                    ? 'locked'
+                    : stopSlotIndex !== undefined && rawSecondaryState === 'active'
+                      ? 'locked'
+                      : rawSecondaryState;
+                const entryGroup = assessmentSlotEntries.get(idx);
+                const hasAssessmentEntry = Boolean(entryGroup?.secondary?.assessment);
+                return (
+                  <td
+                    key={`sdm-assessment-active-${hour}`}
+                    className={getCellClassName(secondarySlotState, isFirstStageLocked, true, hasAssessmentEntry)}>
+                    {entryGroup?.secondary?.assessment ? (
+                      <span className={styles.cellText}>{entryGroup.secondary.assessment}</span>
+                    ) : null}
+                  </td>
+                );
+              })}
+
+              <td className={styles.gapCell} />
+
+              {secondStageHours.map((hour, idx) => {
+                const slotIndex = activeFirstStageHours.length + idx;
+                const isPostStop = Boolean(stopSlotIndex !== undefined && slotIndex > stopSlotIndex);
+                const isPreStop = Boolean(stopSlotIndex !== undefined && slotIndex < stopSlotIndex);
+                const rawSecondaryState = secondStageStartTime
+                  ? getPointSlotState(secondStageStartTime, idx, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS)
+                  : null;
+                const secondarySlotState = isPostStop
+                  ? 'locked'
+                  : isPreStop && rawSecondaryState === 'active'
+                    ? 'locked'
+                    : stopSlotIndex !== undefined && rawSecondaryState === 'active'
+                      ? 'locked'
+                      : rawSecondaryState;
+                const entryGroup = assessmentSlotEntries.get(slotIndex);
+                const hasAssessmentEntry = Boolean(entryGroup?.secondary?.assessment);
+                return (
+                  <td
+                    key={`sdm-assessment-second-${hour}`}
+                    className={getCellClassName(secondarySlotState, false, true, hasAssessmentEntry)}>
+                    {entryGroup?.secondary?.assessment ? (
+                      <span className={styles.cellText}>{entryGroup.secondary.assessment}</span>
+                    ) : null}
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* PLAN row — uses base row slot timing (opens at full hour) */}
+            <tr>
+              <td className={styles.parameterWideCell} colSpan={2}>
+                {t('plan', 'PLAN')}
+              </td>
+
+              {activeFirstStageHours.map((hour, idx) => {
+                const isFirstStageLocked = firstStageCutoffSlotIndex !== undefined && idx > firstStageCutoffSlotIndex;
+                const isPostStop = Boolean(stopSlotIndex !== undefined && idx > stopSlotIndex);
+                const isPreStop = Boolean(stopSlotIndex !== undefined && idx < stopSlotIndex);
+                const rawSlotState = baseTime
+                  ? getPointSlotState(baseTime, idx, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS)
+                  : null;
+                const slotState = isPostStop
+                  ? 'locked'
+                  : isPreStop && rawSlotState === 'active'
+                    ? 'locked'
+                    : stopSlotIndex !== undefined && rawSlotState === 'active'
+                      ? 'locked'
+                      : rawSlotState;
+                const entry = planSlotEntries.get(idx);
+                const hasPlanEntry = Boolean(entry?.plan);
+                return (
+                  <td
+                    key={`sdm-plan-active-${hour}`}
+                    className={getCellClassName(slotState, isFirstStageLocked, true, hasPlanEntry)}>
+                    {entry?.plan ? <span className={styles.cellText}>{entry.plan}</span> : null}
+                  </td>
+                );
+              })}
+
+              <td className={styles.gapCell} />
+
+              {secondStageHours.map((hour, idx) => {
+                const slotIndex = activeFirstStageHours.length + idx;
+                const isPostStop = Boolean(stopSlotIndex !== undefined && slotIndex > stopSlotIndex);
+                const isPreStop = Boolean(stopSlotIndex !== undefined && slotIndex < stopSlotIndex);
+                const rawSlotState = secondStageStartTime
+                  ? getPointSlotState(secondStageStartTime, idx, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS)
+                  : null;
+                const slotState = isPostStop
+                  ? 'locked'
+                  : isPreStop && rawSlotState === 'active'
+                    ? 'locked'
+                    : stopSlotIndex !== undefined && rawSlotState === 'active'
+                      ? 'locked'
+                      : rawSlotState;
+                const entry = planSlotEntries.get(slotIndex);
+                const hasPlanEntry = Boolean(entry?.plan);
+                return (
+                  <td
+                    key={`sdm-plan-second-${hour}`}
+                    className={getCellClassName(slotState, false, true, hasPlanEntry)}>
+                    {entry?.plan ? <span className={styles.cellText}>{entry.plan}</span> : null}
+                  </td>
+                );
+              })}
+            </tr>
+
+            <tr>
+              <td className={styles.parameterWideCell} colSpan={2}>
+                {t('action', 'ACTION')}
+              </td>
+
+              {activeFirstStageHours.map((hour, idx) => {
+                const isFirstStageLocked = firstStageCutoffSlotIndex !== undefined && idx > firstStageCutoffSlotIndex;
+                const isPostStop = Boolean(stopSlotIndex !== undefined && idx > stopSlotIndex);
+                const isPreStop = Boolean(stopSlotIndex !== undefined && idx < stopSlotIndex);
+                const rawSlotState = baseTime
+                  ? getPointSlotState(baseTime, idx, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS)
+                  : null;
+                const slotState = isPostStop
+                  ? 'locked'
+                  : isPreStop && rawSlotState === 'active'
+                    ? 'locked'
+                    : stopSlotIndex !== undefined && rawSlotState === 'active'
+                      ? 'locked'
+                      : rawSlotState;
+                const entry = actionSlotEntries.get(idx);
+                const incidentLabel = incidentSlotLabels.get(idx);
+                const actionLabel = entry?.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '';
+                const hasActionEntry = Boolean(actionLabel || incidentLabel);
+                return (
+                  <td
+                    key={`sdm-action-active-${hour}`}
+                    className={getCellClassName(slotState, isFirstStageLocked, true, hasActionEntry)}>
+                    {incidentLabel ? <span className={styles.sharedDecisionIncidentTag}>{incidentLabel}</span> : null}
+                    {actionLabel && actionLabel !== incidentLabel ? (
+                      <span className={styles.cellText}>{actionLabel}</span>
+                    ) : null}
+                  </td>
+                );
+              })}
+
+              <td className={styles.gapCell} />
+
+              {secondStageHours.map((hour, idx) => {
+                const slotIndex = activeFirstStageHours.length + idx;
+                const isPostStop = Boolean(stopSlotIndex !== undefined && slotIndex > stopSlotIndex);
+                const isPreStop = Boolean(stopSlotIndex !== undefined && slotIndex < stopSlotIndex);
+                const rawSlotState = secondStageStartTime
+                  ? getPointSlotState(secondStageStartTime, idx, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS)
+                  : null;
+                const slotState = isPostStop
+                  ? 'locked'
+                  : isPreStop && rawSlotState === 'active'
+                    ? 'locked'
+                    : stopSlotIndex !== undefined && rawSlotState === 'active'
+                      ? 'locked'
+                      : rawSlotState;
+                const entry = actionSlotEntries.get(slotIndex);
+                const incidentLabel = incidentSlotLabels.get(slotIndex);
+                const actionLabel = entry?.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '';
+                const hasActionEntry = Boolean(actionLabel || incidentLabel);
+                return (
+                  <td
+                    key={`sdm-action-second-${hour}`}
+                    className={getCellClassName(slotState, false, true, hasActionEntry)}>
+                    {incidentLabel ? <span className={styles.sharedDecisionIncidentTag}>{incidentLabel}</span> : null}
+                    {actionLabel && actionLabel !== incidentLabel ? (
+                      <span className={styles.cellText}>{actionLabel}</span>
+                    ) : null}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      )}
+
+      {isTableView && (
+        <div className={styles.tableContainer}>
+          {entries.length === 0 ? (
+            <p className={styles.emptyState}>{t('noSharedDecisionMakingData', 'No shared decision making data.')}</p>
+          ) : (
+            <>
+              <DataTable rows={tableRows.slice(firstRowIndex, firstRowIndex + currentPageSize)} headers={tableHeaders}>
+                {({ rows, headers, getHeaderProps, getTableProps }) => (
+                  <TableContainer>
+                    <Table {...getTableProps()}>
+                      <TableHead>
+                        <TableRow>
+                          {headers.map((header) => (
+                            <TableHeader key={header.key} {...getHeaderProps({ header })}>
+                              {header.header}
+                            </TableHeader>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            className={emergencyRowIds.has(row.id) ? styles.emergencyRow : undefined}>
+                            {row.cells.map((cell) => (
+                              <TableCell key={cell.id}>{cell.value}</TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </DataTable>
+              <Pagination
+                backwardText="Previous page"
+                forwardText="Next page"
+                itemsPerPageText="Items per page:"
+                page={Math.floor(firstRowIndex / currentPageSize) + 1}
+                pageSize={currentPageSize}
+                pageSizes={[5, 10, 20, 30, 40, 50]}
+                totalItems={tableRows.length}
+                onChange={({ page, pageSize }) => {
+                  if (pageSize !== currentPageSize) {
+                    setCurrentPageSize(pageSize);
+                  }
+                  setFirstRowIndex(pageSize * (page - 1));
+                }}
+              />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SharedDecisionMaking;
