@@ -3,7 +3,7 @@ import {
   CARDEX_META_PREFIX,
   getOrderLabel,
   toEncounterDatetimeFromTime,
-  type ActiveOrder,
+  type MedicationOrder,
 } from './nursing-cardex-plan.resource';
 import { type CardexFormValues } from './use-nursing-cardex-form-schema';
 
@@ -19,11 +19,11 @@ type BuildCardexEncounterPayloadArgs = {
   encounterRoleUuid: string;
   concepts: NursingCardexConcepts;
   formFieldPaths: NursingCardexFormFieldPaths;
-  activeOrdersByUuid: Map<string, ActiveOrder>;
-  activeOrdersByName: Map<string, ActiveOrder>;
+  medicationOrdersByUuid: Map<string, MedicationOrder>;
+  medicationOrdersByName: Map<string, MedicationOrder>;
 };
 
-function toCardexOrderMeta(order: ActiveOrder, concepts: NursingCardexConcepts) {
+function toCardexOrderMeta(order: MedicationOrder, concepts: NursingCardexConcepts) {
   return {
     metadataVersion: '2.0',
     orderUuid: order.uuid,
@@ -61,19 +61,13 @@ function buildObservationPayload({
   values,
   concepts,
   formFieldPaths,
-  activeOrdersByUuid,
-  activeOrdersByName,
+  medicationOrdersByUuid,
+  medicationOrdersByName,
 }: Pick<
   BuildCardexEncounterPayloadArgs,
-  'values' | 'concepts' | 'formFieldPaths' | 'activeOrdersByUuid' | 'activeOrdersByName'
+  'values' | 'concepts' | 'formFieldPaths' | 'medicationOrdersByUuid' | 'medicationOrdersByName'
 >) {
   const observationPayload: Array<any> = [
-    {
-      concept: concepts.nursingNotes,
-      value: values.nursingNotes,
-      formFieldNamespace: 'O3',
-      formFieldPath: formFieldPaths.nursingNotes,
-    },
     {
       concept: concepts.actionTaken,
       value: values.medicationAdministered === 'yes' ? concepts.yes : concepts.no,
@@ -105,8 +99,8 @@ function buildObservationPayload({
       }
 
       const selectedOrder =
-        (row.orderUuid ? activeOrdersByUuid.get(row.orderUuid) : undefined) ||
-        activeOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
+        (row.orderUuid ? medicationOrdersByUuid.get(row.orderUuid) : undefined) ||
+        medicationOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
 
       if (selectedOrder) {
         groupMembers.push({
@@ -156,8 +150,8 @@ function buildObservationPayload({
       }
 
       const selectedOrder =
-        (row.orderUuid ? activeOrdersByUuid.get(row.orderUuid) : undefined) ||
-        activeOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
+        (row.orderUuid ? medicationOrdersByUuid.get(row.orderUuid) : undefined) ||
+        medicationOrdersByName.get(row.name?.trim()?.toLowerCase() ?? '');
 
       if (selectedOrder) {
         groupMembers.push({
@@ -202,8 +196,8 @@ export function buildNursingCardexEncounterPayload({
   encounterRoleUuid,
   concepts,
   formFieldPaths,
-  activeOrdersByUuid,
-  activeOrdersByName,
+  medicationOrdersByUuid,
+  medicationOrdersByName,
 }: BuildCardexEncounterPayloadArgs) {
   return {
     encounterProviders: [
@@ -221,8 +215,8 @@ export function buildNursingCardexEncounterPayload({
       values,
       concepts,
       formFieldPaths,
-      activeOrdersByUuid,
-      activeOrdersByName,
+      medicationOrdersByUuid,
+      medicationOrdersByName,
     }),
     orders: [],
     diagnoses: [],
