@@ -12,6 +12,7 @@ export type CardexFormValues = {
   medicationRows: CardexRow[];
   fluidsAdministered: '' | 'yes' | 'no';
   fluidRows: CardexRow[];
+  nursingNotes: string;
 };
 
 type Translator = (key: string, defaultValue?: string) => string;
@@ -30,6 +31,7 @@ export function useNursingCardexFormSchema(currentTimeMax: string, t: Translator
         medicationRows: z.array(rowSchema),
         fluidsAdministered: z.enum(['', 'yes', 'no']),
         fluidRows: z.array(rowSchema),
+        nursingNotes: z.string().optional().default(''),
       })
       .superRefine((values, context) => {
         if (values.medicationAdministered === 'yes') {

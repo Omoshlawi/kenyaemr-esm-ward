@@ -61,6 +61,11 @@
 .notesField {
   display: grid;
   gap: layout.$spacing-03;
+  padding: layout.$spacing-05;
+  background: colors.$gray-10;
+  border: 1px solid colors.$gray-20;
+  border-left: 4px solid colors.$gray-60;
+  border-radius: 4px;
 }
 
 .notesLabel {
@@ -71,10 +76,11 @@
 .notesHelperText {
   margin: 0;
   color: colors.$gray-70;
+  font-size: 0.875rem;
 }
 
 .notesTextArea {
-  min-height: 10rem;
+  min-height: 7rem;
   background: colors.$white;
   border: 1px solid colors.$gray-30;
   border-radius: 4px;

@@ -8,6 +8,7 @@ import {
   RadioButton,
   RadioButtonGroup,
   Stack,
+  TextArea,
   TextInput,
 } from '@carbon/react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -91,6 +92,7 @@ const NursingCardexPlanWorkspace: React.FC<
       medicationRows: [],
       fluidsAdministered: '',
       fluidRows: [],
+      nursingNotes: '',
     },
   });
 
@@ -100,6 +102,7 @@ const NursingCardexPlanWorkspace: React.FC<
   const fluidsAdministered = useWatch({ control, name: 'fluidsAdministered' }) ?? '';
   const watchedFluidRows = useWatch({ control, name: 'fluidRows' });
   const fluidRows = useMemo(() => watchedFluidRows ?? [], [watchedFluidRows]);
+  const nursingNotes = useWatch({ control, name: 'nursingNotes' }) ?? '';
   const [isSubmittingEncounter, setIsSubmittingEncounter] = useState(false);
   const initialRouteRef = useRef<string>(`${window.location.pathname}${window.location.search}${window.location.hash}`);
   const initialPatientUuidRef = useRef<string | undefined>(patientUuid);
@@ -510,6 +513,23 @@ const NursingCardexPlanWorkspace: React.FC<
                       loadingLabel: t('loadingFluidOptions', 'Loading past medications...'),
                       emptyLabel: t('noPastFluidOptions', 'No past medications found.'),
                     })}
+                  <Layer className={styles.notesField}>
+                    <p className={styles.notesHelperText}>{t('optionalTreatmentSheetNotes', 'Notes (Optional).')}</p>
+                    <TextArea
+                      id="treatment-sheet-notes"
+                      hideLabel
+                      labelText={t('optionalTreatmentSheetNotes', 'Notes (Optional).')}
+                      value={nursingNotes}
+                      onChange={(event) => {
+                        setValue('nursingNotes', event.target.value, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                      rows={4}
+                      className={styles.notesTextArea}
+                    />
+                  </Layer>
                 </Stack>
               </section>
             </Stack>

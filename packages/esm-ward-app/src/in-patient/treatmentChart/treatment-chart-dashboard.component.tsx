@@ -166,6 +166,7 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
       { header: t('timeTaken', 'Time taken'), value: (row) => row.time },
       { header: t('dateGiven', 'Date Given'), value: (row) => row.date },
       { header: t('provider', 'Provider'), value: (row) => row.provider },
+      { header: t('notes', 'Notes'), value: (row) => row.notes },
     ],
     [t],
   );
@@ -178,6 +179,7 @@ const TreatmentChartDashboard: React.FC<TreatmentChartDashboardProps> = ({ patie
       { header: t('timeGiven', 'Time Given'), value: (row) => row.time },
       { header: t('dateGiven', 'Date Given'), value: (row) => row.date },
       { header: t('provider', 'Provider'), value: (row) => row.provider },
+      { header: t('notes', 'Notes'), value: (row) => row.notes },
     ],
     [t],
   );

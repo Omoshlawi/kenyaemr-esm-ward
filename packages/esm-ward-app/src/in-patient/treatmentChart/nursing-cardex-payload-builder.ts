@@ -82,6 +82,15 @@ function buildObservationPayload({
     },
   ];
 
+  if (values.nursingNotes?.trim()) {
+    observationPayload.push({
+      concept: concepts.nursingNotes,
+      value: values.nursingNotes.trim(),
+      formFieldNamespace: 'O3',
+      formFieldPath: formFieldPaths.nursingNotes,
+    });
+  }
+
   if (values.medicationAdministered === 'yes') {
     values.medicationRows.forEach((row) => {
       if (!row.name?.trim() && !row.time?.trim()) {

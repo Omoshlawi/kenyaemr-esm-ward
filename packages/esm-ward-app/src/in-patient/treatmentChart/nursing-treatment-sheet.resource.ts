@@ -33,6 +33,7 @@ export type CardexRow = {
   time: string;
   date: string;
   provider: string;
+  notes: string;
   dose: string;
   route: string;
   frequency: string;
@@ -164,14 +165,21 @@ const getEncounterSortTime = (enc: RawEncounter, treatmentChartTimeConceptUuid: 
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
 
+const getEncounterNotes = (enc: RawEncounter, nursingNotesConceptUuid?: string) =>
+  nursingNotesConceptUuid
+    ? toStr((enc.obs ?? []).find((obs) => obs?.concept?.uuid === nursingNotesConceptUuid)?.value) || emptyValue
+    : emptyValue;
+
 const extractRows = (
   encounters: RawEncounter[],
   groupConcept: string,
   treatmentChartNameConceptUuid: string,
   treatmentChartTimeConceptUuid: string,
+  nursingNotesConceptUuid?: string,
 ): CardexRow[] =>
   encounters.flatMap((enc) => {
     const provider = enc.encounterProviders?.[0]?.provider?.person?.display ?? '--';
+    const notes = getEncounterNotes(enc, nursingNotesConceptUuid);
     return (enc.obs ?? [])
       .filter(
         (obs) => obs?.concept?.uuid === groupConcept && Array.isArray(obs.groupMembers) && obs.groupMembers.length > 0,
@@ -192,6 +200,7 @@ const extractRows = (
           time: fmtTime(rawTime),
           date: fmtDate(enc.encounterDatetime || rawTime),
           provider: metadata?.provider || provider,
+          notes,
           dose: formatDose(metadata),
           route: metadata?.route || '--',
           frequency: metadata?.frequency || '--',
@@ -210,7 +219,9 @@ export function useNursingTreatmentSheet(patientUuid: string) {
     treatmentChartFluidGroupUuid,
     treatmentChartNameConceptUuid,
     treatmentChartTimeConceptUuid,
+    nursingCardex,
   } = useConfig<WardConfigObject>();
+  const nursingNotesConceptUuid = nursingCardex?.concepts?.nursingNotes;
 
   const encounterTypeQuery = treatmentChartCardexEncounterTypeUuid
     ? `&encounterType=${treatmentChartCardexEncounterTypeUuid}`
@@ -256,8 +267,15 @@ export function useNursingTreatmentSheet(patientUuid: string) {
         treatmentChartMedicationGroupUuid,
         treatmentChartNameConceptUuid,
         treatmentChartTimeConceptUuid,
+        nursingNotesConceptUuid,
       ),
-    [encounters, treatmentChartMedicationGroupUuid, treatmentChartNameConceptUuid, treatmentChartTimeConceptUuid],
+    [
+      encounters,
+      treatmentChartMedicationGroupUuid,
+      treatmentChartNameConceptUuid,
+      treatmentChartTimeConceptUuid,
+      nursingNotesConceptUuid,
+    ],
   );
   const fluidAndNutritionRows = useMemo(
     () =>
@@ -266,8 +284,15 @@ export function useNursingTreatmentSheet(patientUuid: string) {
         treatmentChartFluidGroupUuid,
         treatmentChartNameConceptUuid,
         treatmentChartTimeConceptUuid,
+        nursingNotesConceptUuid,
       ),
-    [encounters, treatmentChartFluidGroupUuid, treatmentChartNameConceptUuid, treatmentChartTimeConceptUuid],
+    [
+      encounters,
+      treatmentChartFluidGroupUuid,
+      treatmentChartNameConceptUuid,
+      treatmentChartTimeConceptUuid,
+      nursingNotesConceptUuid,
+    ],
   );
 
   return {

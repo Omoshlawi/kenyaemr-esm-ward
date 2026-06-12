@@ -38,21 +38,37 @@ export type OrderOption = {
 
 const inpatientCareSettingUuid = '6f0c9a92-6f24-11e3-af88-005056821db0';
 const drugOrderTypeUuid = '131168f4-15f5-102d-96e4-000c29c2a5d7';
-const medicationOrdersRepresentation =
-  'custom:(uuid,dateActivated,scheduledDate,dateStopped,autoExpireDate,drug:(display),dose,doseUnits:(display),route:(display),frequency:(display),orderer:(display),quantity,quantityUnits:(display),duration,durationUnits:(display))';
 
 export const getOrderLabel = (order: MedicationOrder) => order?.drug?.display?.trim() || order?.display?.trim() || '';
 
+const parseValidDate = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isPastMedicationOrder = (order: MedicationOrder) => {
+  const now = new Date();
+  const autoExpireDate = parseValidDate(order.autoExpireDate);
+  const dateStopped = parseValidDate(order.dateStopped);
+
+  return Boolean(
+    (autoExpireDate && autoExpireDate.getTime() < now.getTime()) ||
+    (dateStopped && dateStopped.getTime() < now.getTime()),
+  );
+};
+
 export function usePastMedicationOrders(patientUuid?: string) {
   const medicationOrdersUrl = patientUuid
-    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&orderTypes=${drugOrderTypeUuid}&excludeDiscontinueOrders=true&v=${encodeURIComponent(
-        medicationOrdersRepresentation,
-      )}`
+    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&status=any&orderType=${drugOrderTypeUuid}&v=full`
     : null;
 
   const { data, isLoading } = useSWR<FetchResponse<MedicationOrderResponse>>(medicationOrdersUrl, openmrsFetch);
 
-  const orders = useMemo(() => data?.data?.results ?? [], [data]);
+  const orders = useMemo(() => (data?.data?.results ?? []).filter(isPastMedicationOrder), [data]);
 
   const options = useMemo<Array<OrderOption>>(() => {
     const seen = new Set<string>();
