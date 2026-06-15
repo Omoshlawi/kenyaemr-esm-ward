@@ -35,7 +35,8 @@ export type AdmissionDetailsFormProps = {
     uuid: string;
     name: string;
     gender: string;
-    age: string;
+    age?: string | number;
+    birthDate?: string;
   };
 };
 
@@ -47,6 +48,33 @@ const defaultValues: AdmissionDetailsFormData = {
   rupturedMembranes: 'no',
   rupturedMembranesDate: '',
   rupturedMembranesTime: '',
+};
+
+const resolvePatientAge = (patient?: AdmissionDetailsFormProps['patient']): number => {
+  const ageFromPatient = Number(patient?.age);
+  if (Number.isFinite(ageFromPatient)) {
+    return ageFromPatient;
+  }
+
+  const birthDate = patient?.birthDate;
+  if (!birthDate) {
+    return NaN;
+  }
+
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) {
+    return NaN;
+  }
+
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const hasNotHadBirthdayYet =
+    now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate());
+  if (hasNotHadBirthdayYet) {
+    age -= 1;
+  }
+
+  return age;
 };
 
 const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onClose, onSubmit, patient }) => {
@@ -62,17 +90,23 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
   const rupturedMembranesValue = watch('rupturedMembranes');
   const riskFactorsValue = watch('riskFactors');
   const hasOtherRiskFactor = (riskFactorsValue || []).includes('other');
+  const patientAge = React.useMemo(() => resolvePatientAge(patient), [patient]);
+  const canSelectAdolescentPregnancy = Number.isFinite(patientAge) && patientAge >= 10 && patientAge <= 19;
 
-  const riskFactorOptions = [
-    { id: 'chronic_hypertension', text: t('chronicHypertension', 'Chronic hypertension') },
-    { id: 'pre_eclampsia', text: t('preEclampsia', 'Pre-eclampsia') },
-    { id: 'advanced_age', text: t('advancedAge', "Woman's advanced age") },
-    { id: 'adolescent_pregnancy', text: t('adolescentPregnancy', 'Adolescent pregnancy') },
-    { id: 'multiple_gestation', text: t('multipleGestation', 'Multiple gestation') },
-    { id: 'colonization', text: t('colonization', 'Colonization') },
-    { id: 'other', text: t('other', 'Other') },
-    { id: 'none', text: t('none', 'None') },
-  ];
+  const riskFactorOptions = React.useMemo(
+    () =>
+      [
+        { id: 'chronic_hypertension', text: t('chronicHypertension', 'Chronic hypertension') },
+        { id: 'pre_eclampsia', text: t('preEclampsia', 'Pre-eclampsia') },
+        { id: 'advanced_age', text: t('advancedAge', "Woman's advanced age") },
+        { id: 'adolescent_pregnancy', text: t('adolescentPregnancy', 'Adolescent pregnancy') },
+        { id: 'multiple_gestation', text: t('multipleGestation', 'Multiple gestation') },
+        { id: 'colonization', text: t('colonization', 'Colonization') },
+        { id: 'other', text: t('other', 'Other') },
+        { id: 'none', text: t('none', 'None') },
+      ].filter((option) => option.id !== 'adolescent_pregnancy' || canSelectAdolescentPregnancy),
+    [canSelectAdolescentPregnancy, t],
+  );
 
   React.useEffect(() => {
     if (isOpen) {
@@ -93,13 +127,19 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
         setSaveError(t('noPatient', 'Patient information is missing'));
         return;
       }
-      const result = await saveAdmissionDetails(patientUuid, data, t);
+      const payload: AdmissionDetailsFormData = {
+        ...data,
+        riskFactors: canSelectAdolescentPregnancy
+          ? data.riskFactors
+          : (data.riskFactors || []).filter((riskFactor) => riskFactor !== 'adolescent_pregnancy'),
+      };
+      const result = await saveAdmissionDetails(patientUuid, payload, t);
       if (!result.success) {
         setSaveError(result.message);
         return;
       }
       setSaveSuccess(true);
-      onSubmit(data);
+      onSubmit(payload);
       setTimeout(() => {
         setSaveSuccess(false);
         onClose();

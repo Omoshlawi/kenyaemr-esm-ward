@@ -976,6 +976,112 @@ export function useLcgData(patientUuid: string) {
     };
   }, [pendingSharedDecisionPrompt]);
 
+  const activeSharedDecisionAlerts = React.useMemo<SharedDecisionPromptItem[]>(() => {
+    if (isWorkflowStopped) {
+      return [];
+    }
+
+    const nowMs = nowMinutes * 60_000;
+    const alertLifetimeMs = LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
+
+    const dedupedAlerts = new Map<string, SharedDecisionPromptItem & { observedAtMs: number }>();
+    const addAlert = (section: string, code: string, guidance: string, observedAtMs: number | null) => {
+      const normalizedCode = String(code ?? '').trim();
+      if (!section || !normalizedCode || observedAtMs === null) {
+        return;
+      }
+
+      if (nowMs >= observedAtMs + alertLifetimeMs) {
+        return;
+      }
+
+      const key = `${section}|${normalizedCode}`;
+      const existing = dedupedAlerts.get(key);
+      if (!existing || observedAtMs > existing.observedAtMs) {
+        dedupedAlerts.set(key, { section, code: normalizedCode, guidance, observedAtMs });
+      }
+    };
+
+    for (const entry of mergedSupportiveCareEntries) {
+      const alerts = getSupportiveAlertTokens(entry);
+      const observedAtMs = resolveEntryTimeMs(entry);
+      for (const token of alerts) {
+        addAlert('Supportive Care', token, getSupportiveAlertTokenGuidance(t, token), observedAtMs);
+      }
+    }
+
+    for (const entry of mergedBabyEntries) {
+      const alerts = getBabyAlertTokens(entry);
+      const observedAtMs = resolveEntryTimeMs(entry);
+      for (const token of alerts) {
+        addAlert('Baby', token, getBabyAlertTokenGuidance(t, token), observedAtMs);
+      }
+    }
+
+    for (const entry of mergedWomanAlertEntries) {
+      const alerts = getWomanAlertTokens(entry);
+      const observedAtMs = resolveEntryTimeMs(entry);
+      for (const token of alerts) {
+        addAlert('Woman', token, getWomanAlertTokenGuidance(t, token), observedAtMs);
+      }
+    }
+
+    for (const entry of mergedLabourProgressEntries) {
+      const alerts = getContractionAlertTokens(entry);
+      const observedAtMs = resolveEntryTimeMs(entry);
+      for (const token of alerts) {
+        addAlert('Contraction', token, getContractionAlertTokenGuidance(t, token), observedAtMs);
+      }
+    }
+
+    const dilationEntries = mergedLabourProgressEntries
+      .filter((e): e is typeof e & { cervicalDilation: number } => e.cervicalDilation != null)
+      .map((e) => ({ entry: e, timeMs: resolveEntryTimeMs(e) }))
+      .filter((e): e is { entry: typeof e.entry; timeMs: number } => e.timeMs !== null)
+      .sort((a, b) => a.timeMs - b.timeMs);
+
+    const firstEntryTimeByDilation = new Map<number, number>();
+    for (const { entry, timeMs } of dilationEntries) {
+      if (!firstEntryTimeByDilation.has(entry.cervicalDilation)) {
+        firstEntryTimeByDilation.set(entry.cervicalDilation, timeMs);
+      }
+    }
+
+    for (const { entry, timeMs } of dilationEntries) {
+      const dilation = entry.cervicalDilation;
+      const stallThresholdHours = LCG_CERVIX_FIRST_STAGE_LAG_HOURS_BY_DILATION[dilation];
+      if (!stallThresholdHours) {
+        continue;
+      }
+
+      const firstTimeMs = firstEntryTimeByDilation.get(dilation)!;
+      if (timeMs === firstTimeMs) {
+        continue;
+      }
+
+      const elapsedMs = timeMs - firstTimeMs;
+      const thresholdMs = scaleLcgGuidelineMinutes(stallThresholdHours * 60) * 60_000;
+      if (elapsedMs < thresholdMs) {
+        continue;
+      }
+
+      const token = `${dilation}cm (No progress ≥${stallThresholdHours}h)`;
+      addAlert('Labour Progress', token, getCervixStallTokenGuidance(t, token), timeMs);
+    }
+
+    return Array.from(dedupedAlerts.values())
+      .map(({ observedAtMs: _observedAtMs, ...alert }) => alert)
+      .sort((left, right) => left.section.localeCompare(right.section) || left.code.localeCompare(right.code));
+  }, [
+    isWorkflowStopped,
+    mergedSupportiveCareEntries,
+    mergedBabyEntries,
+    mergedWomanAlertEntries,
+    mergedLabourProgressEntries,
+    nowMinutes,
+    t,
+  ]);
+
   React.useEffect(() => {
     if (!pendingSharedDecisionPrompt || isWorkflowStopped || isSharedDecisionMakingFormOpen) {
       return;
@@ -1080,6 +1186,7 @@ export function useLcgData(patientUuid: string) {
     isWorkflowStopped,
     sharedDecisionAutoPromptDebugWindow,
     cdsPendingAlert,
+    activeSharedDecisionAlerts,
     cervicalEncounters,
   };
 }

@@ -594,14 +594,22 @@ const SharedDecisionMakingForm: React.FC<
 
         {groupedAutoPromptItems.length ? (
           <div className={styles.autoPromptSummary}>
+            <p className={styles.autoPromptHint}>
+              {t('hoverAlertInfoForGuidance', 'Hover the info button next to each alert code to view guidance.')}
+            </p>
             {groupedAutoPromptItems.map(([section, tokens]) => (
               <p key={section} className={styles.autoPromptSummaryRow}>
                 <span>{section}: </span>
                 {tokens.map((token, index) => (
                   <React.Fragment key={`${section}-${token.code}-${index}`}>
-                    <span className={styles.autoPromptToken} title={token.guidance}>
-                      {token.code}
-                    </span>
+                    <span className={styles.autoPromptToken}>{token.code}</span>
+                    <button
+                      type="button"
+                      className={styles.autoPromptInfoTrigger}
+                      title={token.guidance}
+                      aria-label={t('viewAlertGuidance', 'View alert guidance for {{token}}', { token: token.code })}>
+                      i
+                    </button>
                     {index < tokens.length - 1 ? ', ' : ''}
                   </React.Fragment>
                 ))}

@@ -46,22 +46,22 @@ export const getSupportiveAlertGuidance = (t: TFunction, rowKey: SupportiveAlert
     case 'companion':
       return t(
         'supportiveCompanionAlertGuidance',
-        'Companion N: Placeholder guidance. No companion documented; add supportive-care action.',
+        "Companion N: Immediately facilitate the woman's chosen companion to be present and oriented in the room. If unavailable, assign a dedicated midwife, nurse, or doula for continuous one-on-one support.",
       );
     case 'painRelief':
       return t(
         'supportivePainReliefAlertGuidance',
-        'Pain relief N: Placeholder guidance. Pain-relief action not documented; add action plan.',
+        'Pain relief N: Assess pain using a standard scale, offer non-pharmacological options first (breathing, massage, warm compress, position changes), and give prescribed pharmacological analgesia if needed per protocol.',
       );
     case 'oralFluid':
       return t(
         'supportiveOralFluidAlertGuidance',
-        'Oral fluid N: Placeholder guidance. Fluid support not documented; add supportive-care action.',
+        'Oral fluid N: Encourage oral hydration and energy fluids (water, clear juice, isotonic drinks) unless there is a clear documented contraindication such as imminent general anesthesia.',
       );
     case 'posture':
       return t(
         'supportivePostureAlertGuidance',
-        "Posture, Supine, SP: Encourage the woman to walk around freely during first stage of labour. Support the woman's choice of position (left lateral, squatting, kneeling, standing supported by companion).",
+        'Posture SP: Encourage walking or upright mobility; if in bed, support lateral, upright, or semi-recumbent positions. Avoid prolonged supine position to reduce aortocaval compression risk.',
       );
     default:
       return '';
@@ -94,32 +94,32 @@ export const getSupportiveAlertTokenGuidance = (t: TFunction, token: string) => 
   if (normalized.includes('COMPANION')) {
     return t(
       'supportiveCompanionTokenHoverGuidance',
-      'Companion N: Placeholder guidance. No companion documented; add supportive-care action.',
+      "Companion N: Immediately facilitate the woman's chosen companion to be present and oriented in the room. If unavailable, assign a dedicated midwife, nurse, or doula for continuous one-on-one support.",
     );
   }
 
   if (normalized.includes('PAIN RELIEF')) {
     return t(
       'supportivePainReliefTokenHoverGuidance',
-      'Pain relief N: Placeholder guidance. Pain-relief action not documented; add action plan.',
+      'Pain relief N: Assess pain using a standard scale, offer non-pharmacological options first (breathing, massage, warm compress, position changes), and give prescribed pharmacological analgesia if needed per protocol.',
     );
   }
 
   if (normalized.includes('ORAL FLUID')) {
     return t(
       'supportiveOralFluidTokenHoverGuidance',
-      'Oral fluid N: Placeholder guidance. Fluid support not documented; add supportive-care action.',
+      'Oral fluid N: Encourage oral hydration and energy fluids (water, clear juice, isotonic drinks) unless there is a clear documented contraindication such as imminent general anesthesia.',
     );
   }
 
   if (normalized.startsWith('SP')) {
     return t(
       'supportivePostureTokenHoverGuidance',
-      "Posture, Supine, SP: Encourage the woman to walk around freely during first stage of labour. Support the woman's choice of position (left lateral, squatting, kneeling, standing supported by companion).",
+      'Posture SP: Encourage walking or upright mobility; if in bed, support lateral, upright, or semi-recumbent positions. Avoid prolonged supine position to reduce aortocaval compression risk.',
     );
   }
 
-  return t('supportiveTokenHoverPlaceholder', 'Placeholder: supportive-care guidance to be added.');
+  return t('supportiveTokenHoverPlaceholder', 'Supportive-care alert: correct the identified care gap immediately.');
 };
 
 export const getBabyAlertTokenGuidance = (t: TFunction, _token: string) => {
@@ -131,40 +131,49 @@ export const getBabyAlertTokenGuidance = (t: TFunction, _token: string) => {
   if (normalized.includes('BASELINE FHR')) {
     return t(
       'babyBaselineFhrTokenHoverGuidance',
-      `Baseline FHR ${code}: Placeholder guidance. Value is <110 or >=160; review and act.`,
+      `Baseline FHR ${code}: Reposition mother to left lateral, give IV fluids if hypotensive, and reduce/stop oxytocin if hyperstimulation is present. Reassess FHR promptly; if persistent, start continuous fetal monitoring and prepare for expedited delivery if distress is confirmed.`,
     );
   }
 
   if (normalized.includes('FHR DECELERATION')) {
-    return t('babyFhrDecelerationTokenHoverGuidance', 'FHR deceleration L: Placeholder guidance. Review and act.');
+    return t(
+      'babyFhrDecelerationTokenHoverGuidance',
+      'FHR deceleration: optimize maternal position and perfusion, reassess immediately, and escalate to continuous monitoring. Prepare expedited delivery if abnormal tracing persists.',
+    );
   }
 
   if (normalized.includes('AMNIOTIC FLUID')) {
     return t(
       'babyAmnioticFluidTokenHoverGuidance',
-      `Amniotic fluid ${code}: Placeholder guidance. Alert values are M+++ or B; review and act.`,
+      `Amniotic fluid ${code}: For thick meconium, increase FHR surveillance or initiate continuous CTG. For foul-smelling liquor, start broad-spectrum IV antibiotics for suspected chorioamnionitis, monitor maternal temperature closely, and prepare neonatal resuscitation support.`,
     );
   }
 
   if (normalized.includes('FETAL POSITION')) {
     return t(
       'babyFetalPositionTokenHoverGuidance',
-      `Fetal position ${code}: Placeholder guidance. Alert values are P or T; review and act.`,
+      `Fetal position ${code}: reassess position and descent trend, support corrective maternal positioning, and escalate obstetric review if persistent malposition is associated with poor progress.`,
     );
   }
 
   if (normalized.includes('CAPUT')) {
-    return t('babyCaputTokenHoverGuidance', 'Caput +++: Placeholder guidance. Marked caput detected; review and act.');
+    return t(
+      'babyCaputTokenHoverGuidance',
+      'Caput +++: reassess for possible cephalopelvic disproportion or malposition, correlate with cervical progress/descent, and prepare operative delivery if labour is not progressing safely.',
+    );
   }
 
   if (normalized.includes('MOULDING')) {
     return t(
       'babyMouldingTokenHoverGuidance',
-      'Moulding +++: Placeholder guidance. Significant moulding detected; review and act.',
+      'Moulding +++: reassess for possible cephalopelvic disproportion or malposition, correlate with cervical progress/descent, and prepare operative delivery if labour is not progressing safely.',
     );
   }
 
-  return t('babyTokenHoverPlaceholder', 'Placeholder: baby-alert guidance to be added.');
+  return t(
+    'babyTokenHoverPlaceholder',
+    'Baby alert: optimize fetal condition and escalate monitoring/intervention promptly.',
+  );
 };
 
 export const isBabyAlertValue = (rowKey: BabyAlertKey, rawValue: string) => {
@@ -199,29 +208,32 @@ export const getBabyAlertGuidance = (t: TFunction, rowKey: BabyAlertKey) => {
     case 'baselineFhr':
       return t(
         'babyBaselineFhrAlertGuidance',
-        'Baseline FHR: Placeholder guidance. Value is <110 or >=160; review and act.',
+        'Baseline FHR alert: reposition left lateral, optimize perfusion, stop/reduce oxytocin if needed, reassess quickly, and escalate to continuous monitoring with expedited delivery preparation when persistent.',
       );
     case 'fhrDeceleration':
       return t(
         'babyFhrDecelerationAlertGuidance',
-        'FHR deceleration L: Placeholder guidance. Deceleration documented; review and act.',
+        'FHR deceleration alert: optimize maternal condition and monitor continuously; prepare for expedited delivery if recurrent or persistent.',
       );
     case 'amnioticFluid':
       return t(
         'babyAmnioticFluidAlertGuidance',
-        'Amniotic fluid M+++ or B: Placeholder guidance. Abnormal fluid status; review and act.',
+        'Amniotic fluid alert: increase fetal surveillance for meconium and start broad-spectrum IV antibiotics for suspected infection when foul odor is present.',
       );
     case 'fetalPosition':
       return t(
         'babyFetalPositionAlertGuidance',
-        'Fetal position P or T: Placeholder guidance. Position alert documented; review and act.',
+        'Fetal position alert: reassess fetal position and descent, use corrective maternal positioning, and escalate review if persistent with poor progress.',
       );
     case 'caput':
-      return t('babyCaputAlertGuidance', 'Caput +++: Placeholder guidance. Marked caput detected; review and act.');
+      return t(
+        'babyCaputAlertGuidance',
+        'Caput +++ alert: evaluate for cephalopelvic disproportion or malposition and prepare operative delivery if progress is halted.',
+      );
     case 'moulding':
       return t(
         'babyMouldingAlertGuidance',
-        'Moulding +++: Placeholder guidance. Significant moulding detected; review and act.',
+        'Moulding +++ alert: evaluate for cephalopelvic disproportion or malposition and prepare operative delivery if progress is halted.',
       );
     default:
       return '';
@@ -286,26 +298,29 @@ export const isWomanAlertValue = (rowKey: WomanAlertKey, rawValue: string) => {
 export const getWomanAlertGuidance = (t: TFunction, rowKey: WomanAlertKey) => {
   switch (rowKey) {
     case 'pulse':
-      return t('womanPulseAlertGuidance', 'Pulse alert: Placeholder guidance. Value is <60 or >=120; review and act.');
+      return t(
+        'womanPulseAlertGuidance',
+        'Pulse alert: assess for dehydration, pain, anxiety, fever, or bleeding; optimize hydration and pain control, then recheck promptly and manage hemorrhage urgently when suspected.',
+      );
     case 'systolicBp':
       return t(
         'womanSystolicAlertGuidance',
-        'Systolic BP alert: Placeholder guidance. Value is <80 or >=140; review and act.',
+        'Systolic BP alert: for elevated BP, evaluate pre-eclampsia signs and urine protein; treat severe hypertension per protocol including antihypertensives and magnesium sulfate when indicated. For low BP, left lateral tilt, rapid IV fluids, and assess for bleeding.',
       );
     case 'diastolicBp':
       return t(
         'womanDiastolicAlertGuidance',
-        'Diastolic BP alert: Placeholder guidance. Value is >=90; review and act.',
+        'Diastolic BP alert: evaluate and manage hypertensive disease urgently, including proteinuria screening and severe-feature assessment; escalate treatment per protocol.',
       );
     case 'temperature':
       return t(
         'womanTemperatureAlertGuidance',
-        'Temperature alert: Placeholder guidance. Value is <35 or >=37.5; review and act.',
+        'Temperature alert: confirm hydration, institute cooling and infection assessment, check liquor odor and maternal pulse, start empirical IV antibiotics when intrapartum infection is suspected, and increase FHR monitoring frequency.',
       );
     case 'urine':
       return t(
         'womanUrineAlertGuidance',
-        'Urine alert: Placeholder guidance. Alert values are P++ or A++; review and act.',
+        'Urine alert: correlate proteinuria with BP for pre-eclampsia assessment; treat ketonuria with oral intake support or IV dextrose where indicated.',
       );
     default:
       return '';
@@ -329,7 +344,7 @@ export const getLabourContractionAlertInfo = (
       guidance: isAlert
         ? t(
             'contractionsPer10AlertGuidance',
-            'Contractions per 10 min alert: Placeholder guidance. Value is <=2 or >5; review and act.',
+            'Contractions per 10 min alert: if >5 (hyperstimulation), stop/reduce oxytocin, left-lateral position, and consider tocolysis when fetal distress is present. If <2 (inadequate), consider amniotomy or oxytocin augmentation after confirming fetal well-being.',
           )
         : '',
     };
@@ -341,7 +356,7 @@ export const getLabourContractionAlertInfo = (
     guidance: isAlert
       ? t(
           'contractionDurationAlertGuidance',
-          'Duration of contractions alert: Placeholder guidance. Value is <20 or >60; review and act.',
+          'Contraction duration alert: reassess labour powers and fetal condition; if contractions are inadequate support augmentation, if excessive with distress reduce stimulation and stabilize mother/fetus.',
         )
       : '',
   };
@@ -367,23 +382,29 @@ export const getWomanAlertTokenGuidance = (t: TFunction, token: string): string 
     .trim()
     .toUpperCase();
   if (normalized.includes('PULSE'))
-    return t('womanPulseTokenGuidance', 'Pulse <60 or ≥120 bpm: Abnormal pulse rate detected; review and act.');
+    return t(
+      'womanPulseTokenGuidance',
+      'Pulse alert: assess cause (dehydration, pain, anxiety, fever, hemorrhage), optimize hydration and pain control, and recheck promptly.',
+    );
   if (normalized.includes('SYSTOLIC'))
     return t(
       'womanSystolicTokenGuidance',
-      'Systolic BP <80 or ≥140 mmHg: Abnormal systolic blood pressure; review and act.',
+      'Systolic BP alert: for high values evaluate pre-eclampsia and severe features; for low values position left lateral, give IV fluids, and assess for bleeding.',
     );
   if (normalized.includes('DIASTOLIC'))
-    return t('womanDiastolicTokenGuidance', 'Diastolic BP ≥90 mmHg: Elevated diastolic pressure; review and act.');
+    return t(
+      'womanDiastolicTokenGuidance',
+      'Diastolic BP alert: evaluate hypertensive disease urgently with proteinuria and danger-sign review; escalate treatment per protocol.',
+    );
   if (normalized.includes('TEMPERATURE'))
     return t(
       'womanTemperatureTokenGuidance',
-      'Temperature <35.0°C or ≥37.5°C: Abnormal maternal temperature; review and act.',
+      'Temperature alert: evaluate for intrapartum infection, hydrate/cool, start empirical IV antibiotics when indicated, and increase fetal monitoring.',
     );
   if (normalized.includes('URINE'))
     return t(
       'womanUrineTokenGuidance',
-      'Urine P++ or A++: Significant proteinuria or ketonuria detected; review and act.',
+      'Urine protein/ketone alert: correlate proteinuria with BP for pre-eclampsia, and manage ketonuria with nutrition support or IV dextrose as indicated.',
     );
   return t('womanAlertTokenGuidancePlaceholder', 'Woman vital-sign alert: review and act.');
 };
@@ -420,12 +441,12 @@ export const getContractionAlertTokenGuidance = (t: TFunction, token: string): s
   if (normalized.includes('CONTRACTIONS/10MIN'))
     return t(
       'contractionCountTokenGuidance',
-      'Contractions ≤2 or >5 per 10 min: Abnormal contraction frequency; review and act.',
+      'Contractions <=2 or >5 per 10 min: for hyperstimulation stop/reduce oxytocin and stabilize; for inadequate contractions consider amniotomy/oxytocin after fetal safety check.',
     );
   if (normalized.includes('CONTRACTION DURATION'))
     return t(
       'contractionDurationTokenGuidance',
-      'Contraction duration <20s or >60s: Abnormal contraction duration; review and act.',
+      'Contraction duration <20s or >60s: reassess powers, passenger, and passage; optimize uterine activity while maintaining fetal safety.',
     );
   return t('contractionAlertTokenGuidancePlaceholder', 'Contraction alert: review and act.');
 };
@@ -439,7 +460,7 @@ export const getCervixStallTokenGuidance = (t: TFunction, token: string): string
   if (normalized.includes('CM') && normalized.includes('NO PROGRESS'))
     return t(
       'cervixStallTokenGuidance',
-      'Cervical dilation stall: No progress at this dilation level for the expected duration; review and consider action.',
+      'Cervical dilation stall: perform a full three-P assessment (powers, passenger, passage). If contractions are inadequate consider amniotomy/oxytocin; if adequate but no progress, evaluate for CPD and prepare for operative delivery.',
     );
   return t('cervixStallTokenGuidancePlaceholder', 'Labour progress alert: review and act.');
 };

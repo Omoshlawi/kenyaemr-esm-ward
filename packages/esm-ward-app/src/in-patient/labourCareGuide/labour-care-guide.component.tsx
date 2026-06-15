@@ -9,6 +9,7 @@ import {
   restBaseUrl,
   useConfig,
   launchWorkspace2,
+  useSession,
 } from '@openmrs/esm-framework';
 import { Button, InlineLoading } from '@carbon/react';
 import useSWR from 'swr';
@@ -94,22 +95,56 @@ const isFemalePatient = (patient: any): boolean => {
   return gender === 'f' || gender === 'female' || gender.startsWith('female ');
 };
 
-const LabourCareGuideEligibilityNotice: React.FC<{ patientUuid: string; message: string }> = ({
-  patientUuid,
-  message,
-}) => {
-  const { t } = useTranslation();
+const getPatientAge = (patient: any): number => {
+  const ageFromPatient = Number(patient?.age);
+  if (Number.isFinite(ageFromPatient)) {
+    return ageFromPatient;
+  }
 
-  return (
-    <div className={styles.container} data-patient-uuid={patientUuid}>
-      <div className={styles.canvas}>
-        <h2 className={styles.title}>{t('whoLabourCareGuide', 'LABOUR CARE GUIDE')}</h2>
-        <div className={styles.formNotFilledNotice}>
-          <p>{message}</p>
-        </div>
-      </div>
-    </div>
-  );
+  const birthDate = patient?.birthDate;
+  if (!birthDate) {
+    return NaN;
+  }
+
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) {
+    return NaN;
+  }
+
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const hasNotHadBirthdayYet =
+    now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate());
+  if (hasNotHadBirthdayYet) {
+    age -= 1;
+  }
+
+  return age;
+};
+
+const escapeHtml = (value: unknown): string =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+const formatEncounterDateTime = (value?: string): string => {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+};
+
+type ExportTableColumn = {
+  key: string;
+  label: string;
+  width?: string;
 };
 
 const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
@@ -136,25 +171,17 @@ const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
     return <InlineLoading description={t('loading', 'Loading...')} />;
   }
 
-  if (isMalePatient(patient) || !isFemalePatient(patient)) {
-    return (
-      <LabourCareGuideEligibilityNotice
-        patientUuid={patientUuid}
-        message={t('labourCareGuideFemalePatientsOnly', 'Labour Care Guide can only show for female patients.')}
-      />
-    );
-  }
+  const patientAge = getPatientAge(patient);
+  const isEligible =
+    !isMalePatient(patient) &&
+    isFemalePatient(patient) &&
+    Number.isFinite(patientAge) &&
+    patientAge > 9 &&
+    isPatientAdmitted &&
+    isAdmittedToAllowedWard;
 
-  if (!isPatientAdmitted || !isAdmittedToAllowedWard) {
-    return (
-      <LabourCareGuideEligibilityNotice
-        patientUuid={patientUuid}
-        message={t(
-          'labourCareGuideFemaleLabourOrAntenatalWardOnly',
-          'Labour Care Guide can only show for female patients in Labour Ward or Antenatal Ward.',
-        )}
-      />
-    );
+  if (!isEligible) {
+    return null;
   }
 
   return <LabourCareGuideContent patientUuid={patientUuid} patient={patient} />;
@@ -163,6 +190,7 @@ const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
 const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
   const config = useConfig();
+  const session = useSession();
   const { broadcastAlert: broadcastAlertToGlobalContext } = useGlobalCdsAlert();
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = React.useState(false);
   const [emergencyReason, setEmergencyReason] = React.useState<string | null>(null);
@@ -174,6 +202,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
   const { isAlertSoundEnabled, setIsAlertSoundEnabled, startAlertBeep, stopAlertBeep } = useLcgAlertSound();
   const lastBroadcastKeyRef = React.useRef<string | null>(null);
   const lastHandledRouteKeyRef = React.useRef<string | null>(null);
+  const printableCanvasRef = React.useRef<HTMLDivElement | null>(null);
   // Track first detection time of current alert for threshold calculation
   const alertFirstDetectionTimeRef = React.useRef<number | null>(null);
   const {
@@ -232,6 +261,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     isWorkflowStopped,
     sharedDecisionAutoPromptDebugWindow,
     cdsPendingAlert,
+    activeSharedDecisionAlerts,
     cervicalEncounters,
   } = useLcgData(patientUuid);
 
@@ -242,6 +272,12 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     const name = getPatientName(patient);
     return name?.trim() ? name : patientUuid;
   }, [patient, patientUuid]);
+
+  const providerName = React.useMemo(() => {
+    const raw = (session as any)?.currentProvider?.display ?? '';
+    const parts = String(raw).split(' - ');
+    return parts.length > 1 ? parts.slice(1).join(' - ') : raw;
+  }, [session]);
 
   const isMultipleGestation = React.useMemo(
     () => admissionRiskFactorCodes.includes('multiple_gestation'),
@@ -374,6 +410,335 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     }
   }, [admissionDetails.labourOnset, t]);
 
+  const patientAge =
+    String((patient as any)?.age ?? '').trim() || calculateAgeFromBirthDate((patient as any)?.birthDate);
+
+  const exportSectionRows = React.useMemo(() => {
+    const admissionRows = [
+      {
+        labourOnset: labourOnsetDisplay || admissionDetails.labourOnset || '',
+        diagnosisDate: admissionDetails.activeLabourDiagnosisDate || '',
+        riskFactors: admissionDetails.riskFactors || '',
+        rupturedMembranes: admissionDetails.rupturedMembranes || '',
+        rupturedMembranesDate: admissionDetails.rupturedMembranesDate || '',
+        rupturedMembranesTime: admissionDetails.rupturedMembranesTime || '',
+      },
+    ];
+
+    const supportiveCareRows = mergedSupportiveCareEntries.map((entry) => ({
+      time: entry.time ?? '',
+      companion: entry.companion ?? '',
+      painRelief: entry.painRelief ?? '',
+      oralFluid: entry.oralFluid ?? '',
+      posture: entry.posture ?? '',
+      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+    }));
+
+    const babyRows = mergedBabyEntries.map((entry) => ({
+      time: entry.time ?? '',
+      twin: String(entry.twinIndex ?? 1),
+      baselineFhr: entry.baselineFhr ?? '',
+      fhrDeceleration: entry.fhrDeceleration ?? '',
+      amnioticFluid: entry.amnioticFluid ?? '',
+      fetalPosition: entry.fetalPosition ?? '',
+      caput: entry.caput ?? '',
+      moulding: entry.moulding ?? '',
+      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+    }));
+
+    const womanRows = localWomanEntries.map((entry) => ({
+      time: entry.time ?? '',
+      pulse: entry.pulse ?? '',
+      systolicBp: entry.systolicBp ?? '',
+      diastolicBp: entry.diastolicBp ?? '',
+      temperature: entry.temperature ?? '',
+      protein: entry.protein ?? '',
+      acetone: entry.acetone ?? '',
+      recordedAt: formatEncounterDateTime(entry.recordedAt),
+    }));
+
+    const labourProgressRows = mergedLabourProgressEntries.map((entry) => ({
+      time: entry.time ?? '',
+      contractionsPer10Mins: entry.contractionsPer10Mins ?? '',
+      durationOfContractions: entry.durationOfContractions ?? '',
+      cervicalDilation: entry.cervicalDilation ?? '',
+      descentOfHead: entry.descentOfHead ?? '',
+      urgeToPush: entry.urgeToPush ?? '',
+      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+    }));
+
+    const medicationRows = mergedMedicationEntries.map((entry) => ({
+      time: entry.time ?? '',
+      oxytocin: entry.oxytocin ?? '',
+      oxytocinUnitsPerLitre: entry.oxytocinU_L ?? '',
+      oxytocinDropsPerMinute: entry.oxytocinDrops ?? '',
+      medicine: entry.medicine ?? '',
+      drugName: entry.drugName ?? '',
+      dosage: entry.dosage ?? '',
+      route: entry.route ?? '',
+      ivFluids: entry.ivFluids ?? '',
+      ivFluidType: entry.ivFluidType ?? '',
+      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+    }));
+
+    const sharedDecisionRows = mergedSharedDecisionMakingEntries.map((entry) => ({
+      time: entry.time ?? '',
+      assessment: entry.assessment ?? '',
+      action: entry.action ?? '',
+      plan: entry.plan ?? '',
+      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+    }));
+
+    return {
+      admissionRows,
+      supportiveCareRows,
+      babyRows,
+      womanRows,
+      labourProgressRows,
+      medicationRows,
+      sharedDecisionRows,
+    };
+  }, [
+    admissionDetails,
+    labourOnsetDisplay,
+    mergedSupportiveCareEntries,
+    mergedBabyEntries,
+    localWomanEntries,
+    mergedLabourProgressEntries,
+    mergedMedicationEntries,
+    mergedSharedDecisionMakingEntries,
+  ]);
+
+  const buildPdfTableSection = React.useCallback(
+    (title: string, columns: ExportTableColumn[], rows: Array<Record<string, string | number>>) => {
+      const headerHtml = columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('');
+      const colGroupHtml = columns
+        .map((column) => `<col${column.width ? ` style="width:${escapeHtml(column.width)}"` : ''} />`)
+        .join('');
+      const rowsHtml =
+        rows.length > 0
+          ? rows
+              .map(
+                (row) =>
+                  `<tr>${columns.map((column) => `<td>${escapeHtml(row[column.key] ?? '')}</td>`).join('')}</tr>`,
+              )
+              .join('')
+          : `<tr><td colspan="${columns.length}">${escapeHtml(t('noData', 'No data recorded'))}</td></tr>`;
+      return `<section class="table-section"><h3>${escapeHtml(title)}</h3><table><colgroup>${colGroupHtml}</colgroup><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></section>`;
+    },
+    [t],
+  );
+
+  const downloadPdf = React.useCallback(() => {
+    const source = printableCanvasRef.current;
+    if (!source) {
+      return;
+    }
+
+    const patientAgeValue = String((patient as any)?.age ?? '').trim() || String(patientAge ?? '');
+    const tablesHtml = [
+      buildPdfTableSection(
+        t('admissionDetails', 'Admission Details'),
+        [
+          { key: 'labourOnset', label: t('labourOnset', 'Labour Onset'), width: '16%' },
+          { key: 'diagnosisDate', label: t('diagnosisDate', 'Diagnosis Date'), width: '14%' },
+          { key: 'riskFactors', label: t('riskFactors', 'Risk Factors'), width: '34%' },
+          { key: 'rupturedMembranes', label: t('rupturedMembranes', 'Ruptured Membranes'), width: '12%' },
+          { key: 'rupturedMembranesDate', label: t('dateOfRupture', 'Date of Rupture'), width: '12%' },
+          { key: 'rupturedMembranesTime', label: t('timeOfRupture', 'Time of Rupture'), width: '12%' },
+        ],
+        exportSectionRows.admissionRows,
+      ),
+      buildPdfTableSection(
+        t('supportiveCare', 'Supportive Care'),
+        [
+          { key: 'time', label: t('time', 'Time'), width: '10%' },
+          { key: 'companion', label: t('labourCompanion', 'Companion'), width: '15%' },
+          { key: 'painRelief', label: t('painRelief', 'Pain Relief'), width: '15%' },
+          { key: 'oralFluid', label: t('oralFluids', 'Oral Fluids'), width: '15%' },
+          { key: 'posture', label: t('posture', 'Posture'), width: '15%' },
+          { key: 'recordedAt', label: t('recordedAt', 'Recorded At'), width: '30%' },
+        ],
+        exportSectionRows.supportiveCareRows,
+      ),
+      buildPdfTableSection(
+        t('baby', 'Baby'),
+        [
+          { key: 'time', label: t('time', 'Time'), width: '8%' },
+          { key: 'twin', label: t('twin', 'Twin'), width: '6%' },
+          { key: 'baselineFhr', label: t('baselineFhr', 'Baseline FHR'), width: '11%' },
+          { key: 'fhrDeceleration', label: t('fhrDeceleration', 'FHR Deceleration'), width: '12%' },
+          { key: 'amnioticFluid', label: t('amnioticFluid', 'Amniotic Fluid'), width: '12%' },
+          { key: 'fetalPosition', label: t('fetalPosition', 'Fetal Position'), width: '11%' },
+          { key: 'caput', label: t('caput', 'Caput'), width: '8%' },
+          { key: 'moulding', label: t('moulding', 'Moulding'), width: '8%' },
+          { key: 'recordedAt', label: t('recordedAt', 'Recorded At'), width: '24%' },
+        ],
+        exportSectionRows.babyRows,
+      ),
+      buildPdfTableSection(
+        t('woman', 'Woman'),
+        [
+          { key: 'time', label: t('time', 'Time'), width: '8%' },
+          { key: 'pulse', label: t('pulse', 'Pulse'), width: '10%' },
+          { key: 'systolicBp', label: t('systolicBp', 'Systolic BP'), width: '10%' },
+          { key: 'diastolicBp', label: t('diastolicBp', 'Diastolic BP'), width: '10%' },
+          { key: 'temperature', label: t('temperature', 'Temperature'), width: '10%' },
+          { key: 'protein', label: t('protein', 'Protein'), width: '10%' },
+          { key: 'acetone', label: t('acetone', 'Acetone'), width: '10%' },
+          { key: 'recordedAt', label: t('recordedAt', 'Recorded At'), width: '32%' },
+        ],
+        exportSectionRows.womanRows,
+      ),
+      buildPdfTableSection(
+        t('labourProgress', 'Labour Progress'),
+        [
+          { key: 'time', label: t('time', 'Time'), width: '8%' },
+          { key: 'contractionsPer10Mins', label: t('contractionsPer10Mins', 'Contractions/10 Min'), width: '14%' },
+          {
+            key: 'durationOfContractions',
+            label: t('durationOfContractions', 'Duration of Contractions'),
+            width: '14%',
+          },
+          { key: 'cervicalDilation', label: t('cervicalDilation', 'Cervical Dilation'), width: '12%' },
+          { key: 'descentOfHead', label: t('descentOfHead', 'Descent of Head'), width: '12%' },
+          { key: 'urgeToPush', label: t('urgeToPush', 'Urge to Push'), width: '10%' },
+          { key: 'recordedAt', label: t('recordedAt', 'Recorded At'), width: '30%' },
+        ],
+        exportSectionRows.labourProgressRows,
+      ),
+      buildPdfTableSection(
+        t('medication', 'Medication'),
+        [
+          { key: 'time', label: t('time', 'Time'), width: '7%' },
+          { key: 'oxytocin', label: t('oxytocin', 'Oxytocin'), width: '7%' },
+          { key: 'oxytocinUnitsPerLitre', label: t('oxytocinUnitsPerLitre', 'Oxytocin U/L'), width: '8%' },
+          { key: 'oxytocinDropsPerMinute', label: t('oxytocinDropsPerMinute', 'Drops/Min'), width: '8%' },
+          { key: 'medicine', label: t('medicine', 'Medicine'), width: '8%' },
+          { key: 'drugName', label: t('drugName', 'Drug Name'), width: '12%' },
+          { key: 'dosage', label: t('dosage', 'Dosage'), width: '8%' },
+          { key: 'route', label: t('route', 'Route'), width: '8%' },
+          { key: 'ivFluids', label: t('ivFluids', 'IV Fluids'), width: '8%' },
+          { key: 'ivFluidType', label: t('ivFluidType', 'IV Fluid Type'), width: '10%' },
+          { key: 'recordedAt', label: t('recordedAt', 'Recorded At'), width: '16%' },
+        ],
+        exportSectionRows.medicationRows,
+      ),
+      buildPdfTableSection(
+        t('sharedDecisionMaking', 'Shared Decision Making'),
+        [
+          { key: 'time', label: t('time', 'Time'), width: '8%' },
+          { key: 'assessment', label: t('assessment', 'Assessment'), width: '28%' },
+          { key: 'action', label: t('action', 'Action'), width: '16%' },
+          { key: 'plan', label: t('plan', 'Plan'), width: '28%' },
+          { key: 'recordedAt', label: t('recordedAt', 'Recorded At'), width: '20%' },
+        ],
+        exportSectionRows.sharedDecisionRows,
+      ),
+    ].join('');
+
+    const firstPageUiHtml = source.outerHTML.replaceAll('>BABY<', '><');
+
+    const inheritedStyles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((styleNode) => styleNode.outerHTML)
+      .join('\n');
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(t('labourCareGuideExport', 'Labour Care Guide Export'))}</title>
+          ${inheritedStyles}
+          <style>
+            @page { size: A2 landscape; margin: 8mm; }
+            body { font-family: Arial, sans-serif; color: #161616; }
+            .page-break { page-break-before: always; }
+            .meta { margin-bottom: 12px; font-size: 12px; }
+            .meta strong { display: inline-block; min-width: 130px; }
+            .table-section { margin-bottom: 14px; }
+            .table-section h3 { margin: 0 0 6px; font-size: 14px; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            th, td { border: 1px solid #d0d0d0; padding: 4px; text-align: left; vertical-align: top; }
+            th { background: #f4f4f4; }
+            .signature { margin-top: 18px; font-size: 12px; }
+            .signature-line { margin-top: 18px; border-top: 1px solid #161616; width: 280px; padding-top: 4px; }
+            button, .cds--btn, [data-export-hide="true"] { display: none !important; }
+            .ui-page { page-break-after: always; overflow: hidden; }
+            .ui-scale-wrap {
+              transform: scale(0.82);
+              transform-origin: top left;
+              width: 122%;
+            }
+            .container { overflow: visible !important; background: #ffffff !important; padding: 0 !important; }
+            .canvas { border: 0 !important; }
+            .table-section table { table-layout: fixed; }
+            .table-section td, .table-section th {
+              white-space: normal;
+              word-break: break-word;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ui-page">
+            <div class="meta">
+              <div><strong>${escapeHtml(t('patientName', 'Patient Name'))}:</strong> ${escapeHtml(currentPatientName)}</div>
+              <div><strong>${escapeHtml(t('age', 'Age'))}:</strong> ${escapeHtml(patientAgeValue)}</div>
+              <div><strong>${escapeHtml(t('generatedOn', 'Generated On'))}:</strong> ${escapeHtml(new Date().toLocaleString())}</div>
+            </div>
+            <div class="ui-scale-wrap">
+              ${firstPageUiHtml}
+            </div>
+            <div class="signature">
+              <div class="signature-line">${escapeHtml(
+                `${t('providerSignature', 'Provider Signature/Name')}: ${providerName || '____________________'}`,
+              )}</div>
+            </div>
+          </div>
+          <div>
+            <h2>${escapeHtml(t('labourCareGuideTables', 'Labour Care Guide Tables'))}</h2>
+            ${tablesHtml}
+            <div class="signature">
+              <div class="signature-line">${escapeHtml(
+                `${t('providerSignature', 'Provider Signature/Name')}: ${providerName || '____________________'}`,
+              )}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const frame = document.createElement('iframe');
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    frame.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(frame);
+
+    const frameDocument = frame.contentDocument;
+    if (!frameDocument) {
+      document.body.removeChild(frame);
+      return;
+    }
+
+    frameDocument.open();
+    frameDocument.write(html);
+    frameDocument.close();
+
+    window.setTimeout(() => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+      window.setTimeout(() => {
+        if (frame.parentNode) {
+          frame.parentNode.removeChild(frame);
+        }
+      }, 2000);
+    }, 0);
+  }, [buildPdfTableSection, currentPatientName, exportSectionRows, patient, patientAge, providerName, t]);
+
   const {
     data: maternityEncounter,
     isLoading: isLoadingMaternityEncounter,
@@ -439,8 +804,6 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
   const miscarriageValue = getEncounterObsNumber(latestMaternityEncounter, MISCARRIAGE_ABORTIONS_CONCEPT_UUID);
   const gravidaValue = calculateGravida(parityValue, miscarriageValue);
   const parityDisplay = `[${parityValue}, ${miscarriageValue}]`;
-  const patientAge =
-    String((patient as any)?.age ?? '').trim() || calculateAgeFromBirthDate((patient as any)?.birthDate);
 
   const firstStageTransition = (() => {
     if (!baseTime) {
@@ -946,7 +1309,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
 
   return (
     <div className={styles.container} data-patient-uuid={patientUuid}>
-      <div className={styles.canvas}>
+      <div className={styles.canvas} ref={printableCanvasRef}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
           <Button
             size="sm"
@@ -1155,6 +1518,9 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
 
         {showChartControls ? (
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <button type="button" className={styles.addButton} data-export-hide="true" onClick={downloadPdf}>
+              {t('downloadPdf', 'Download PDF')}
+            </button>
             {!effectiveIsWorkflowStopped ? (
               <button
                 type="button"
@@ -1207,6 +1573,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
         setSharedDecisionAutoPromptSummary={setSharedDecisionAutoPromptSummary}
         sharedDecisionAutoPromptItems={sharedDecisionAutoPromptItems}
         setSharedDecisionAutoPromptItems={setSharedDecisionAutoPromptItems}
+        activeSharedDecisionAlerts={activeSharedDecisionAlerts}
         sharedDecisionAutoPromptDebugWindow={sharedDecisionAutoPromptDebugWindow}
         onSharedDecisionFormInteraction={stopAlertBeep}
         handleWomanFormSubmit={handleWomanFormSubmit}
