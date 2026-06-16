@@ -4,7 +4,11 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal, Grid, Column, TextArea, InlineNotification, Select, SelectItem } from '@carbon/react';
 import { SharedDecisionTimePickerDropdown } from './form-scoped-time-pickers.component';
 import styles from '../partography-data-form.scss';
-import { SHARED_DECISION_MAKING_ACTIONS } from '../types';
+import {
+  SHARED_DECISION_MAKING_ACTIONS,
+  UUID_SHARED_DECISION_REFERRAL,
+  UUID_SHARED_DECISION_TRANSFER_TO_CS,
+} from '../types';
 import { saveSharedDecisionMakingData } from '../resources/shared-decision-making.resource';
 import {
   getAllowedEmergencyTimes,
@@ -107,6 +111,10 @@ const SharedDecisionMakingForm: React.FC<
         'fb50f3e1-0971-4f82-9774-41ff57e38043',
         '160433AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       ]),
+    [],
+  );
+  const consentExemptActionValues = React.useMemo(
+    () => new Set<string>([UUID_SHARED_DECISION_REFERRAL, UUID_SHARED_DECISION_TRANSFER_TO_CS]),
     [],
   );
   const resolvedFirstStageSlotCount = firstStageSlotCount ?? slotCount;
@@ -486,7 +494,7 @@ const SharedDecisionMakingForm: React.FC<
         time: data.time,
       };
 
-      if (criticalActionValues.has(cleanData.action)) {
+      if (criticalActionValues.has(cleanData.action) && !consentExemptActionValues.has(cleanData.action)) {
         setPendingCleanData(cleanData);
         setConsentModalOpen(true);
         setIsSaving(false);
