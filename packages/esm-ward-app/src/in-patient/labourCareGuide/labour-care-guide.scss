@@ -516,21 +516,9 @@ $lcg-alert-band: #ffd9bf;
   @include type.type-style('body-compact-01');
 }
 
-.sharedDecisionIncidentTag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0.15rem auto;
-  padding: 0.1rem 0.35rem;
-  border-radius: 0.75rem;
-  background: colors.$yellow-20;
-  color: colors.$gray-100;
-  font-size: 0.65rem;
-  font-weight: 700;
-  line-height: 1;
-  writing-mode: horizontal-tb;
-  text-orientation: mixed;
-  transform: none;
+.sharedDecisionCriticalActionText {
+  color: colors.$red-60;
+  font-weight: 600;
 }
 
 .summaryBox {
