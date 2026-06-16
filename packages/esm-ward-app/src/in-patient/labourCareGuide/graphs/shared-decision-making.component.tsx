@@ -13,7 +13,10 @@ import {
 } from '@carbon/react';
 import styles from '../labour-care-guide.scss';
 import type { SharedDecisionMakingEntry } from '../resources/shared-decision-making.resource';
-import { resolveSharedDecisionActionDisplayLabel } from '../labour-care-guide.utils';
+import {
+  isSharedDecisionCriticalActionDisplayLabel,
+  resolveSharedDecisionActionDisplayLabel,
+} from '../labour-care-guide.utils';
 import {
   formatHHMM,
   getPointSlotState,
@@ -172,45 +175,17 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
     firstStageCutoffSlotIndex,
   ]);
 
-  const incidentSlotLabels = React.useMemo(() => {
-    const map = new Map<number, string>();
-    if (!baseTime) return map;
-
-    const sorted = [...graphEntries].sort(
-      (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
-    );
-
-    for (const entry of sorted) {
-      const displayLabel = resolveSharedDecisionActionDisplayLabel(entry.action);
-      if (displayLabel !== 'Transferred to CS' && displayLabel !== 'Referral') {
-        continue;
-      }
-
-      const slotIndex = getStageAwarePointSlotIndexForTime(
-        baseTime,
-        getEntryTime(entry),
-        activeFirstStageHours.length,
-        secondStageHours.length,
-        secondStageStartTime,
-        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
-        firstStageCutoffSlotIndex,
-      );
-
-      if (slotIndex !== null && !map.has(slotIndex)) {
-        map.set(slotIndex, displayLabel);
-      }
+  const renderActionLabel = (actionLabel: string) => {
+    if (!actionLabel) {
+      return null;
     }
 
-    return map;
-  }, [
-    activeFirstStageHours.length,
-    baseTime,
-    getEntryTime,
-    graphEntries,
-    secondStageHours.length,
-    secondStageStartTime,
-    firstStageCutoffSlotIndex,
-  ]);
+    const className = isSharedDecisionCriticalActionDisplayLabel(actionLabel)
+      ? `${styles.cellText} ${styles.sharedDecisionCriticalActionText}`
+      : styles.cellText;
+
+    return <span className={className}>{actionLabel}</span>;
+  };
 
   const getCellClassName = (
     slotState: LcgSlotState | null,
@@ -244,12 +219,14 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
     () =>
       entries.map((entry) => {
         const emergencyReason = entry.emergencyReason?.trim();
+        const actionLabel = entry.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '-';
         return {
           id: entry.id,
           time: formatHHMM(new Date(entry.encounterDatetime)),
           assessment: entry.assessment || '-',
           plan: entry.plan || '-',
-          action: entry.action || '-',
+          action: actionLabel,
+          isCriticalAction: isSharedDecisionCriticalActionDisplayLabel(actionLabel),
           reason: entry.isEmergency
             ? emergencyReason
               ? t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: emergencyReason })
@@ -263,6 +240,11 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
 
   const emergencyRowIds = React.useMemo(
     () => new Set(tableRows.filter((r) => r.isEmergency).map((r) => r.id)),
+    [tableRows],
+  );
+
+  const criticalActionRowIds = React.useMemo(
+    () => new Set(tableRows.filter((r) => r.isCriticalAction).map((r) => r.id)),
     [tableRows],
   );
 
@@ -425,17 +407,13 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                       ? 'locked'
                       : rawSlotState;
                 const entry = actionSlotEntries.get(idx);
-                const incidentLabel = incidentSlotLabels.get(idx);
                 const actionLabel = entry?.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '';
-                const hasActionEntry = Boolean(actionLabel || incidentLabel);
+                const hasActionEntry = Boolean(actionLabel);
                 return (
                   <td
                     key={`sdm-action-active-${hour}`}
                     className={getCellClassName(slotState, isFirstStageLocked, true, hasActionEntry)}>
-                    {incidentLabel ? <span className={styles.sharedDecisionIncidentTag}>{incidentLabel}</span> : null}
-                    {actionLabel && actionLabel !== incidentLabel ? (
-                      <span className={styles.cellText}>{actionLabel}</span>
-                    ) : null}
+                    {renderActionLabel(actionLabel)}
                   </td>
                 );
               })}
@@ -457,17 +435,13 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                       ? 'locked'
                       : rawSlotState;
                 const entry = actionSlotEntries.get(slotIndex);
-                const incidentLabel = incidentSlotLabels.get(slotIndex);
                 const actionLabel = entry?.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '';
-                const hasActionEntry = Boolean(actionLabel || incidentLabel);
+                const hasActionEntry = Boolean(actionLabel);
                 return (
                   <td
                     key={`sdm-action-second-${hour}`}
                     className={getCellClassName(slotState, false, true, hasActionEntry)}>
-                    {incidentLabel ? <span className={styles.sharedDecisionIncidentTag}>{incidentLabel}</span> : null}
-                    {actionLabel && actionLabel !== incidentLabel ? (
-                      <span className={styles.cellText}>{actionLabel}</span>
-                    ) : null}
+                    {renderActionLabel(actionLabel)}
                   </td>
                 );
               })}
@@ -501,7 +475,13 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                             key={row.id}
                             className={emergencyRowIds.has(row.id) ? styles.emergencyRow : undefined}>
                             {row.cells.map((cell) => (
-                              <TableCell key={cell.id}>{cell.value}</TableCell>
+                              <TableCell key={cell.id}>
+                                {cell.info.header === 'action' && criticalActionRowIds.has(row.id) ? (
+                                  <span className={styles.sharedDecisionCriticalActionText}>{cell.value}</span>
+                                ) : (
+                                  cell.value
+                                )}
+                              </TableCell>
                             ))}
                           </TableRow>
                         ))}

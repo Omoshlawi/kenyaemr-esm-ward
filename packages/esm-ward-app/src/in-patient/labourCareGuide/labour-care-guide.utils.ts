@@ -190,6 +190,9 @@ export const resolveSharedDecisionActionDisplayLabel = (action: string) => {
   return action;
 };
 
+export const isSharedDecisionCriticalActionDisplayLabel = (label: string) =>
+  label === 'Transferred to CS' || label === 'Referral';
+
 export const resolveBirthActionLabel = (action: string) => {
   const normalized = String(action ?? '')
     .trim()

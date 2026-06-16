@@ -37,6 +37,8 @@ type AdmissionDetailsState = {
   ipNumber: string;
 };
 
+type SharedDecisionAlertItem = { section: string; code: string; guidance: string };
+
 export type LabourCareGuideFormsProps = {
   // patient
   patient: any;
@@ -87,8 +89,9 @@ export type LabourCareGuideFormsProps = {
   // shared decision auto-prompt
   sharedDecisionAutoPromptSummary: string | null;
   setSharedDecisionAutoPromptSummary: (value: string | null) => void;
-  sharedDecisionAutoPromptItems: Array<{ section: string; code: string; guidance: string }>;
-  setSharedDecisionAutoPromptItems: (value: Array<{ section: string; code: string; guidance: string }>) => void;
+  sharedDecisionAutoPromptItems: Array<SharedDecisionAlertItem>;
+  setSharedDecisionAutoPromptItems: (value: Array<SharedDecisionAlertItem>) => void;
+  activeSharedDecisionAlerts: Array<SharedDecisionAlertItem>;
   sharedDecisionAutoPromptDebugWindow: { triggerTimeMs: number; openAtMs: number; expiresAtMs: number } | undefined;
   onSharedDecisionFormInteraction?: () => void;
 
@@ -170,6 +173,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   setSharedDecisionAutoPromptSummary,
   sharedDecisionAutoPromptItems,
   setSharedDecisionAutoPromptItems,
+  activeSharedDecisionAlerts,
   sharedDecisionAutoPromptDebugWindow,
   onSharedDecisionFormInteraction,
   handleWomanFormSubmit,
@@ -550,7 +554,9 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
           }}
           onDataSaved={() => mutateSharedDecisionMakingData()}
           autoPromptSummary={sharedDecisionAutoPromptSummary ?? undefined}
-          autoPromptItems={sharedDecisionAutoPromptItems}
+          autoPromptItems={
+            sharedDecisionAutoPromptItems.length ? sharedDecisionAutoPromptItems : activeSharedDecisionAlerts
+          }
           isAutoPrompt={Boolean(sharedDecisionAutoPromptSummary)}
           autoPromptDebugWindow={sharedDecisionAutoPromptSummary ? sharedDecisionAutoPromptDebugWindow : undefined}
           patient={patientInfo}
@@ -621,6 +627,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                   name: getPatientName(patient),
                   gender: patient.gender,
                   age: String((patient as any).age),
+                  birthDate: (patient as any).birthDate,
                 }
               : undefined
           }
