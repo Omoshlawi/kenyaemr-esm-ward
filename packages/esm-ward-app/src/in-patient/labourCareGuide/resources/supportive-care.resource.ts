@@ -10,6 +10,7 @@ import {
   SUPPORTIVE_CARE_FORM_CONCEPTS,
   ENCOUNTER_ROLE,
 } from '../types';
+import { type LcgGridSlotOptions, validateStageAwareGridSlotSubmission } from '../time-slot-utils';
 
 export interface SupportiveCareFormPayload {
   time: string;
@@ -41,6 +42,14 @@ export interface SupportiveCareEntry {
 
 type SupportiveCareSaveOptions = {
   emergencyReason?: string;
+  lcgValidation?: {
+    baseTime: string;
+    slotCount: number;
+    firstStageSlotCount?: number;
+    secondStageSlotCount?: number;
+    secondStageStartTime?: string;
+    gridSlotOptions?: LcgGridSlotOptions;
+  };
 };
 
 /**
@@ -65,6 +74,31 @@ export async function saveSupportiveCareData(
         message: t('sessionInfoMissing', 'Provider or Location information is missing'),
         error: 'NO_SESSION',
       };
+    }
+
+    if (!options?.emergencyReason && options?.lcgValidation) {
+      const { baseTime, slotCount, firstStageSlotCount, secondStageSlotCount, secondStageStartTime, gridSlotOptions } =
+        options.lcgValidation;
+      const validation = validateStageAwareGridSlotSubmission(
+        baseTime,
+        formData.time,
+        new Date(),
+        firstStageSlotCount ?? slotCount,
+        secondStageSlotCount ?? 0,
+        secondStageStartTime,
+        gridSlotOptions,
+      );
+
+      if (!validation.valid) {
+        return {
+          success: false,
+          message: t(
+            'lcgSlotLocked',
+            'This time slot has closed. Data can only be entered during the active monitoring window.',
+          ),
+          error: validation.errorCode ?? 'SLOT_LOCKED',
+        };
+      }
     }
 
     const encounterPayload = {

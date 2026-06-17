@@ -10,7 +10,9 @@ import {
   UUID_SHARED_DECISION_TRANSFER_TO_CS,
 } from '../types';
 import { saveSharedDecisionMakingData } from '../resources/shared-decision-making.resource';
+import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
+  formatHHMM,
   getAllowedEmergencyTimes,
   getAllowedPointTimesForSlots,
   getPointSlotIndexForTime,
@@ -86,7 +88,7 @@ const SharedDecisionMakingForm: React.FC<
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
-  const [now, setNow] = React.useState(() => new Date());
+  const now = useLcgFormClock(isOpen);
   const [consentModalOpen, setConsentModalOpen] = React.useState(false);
   const [pendingCleanData, setPendingCleanData] = React.useState<SharedDecisionMakingFormData | null>(null);
   const actionOptions = React.useMemo(() => {
@@ -138,29 +140,6 @@ const SharedDecisionMakingForm: React.FC<
     }
   }, [isOpen, reset, clearErrors]);
 
-  React.useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    setNow(new Date());
-
-    const msUntilNextMinute = 60_000 - (Date.now() % 60_000);
-    let intervalId: number | undefined;
-
-    const timeoutId = window.setTimeout(() => {
-      setNow(new Date());
-      intervalId = window.setInterval(() => setNow(new Date()), 60_000);
-    }, msUntilNextMinute);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
-    };
-  }, [isOpen]);
-
   const selectedTime = watch('time');
 
   const formatDebugTime = React.useCallback((timeMs: number) => {
@@ -190,100 +169,6 @@ const SharedDecisionMakingForm: React.FC<
     return Array.from(sectionToTokens.entries());
   }, [autoPromptItems]);
 
-  const occupiedAssessmentSlotKeys = React.useMemo(() => {
-    const occupiedSlots = new Set<string>();
-
-    if (!baseTime || slotCount === 0) {
-      return occupiedSlots;
-    }
-
-    for (const entry of existingTimeEntries) {
-      const secondarySlotIndex = getStageAwarePointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        resolvedFirstStageSlotCount,
-        resolvedSecondStageSlotCount,
-        secondStageStartTime,
-        SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS,
-      );
-      if (secondarySlotIndex !== null) {
-        occupiedSlots.add(`secondary-${secondarySlotIndex}`);
-      }
-    }
-
-    return occupiedSlots;
-  }, [
-    baseTime,
-    existingTimeEntries,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
-
-  const occupiedActionPlanSlotKeys = React.useMemo(() => {
-    const occupiedSlots = new Set<string>();
-
-    if (!baseTime || slotCount === 0) {
-      return occupiedSlots;
-    }
-
-    for (const entry of existingTimeEntries) {
-      const hourlySlotIndex = getStageAwarePointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        resolvedFirstStageSlotCount,
-        resolvedSecondStageSlotCount,
-        secondStageStartTime,
-        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
-      );
-      if (hourlySlotIndex !== null) {
-        occupiedSlots.add(`hourly-${hourlySlotIndex}`);
-      }
-    }
-
-    return occupiedSlots;
-  }, [
-    baseTime,
-    existingTimeEntries,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
-
-  const occupiedHourlySlotIndices = React.useMemo(() => {
-    const occupied = new Set<number>();
-
-    if (!baseTime || slotCount === 0) {
-      return occupied;
-    }
-
-    for (const entry of existingTimeEntries) {
-      const slotIndex = getStageAwarePointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        resolvedFirstStageSlotCount,
-        resolvedSecondStageSlotCount,
-        secondStageStartTime,
-        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
-      );
-
-      if (slotIndex !== null) {
-        occupied.add(slotIndex);
-      }
-    }
-
-    return occupied;
-  }, [
-    baseTime,
-    existingTimeEntries,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
-
   const availableAssessmentSlotKeys = React.useMemo(() => {
     if (!baseTime || slotCount === 0) {
       return [];
@@ -293,11 +178,7 @@ const SharedDecisionMakingForm: React.FC<
 
     Array.from({ length: resolvedFirstStageSlotCount }, (_, slotIndex) => slotIndex).forEach((slotIndex) => {
       const secondaryKey = `secondary-${slotIndex}`;
-      if (
-        !occupiedHourlySlotIndices.has(slotIndex) &&
-        !occupiedAssessmentSlotKeys.has(secondaryKey) &&
-        getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS) === 'active') {
         availableSlots.push(secondaryKey);
       }
     });
@@ -307,8 +188,6 @@ const SharedDecisionMakingForm: React.FC<
         const absoluteSlotIndex = resolvedFirstStageSlotCount + slotIndex;
         const secondaryKey = `secondary-${absoluteSlotIndex}`;
         if (
-          !occupiedHourlySlotIndices.has(absoluteSlotIndex) &&
-          !occupiedAssessmentSlotKeys.has(secondaryKey) &&
           getPointSlotState(secondStageStartTime, slotIndex, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS) === 'active'
         ) {
           availableSlots.push(secondaryKey);
@@ -317,16 +196,7 @@ const SharedDecisionMakingForm: React.FC<
     }
 
     return availableSlots;
-  }, [
-    baseTime,
-    now,
-    occupiedHourlySlotIndices,
-    occupiedAssessmentSlotKeys,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
+  }, [baseTime, now, resolvedFirstStageSlotCount, resolvedSecondStageSlotCount, secondStageStartTime, slotCount]);
 
   const availableActionPlanSlotKeys = React.useMemo(() => {
     if (!baseTime || slotCount === 0) {
@@ -337,10 +207,7 @@ const SharedDecisionMakingForm: React.FC<
 
     Array.from({ length: resolvedFirstStageSlotCount }, (_, slotIndex) => slotIndex).forEach((slotIndex) => {
       const hourlyKey = `hourly-${slotIndex}`;
-      if (
-        !occupiedActionPlanSlotKeys.has(hourlyKey) &&
-        getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS) === 'active') {
         availableSlots.push(hourlyKey);
       }
     });
@@ -350,7 +217,6 @@ const SharedDecisionMakingForm: React.FC<
         const absoluteSlotIndex = resolvedFirstStageSlotCount + slotIndex;
         const hourlyKey = `hourly-${absoluteSlotIndex}`;
         if (
-          !occupiedActionPlanSlotKeys.has(hourlyKey) &&
           getPointSlotState(secondStageStartTime, slotIndex, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS) === 'active'
         ) {
           availableSlots.push(hourlyKey);
@@ -359,15 +225,7 @@ const SharedDecisionMakingForm: React.FC<
     }
 
     return availableSlots;
-  }, [
-    baseTime,
-    now,
-    occupiedActionPlanSlotKeys,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
+  }, [baseTime, now, resolvedFirstStageSlotCount, resolvedSecondStageSlotCount, secondStageStartTime, slotCount]);
 
   const assessmentAllowedTimes = React.useMemo(() => {
     if (!baseTime || availableAssessmentSlotKeys.length === 0) {
@@ -429,7 +287,7 @@ const SharedDecisionMakingForm: React.FC<
     ).sort();
   }, [availableActionPlanSlotKeys, baseTime, now, resolvedFirstStageSlotCount, secondStageStartTime]);
 
-  const allowedTimes = React.useMemo(() => {
+  const slotAllowedTimes = React.useMemo(() => {
     if (isEmergencyMode) {
       return getAllowedEmergencyTimes(now);
     }
@@ -437,7 +295,15 @@ const SharedDecisionMakingForm: React.FC<
     return Array.from(new Set([...assessmentAllowedTimes, ...actionPlanAllowedTimes])).sort();
   }, [actionPlanAllowedTimes, assessmentAllowedTimes, isEmergencyMode, now]);
 
-  const isInputLocked = !isEmergencyMode && Boolean(baseTime) && allowedTimes.length === 0;
+  const displayAllowedTimes = React.useMemo(() => {
+    if (slotAllowedTimes.length > 0) {
+      return slotAllowedTimes;
+    }
+    const nowHHMM = formatHHMM(now);
+    return nowHHMM ? [nowHHMM] : [];
+  }, [now, slotAllowedTimes]);
+
+  const isInputLocked = !isEmergencyMode && Boolean(baseTime) && slotAllowedTimes.length === 0;
   const isTimeSelectable = !isInputLocked || isAutoPrompt;
   const areFieldsEnabled = ((!isInputLocked && Boolean(selectedTime)) || isEmergencyMode) && !isSaving;
 
@@ -455,7 +321,7 @@ const SharedDecisionMakingForm: React.FC<
         return;
       }
 
-      if (!isEmergencyMode && baseTime && slotCount > 0 && !allowedTimes.includes(data.time)) {
+      if (!isEmergencyMode && baseTime && slotCount > 0 && !slotAllowedTimes.includes(data.time)) {
         setError('time', {
           type: 'manual',
           message: t('timeNotAllowed', 'Select a valid time slot'),
@@ -557,18 +423,6 @@ const SharedDecisionMakingForm: React.FC<
         onSecondarySubmit={handleClose}
         className={styles.cervixModal}
         size="md">
-        {isInputLocked && baseTime && (
-          <InlineNotification
-            kind="warning"
-            title={t('formLocked', 'Entry Window Closed')}
-            subtitle={t(
-              'sharedDecisionWindowLocked',
-              'No active shared decision making time slot is currently available.',
-            )}
-            hideCloseButton
-          />
-        )}
-
         {saveSuccess && (
           <InlineNotification
             kind="success"
@@ -646,7 +500,9 @@ const SharedDecisionMakingForm: React.FC<
                 rules={{
                   required: t('timeRequired', 'Time is required'),
                   validate: (value) =>
-                    !allowedTimes.length || allowedTimes.includes(value) || t('timeNotAllowed', 'Select a valid time'),
+                    !slotAllowedTimes.length ||
+                    slotAllowedTimes.includes(value) ||
+                    t('timeNotAllowed', 'Select a valid time'),
                 }}
                 render={({ field, fieldState }) => (
                   <div>
@@ -656,13 +512,11 @@ const SharedDecisionMakingForm: React.FC<
                       labelText=""
                       value={typeof field.value === 'string' ? field.value : ''}
                       onChange={field.onChange}
-                      disabled={!isTimeSelectable}
+                      disabled={!baseTime}
                       existingTimeEntries={existingTimeEntries}
-                      allowedTimes={baseTime ? allowedTimes : undefined}
-                      currentTime={`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
-                        2,
-                        '0',
-                      )}`}
+                      allowedTimes={baseTime ? displayAllowedTimes : undefined}
+                      disablePastTimes={!isEmergencyMode}
+                      currentTime={formatHHMM(now)}
                       invalid={!!fieldState.error}
                       invalidText={fieldState.error?.message}
                     />

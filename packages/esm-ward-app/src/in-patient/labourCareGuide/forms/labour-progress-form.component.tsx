@@ -4,6 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { Modal, Grid, Column, NumberInput, Select, SelectItem, InlineNotification } from '@carbon/react';
 import { LabourProgressTimePickerDropdown } from './form-scoped-time-pickers.component';
 import styles from '../partography-data-form.scss';
+import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
   formatMinutesToHHMM,
   getForwardMinutesDelta,
@@ -11,8 +12,10 @@ import {
   getAllowedPointTimesForSlots,
   getPointSlotIndexForTime,
   getPointSlotState,
+  getSlotState,
   getStageAwareSlotIndexForTime,
   parseHHMMToMinutes,
+  formatHHMM,
 } from '../time-slot-utils';
 import {
   LCG_FIRST_STAGE_CONTRACTION_INTERVAL_MINUTES,
@@ -109,7 +112,7 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
-  const [now, setNow] = React.useState(() => new Date());
+  const now = useLcgFormClock(isOpen);
   const showScheduleDebug = process.env.NODE_ENV !== 'production';
 
   const {
@@ -192,29 +195,6 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
     }
   }, [isSecondStageActive, setValue, shouldShowUrgeToPush]);
 
-  React.useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    setNow(new Date());
-
-    const msUntilNextMinute = 60_000 - (Date.now() % 60_000);
-    let intervalId: number | undefined;
-
-    const timeoutId = window.setTimeout(() => {
-      setNow(new Date());
-      intervalId = window.setInterval(() => setNow(new Date()), 60_000);
-    }, msUntilNextMinute);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
-    };
-  }, [isOpen]);
-
   const generateHourOptions = () => {
     const options = [];
     options.push({ value: '0', label: '0hr' });
@@ -263,43 +243,6 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
     return Math.min(slotCount, Math.max(0, Math.round(minutesToSecondStage / LCG_TIME_INCREMENT_MINUTES)));
   }, [baseTime, secondStageStartTime, slotCount]);
 
-  const occupiedUpperSlotKeys = React.useMemo(() => {
-    const occupiedSlots = new Set<string>();
-
-    if (!baseTime || slotCount === 0) {
-      return occupiedSlots;
-    }
-
-    for (const entry of existingLabourProgressFormData) {
-      if (!hasUpperEntryData(entry) || !entry?.time) {
-        continue;
-      }
-
-      const primarySlotIndex = getPointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        firstStageSlotCount,
-        BABY_PRIMARY_FHR_SLOT_OPTIONS,
-      );
-      if (primarySlotIndex !== null) {
-        occupiedSlots.add(`primary-${primarySlotIndex}`);
-        continue;
-      }
-
-      const secondarySlotIndex = getPointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        firstStageSlotCount,
-        BABY_HALF_GRID_SLOT_OPTIONS,
-      );
-      if (secondarySlotIndex !== null) {
-        occupiedSlots.add(`secondary-${secondarySlotIndex}`);
-      }
-    }
-
-    return occupiedSlots;
-  }, [baseTime, existingLabourProgressFormData, firstStageSlotCount, hasUpperEntryData, slotCount]);
-
   const availableUpperSlotKeys = React.useMemo(() => {
     if (!baseTime || firstStageSlotCount === 0 || isSecondStageActive) {
       return [];
@@ -309,24 +252,18 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
 
     Array.from({ length: firstStageSlotCount }, (_, slotIndex) => slotIndex).forEach((slotIndex) => {
       const primaryKey = `primary-${slotIndex}`;
-      if (
-        !occupiedUpperSlotKeys.has(primaryKey) &&
-        getPointSlotState(baseTime, slotIndex, now, BABY_PRIMARY_FHR_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, BABY_PRIMARY_FHR_SLOT_OPTIONS) === 'active') {
         availableSlots.push(primaryKey);
       }
 
       const secondaryKey = `secondary-${slotIndex}`;
-      if (
-        !occupiedUpperSlotKeys.has(secondaryKey) &&
-        getPointSlotState(baseTime, slotIndex, now, BABY_HALF_GRID_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, BABY_HALF_GRID_SLOT_OPTIONS) === 'active') {
         availableSlots.push(secondaryKey);
       }
     });
 
     return availableSlots;
-  }, [baseTime, firstStageSlotCount, isSecondStageActive, now, occupiedUpperSlotKeys]);
+  }, [baseTime, firstStageSlotCount, isSecondStageActive, now]);
   const vaginalExamFilledSlotIndices = React.useMemo(() => {
     if (!baseTime || firstStageSlotCount <= 0) {
       return [] as number[];
@@ -355,10 +292,6 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
 
     return Array.from(filledSlots).sort((left, right) => left - right);
   }, [baseTime, existingLabourProgressFormData, firstStageSlotCount, secondStageStartTime]);
-
-  const occupiedLowerSlotIndices = React.useMemo(() => {
-    return new Set<number>(vaginalExamFilledSlotIndices);
-  }, [vaginalExamFilledSlotIndices]);
 
   const firstStageLowerIntervalSlots = React.useMemo(
     () => Math.max(1, Math.round(LCG_FIRST_STAGE_VAGINAL_EXAM_INTERVAL_MINUTES / LCG_TIME_INCREMENT_MINUTES)),
@@ -395,40 +328,20 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
   }, [firstStageCurrentSlotIndex, firstStageLowerIntervalSlots, firstStageSlotCount, vaginalExamFilledSlotIndices]);
 
   const availableLowerFirstStageSlotIndices = React.useMemo(() => {
-    if (!baseTime || firstStageLowerCandidateSlotIndex === null || firstStageCurrentSlotIndex === null) {
+    if (!baseTime || firstStageCurrentSlotIndex === null || firstStageSlotCount <= 0) {
       return [] as number[];
     }
 
-    if (firstStageCurrentSlotIndex < firstStageLowerCandidateSlotIndex) {
-      return [] as number[];
+    if (getSlotState(baseTime, firstStageCurrentSlotIndex, now) === 'active') {
+      return [firstStageCurrentSlotIndex];
     }
 
-    if (occupiedLowerSlotIndices.has(firstStageLowerCandidateSlotIndex)) {
+    if (firstStageLowerCandidateSlotIndex === null || firstStageCurrentSlotIndex < firstStageLowerCandidateSlotIndex) {
       return [] as number[];
     }
 
     return [firstStageLowerCandidateSlotIndex];
-  }, [baseTime, firstStageCurrentSlotIndex, firstStageLowerCandidateSlotIndex, occupiedLowerSlotIndices]);
-
-  const upperOccupiedTimes = React.useMemo(() => {
-    const occupied = new Set<string>();
-    for (const entry of existingLabourProgressFormData) {
-      if (hasUpperEntryData(entry) && entry?.time) {
-        occupied.add(entry.time);
-      }
-    }
-    return occupied;
-  }, [existingLabourProgressFormData, hasUpperEntryData]);
-
-  const lowerOccupiedTimes = React.useMemo(() => {
-    const occupied = new Set<string>();
-    for (const entry of existingLabourProgressFormData) {
-      if (hasSecondStageDescentData(entry) && entry?.time) {
-        occupied.add(entry.time);
-      }
-    }
-    return occupied;
-  }, [existingLabourProgressFormData, hasSecondStageDescentData]);
+  }, [baseTime, firstStageCurrentSlotIndex, firstStageLowerCandidateSlotIndex, firstStageSlotCount, now]);
 
   const upperAllowedTimes = React.useMemo(() => {
     if (isEmergencyMode) {
@@ -445,7 +358,7 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
         Math.max(0, secondStageElapsedMinutes) / LCG_SECOND_STAGE_CONTRACTION_INTERVAL_MINUTES,
       );
 
-      if (secondStageSlotIndex < 0 || secondStageSlotIndex >= 12 || upperOccupiedTimes.size > 0) {
+      if (secondStageSlotIndex < 0 || secondStageSlotIndex >= 12) {
         return [];
       }
 
@@ -487,7 +400,6 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
     isSecondStageActive,
     secondStageElapsedMinutes,
     secondStageStartTime,
-    upperOccupiedTimes,
   ]);
 
   const lowerAllowedTimes = React.useMemo(() => {
@@ -505,7 +417,7 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
         Math.max(0, secondStageElapsedMinutes) / LCG_SECOND_STAGE_DESCENT_INTERVAL_MINUTES,
       );
 
-      if (secondStageSlotIndex < 0 || secondStageSlotIndex >= 6 || lowerOccupiedTimes.size > 0) {
+      if (secondStageSlotIndex < 0 || secondStageSlotIndex >= 6) {
         return [];
       }
 
@@ -533,7 +445,6 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
     isEmergencyMode,
     now,
     isSecondStageActive,
-    lowerOccupiedTimes,
     secondStageElapsedMinutes,
     secondStageStartTime,
   ]);
@@ -591,11 +502,18 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
     return lowerAllowedTimes[0];
   }, [lowerAllowedTimes]);
 
-  const allowedTimes = React.useMemo(() => {
+  const slotAllowedTimes = React.useMemo(() => {
     return Array.from(new Set([...upperAllowedTimes, ...lowerAllowedTimes])).sort();
   }, [lowerAllowedTimes, upperAllowedTimes]);
 
-  const isInputLocked = !isEmergencyMode && (Boolean(baseTime) || isSecondStageActive) && allowedTimes.length === 0;
+  const displayAllowedTimes = React.useMemo(() => {
+    if (slotAllowedTimes.length > 0) {
+      return slotAllowedTimes;
+    }
+    const nowHHMM = formatHHMM(now);
+    return nowHHMM ? [nowHHMM] : [];
+  }, [now, slotAllowedTimes]);
+
   const selectedAllowsUpper = React.useMemo(() => {
     if (selectedTime) {
       return upperAllowedTimes.includes(selectedTime);
@@ -603,6 +521,7 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
 
     return upperAllowedTimes.length > 0;
   }, [selectedTime, upperAllowedTimes]);
+
   const selectedAllowsLower = React.useMemo(() => {
     if (selectedTime) {
       return lowerAllowedTimes.includes(selectedTime);
@@ -610,6 +529,44 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
 
     return lowerAllowedTimes.length > 0;
   }, [lowerAllowedTimes, selectedTime]);
+
+  const isActiveFirstStageGridSlotOpen = React.useMemo(() => {
+    if (isSecondStageActive || !baseTime || firstStageCurrentSlotIndex === null || firstStageSlotCount <= 0) {
+      return false;
+    }
+    return getSlotState(baseTime, firstStageCurrentSlotIndex, now) === 'active';
+  }, [baseTime, firstStageCurrentSlotIndex, firstStageSlotCount, isSecondStageActive, now]);
+
+  const isSelectedTimeInActiveFirstStageGridSlot = React.useMemo(() => {
+    if (!isActiveFirstStageGridSlotOpen || !selectedTime || !baseTime) {
+      return false;
+    }
+    const slotIndex = getStageAwareSlotIndexForTime(
+      baseTime,
+      selectedTime,
+      firstStageSlotCount,
+      0,
+      secondStageStartTime,
+    );
+    return slotIndex === firstStageCurrentSlotIndex;
+  }, [
+    baseTime,
+    firstStageCurrentSlotIndex,
+    firstStageSlotCount,
+    isActiveFirstStageGridSlotOpen,
+    secondStageStartTime,
+    selectedTime,
+  ]);
+
+  const canEditUpper = isEmergencyMode || selectedAllowsUpper || isActiveFirstStageGridSlotOpen;
+  const canEditLower = isEmergencyMode || selectedAllowsLower || isActiveFirstStageGridSlotOpen;
+
+  const isInputLocked =
+    !isEmergencyMode &&
+    (Boolean(baseTime) || isSecondStageActive) &&
+    slotAllowedTimes.length === 0 &&
+    !isActiveFirstStageGridSlotOpen;
+
   const shouldShowUrgeToPushField = isSecondStageActive || shouldShowUrgeToPush;
   const minutesFromBaseAtSelectedTime = React.useMemo(() => {
     if (!baseTime || !selectedTime) {
@@ -620,7 +577,15 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
   }, [baseTime, selectedTime]);
 
   const isFirstStageVaginalExamTime = React.useMemo(() => {
-    if (isSecondStageActive || !baseTime || !selectedTime || firstStageSlotCount <= 0) {
+    if (isSecondStageActive || !baseTime || firstStageSlotCount <= 0) {
+      return false;
+    }
+
+    if (isActiveFirstStageGridSlotOpen) {
+      return true;
+    }
+
+    if (!selectedTime) {
       return false;
     }
 
@@ -631,7 +596,14 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
       LABOUR_PROGRESS_LOWER_SLOT_OPTIONS,
     );
     return slotIndex !== null && availableLowerFirstStageSlotIndices.includes(slotIndex);
-  }, [availableLowerFirstStageSlotIndices, baseTime, firstStageSlotCount, isSecondStageActive, selectedTime]);
+  }, [
+    availableLowerFirstStageSlotIndices,
+    baseTime,
+    firstStageSlotCount,
+    isActiveFirstStageGridSlotOpen,
+    isSecondStageActive,
+    selectedTime,
+  ]);
 
   const isSecondStageDescentTime = React.useMemo(() => {
     if (!isSecondStageActive || !secondStageStartTime || !selectedTime) {
@@ -648,14 +620,11 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
     );
   }, [isSecondStageActive, secondStageStartTime, selectedTime]);
 
-  const upperFieldsDisabled = isInputLocked || !selectedAllowsUpper;
-  const cervicalFieldDisabled =
-    isInputLocked || !selectedAllowsLower || isSecondStageActive || !isFirstStageVaginalExamTime;
+  const upperFieldsDisabled = !canEditUpper;
+  const cervicalFieldDisabled = !canEditLower || isSecondStageActive || !isFirstStageVaginalExamTime;
   const descentFieldDisabled =
-    isInputLocked ||
-    !selectedAllowsLower ||
-    (isSecondStageActive ? !isSecondStageDescentTime : !isFirstStageVaginalExamTime);
-  const urgeFieldDisabled = isInputLocked || (isSecondStageActive ? !selectedAllowsUpper : !selectedAllowsLower);
+    !canEditLower || (isSecondStageActive ? !isSecondStageDescentTime : !isFirstStageVaginalExamTime);
+  const urgeFieldDisabled = isSecondStageActive ? !canEditUpper : !canEditLower;
 
   const handleFormSubmit = async (data: LabourProgressFormData) => {
     clearErrors();
@@ -683,8 +652,8 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
       return;
     }
 
-    const isUpperTime = upperAllowedTimes.includes(data.time);
-    const isLowerTime = lowerAllowedTimes.includes(data.time);
+    const isUpperTime = upperAllowedTimes.includes(data.time) || isSelectedTimeInActiveFirstStageGridSlot;
+    const isLowerTime = lowerAllowedTimes.includes(data.time) || isSelectedTimeInActiveFirstStageGridSlot;
     const hasUpperInput = Boolean(data.contractionsPer10Mins || data.durationOfContractions);
     const hasLowerMeasurementInput = data.cervicalDilation !== '' || data.descentOfHead !== '';
     const hasUrgeInput = Boolean(data.urgeToPush);
@@ -888,35 +857,6 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
         />
       ) : null}
       <Grid className={styles.formGrid}>
-        <Column lg={12} md={4} sm={2}>
-          <div className={styles.formField}>
-            {baseTime && allowedTimes.length === 0 ? (
-              <InlineNotification
-                kind="warning"
-                title={t('noLabourProgressSlotsOpen', 'No labour progress slot is open')}
-                subtitle={t(
-                  'labourProgressLockedMessage',
-                  'All current labour progress half-cells are locked or already filled. Wait for the next allowed time window.',
-                )}
-                hideCloseButton
-              />
-            ) : null}
-            {baseTime && showScheduleDebug ? (
-              <InlineNotification
-                kind="info"
-                title={t('labourLowerScheduleDebug', 'Labour lower schedule debug')}
-                subtitle={t(
-                  'labourLowerScheduleDebugDetails',
-                  `Last lower entry: ${latestFirstStageLowerEntryTime ?? '-'} | Next due (+1h): ${
-                    nextLowerDueTime ?? '-'
-                  } | Current catch-up open: ${currentLowerCatchUpOpenTime ?? '-'}`,
-                )}
-                hideCloseButton
-              />
-            ) : null}
-          </div>
-        </Column>
-
         <Column lg={8} md={4} sm={2}>
           <div className={styles.formField}>
             <Controller
@@ -931,12 +871,10 @@ const LabourProgressForm: React.FC<LabourProgressFormProps> = ({
                     value={field.value}
                     onChange={field.onChange}
                     existingTimeEntries={existingTimeEntries}
-                    allowedTimes={allowedTimes}
-                    currentTime={`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
-                      2,
-                      '0',
-                    )}`}
-                    disabled={isInputLocked}
+                    allowedTimes={displayAllowedTimes}
+                    disablePastTimes={!isEmergencyMode}
+                    currentTime={formatHHMM(now)}
+                    disabled={!baseTime}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}
                   />

@@ -8,7 +8,10 @@ import {
   URGE_TO_PUSH_UUID,
   URINE_TEST_TIME_SLOT_CONCEPT,
   ENCOUNTER_ROLE,
+  CONTRACTION_COUNT_CONCEPT,
+  UTERINE_CONTRACTION_DURATION_CONCEPT,
 } from '../types';
+import { validateStageAwareGridSlotSubmission } from '../time-slot-utils';
 
 export interface LabourProgressFormPayload {
   time: string;
@@ -28,6 +31,12 @@ export interface SaveLabourProgressResponse {
 
 type LabourProgressSaveOptions = {
   emergencyReason?: string;
+  lcgValidation?: {
+    baseTime: string;
+    firstStageSlotCount: number;
+    secondStageSlotCount?: number;
+    secondStageStartTime?: string;
+  };
 };
 
 export async function saveLabourProgressData(
@@ -72,6 +81,29 @@ export async function saveLabourProgressData(
     }
     if (!finalLocationUuid) {
       return { success: false, message: t('Location information is required'), error: 'NO_LOCATION' };
+    }
+
+    if (!options?.emergencyReason && options?.lcgValidation) {
+      const { baseTime, firstStageSlotCount, secondStageSlotCount = 0, secondStageStartTime } = options.lcgValidation;
+      const validation = validateStageAwareGridSlotSubmission(
+        baseTime,
+        formData.time.trim(),
+        new Date(),
+        firstStageSlotCount,
+        secondStageSlotCount,
+        secondStageStartTime,
+      );
+
+      if (!validation.valid) {
+        return {
+          success: false,
+          message: t(
+            'lcgSlotLocked',
+            'This time slot has closed. Data can only be entered during the active monitoring window.',
+          ),
+          error: validation.errorCode ?? 'SLOT_LOCKED',
+        };
+      }
     }
 
     const eventTimestamp = toOmrsIsoString(new Date(Date.now() - 3 * 60 * 1000));
@@ -135,14 +167,14 @@ function buildLabourProgressObservations(
   return [
     formData.contractionsPer10Mins
       ? {
-          concept: PARTOGRAPHY_CONCEPTS['contraction-count'],
+          concept: CONTRACTION_COUNT_CONCEPT,
           value: parseInt(formData.contractionsPer10Mins, 10),
           obsDatetime,
         }
       : null,
     formData.durationOfContractions
       ? {
-          concept: PARTOGRAPHY_CONCEPTS['uterine-contraction-duration'],
+          concept: UTERINE_CONTRACTION_DURATION_CONCEPT,
           value: parseInt(formData.durationOfContractions, 10),
           obsDatetime,
         }

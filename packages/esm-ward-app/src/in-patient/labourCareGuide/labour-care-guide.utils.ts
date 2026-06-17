@@ -45,6 +45,27 @@ export const getEncounterObsValue = (encounter: any, conceptUuid: string) => {
   return found ? readObsValue(found) : '';
 };
 
+export const getLabourContractionObsFromEncounter = (encounter: any) => {
+  const countConceptUuid = PARTOGRAPHY_CONCEPTS['contraction-count'];
+  const durationConceptUuid = PARTOGRAPHY_CONCEPTS['uterine-contraction-duration'];
+
+  if (countConceptUuid !== durationConceptUuid) {
+    return {
+      contractionsPer10Mins: getEncounterObsValue(encounter, countConceptUuid),
+      durationOfContractions: getEncounterObsValue(encounter, durationConceptUuid),
+    };
+  }
+
+  const legacyValues = (encounter?.obs ?? [])
+    .filter((obs: any) => obs.concept?.uuid === countConceptUuid)
+    .map((obs: any) => readObsValue(obs));
+
+  return {
+    contractionsPer10Mins: legacyValues[0] ?? '',
+    durationOfContractions: legacyValues[1] ?? '',
+  };
+};
+
 export const getEncounterObsNumber = (encounter: any, conceptUuid: string) => {
   const value = getEncounterObsValue(encounter, conceptUuid);
   const numericValue = Number(value);

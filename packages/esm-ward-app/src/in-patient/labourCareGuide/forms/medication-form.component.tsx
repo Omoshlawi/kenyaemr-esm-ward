@@ -17,7 +17,9 @@ import { useDebounce, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
 import useSWR from 'swr';
 import { MedicationTimePickerDropdown } from './form-scoped-time-pickers.component';
 import styles from '../partography-data-form.scss';
+import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
+  formatHHMM,
   getAllowedEmergencyTimes,
   getAllowedPointTimesForSlots,
   getAllowedTimesForSlots,
@@ -225,7 +227,7 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  const now = useLcgFormClock(isOpen);
   const [drugs, setDrugs] = useState<DrugItem[]>([{ drugName: '', dosage: '', route: '' }]);
 
   const {
@@ -255,13 +257,6 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
   const watchOxytocinUsed = watch('oxytocinUsed');
   const watchMedicine = watch('medicine');
   const selectedTime = watch('time');
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setNow(new Date());
-    const intervalId = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(intervalId);
-  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -308,28 +303,6 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
 
   const isBaseLocked = !isEmergencyMode && (!baseTime || slotCount === 0);
 
-  const occupiedSlotIndices = useMemo(() => {
-    const occupied = new Set<number>();
-    if (!baseTime || slotCount === 0) return occupied;
-
-    for (const entry of existingTimeEntries) {
-      const idx =
-        getStageAwarePointSlotIndexForTime(
-          baseTime,
-          entry.time,
-          firstStageSlotCount || slotCount,
-          secondStageSlotCount,
-          secondStageStartTime,
-          MEDICATION_HALF_SLOT_OPTIONS[0],
-        ) ?? getSlotIndexForTime(baseTime, entry.time, slotCount);
-      if (idx !== null) {
-        occupied.add(idx);
-      }
-    }
-
-    return occupied;
-  }, [baseTime, existingTimeEntries, firstStageSlotCount, secondStageSlotCount, secondStageStartTime, slotCount]);
-
   const availableSlotIndices = useMemo(() => {
     if (!baseTime || slotCount === 0) return [];
 
@@ -354,18 +327,16 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
 
       if (currentSlotIndex !== null && currentSlotIndex >= firstStageSlotCount) {
         const relativeSecondStageIndex = currentSlotIndex - firstStageSlotCount;
-        return occupiedSlotIndices.has(currentSlotIndex) ? [] : [relativeSecondStageIndex];
+        return getSlotState(secondStageStartTime, relativeSecondStageIndex, now) === 'active'
+          ? [relativeSecondStageIndex]
+          : [];
       }
     }
 
-    return Array.from({ length: slotCount }, (_, i) => i).filter((idx) => {
-      if (occupiedSlotIndices.has(idx)) {
-        return false;
-      }
-
-      return getSlotState(baseTime, idx, now) === 'active';
-    });
-  }, [baseTime, firstStageSlotCount, now, occupiedSlotIndices, secondStageSlotCount, secondStageStartTime, slotCount]);
+    return Array.from({ length: slotCount }, (_, i) => i).filter(
+      (idx) => getSlotState(baseTime, idx, now) === 'active',
+    );
+  }, [baseTime, firstStageSlotCount, now, secondStageSlotCount, secondStageStartTime, slotCount]);
 
   const oxytocinAvailableSlotIndices = useMemo(() => {
     if (availableSlotIndices.length === 0) {
@@ -379,7 +350,7 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
     return availableSlotIndices.filter((idx) => idx % slotsPerInterval === 0);
   }, [availableSlotIndices]);
 
-  const allowedTimes = useMemo(() => {
+  const slotAllowedTimes = useMemo(() => {
     if (!isOpen || isBaseLocked) return [];
     if (isEmergencyMode) {
       return getAllowedEmergencyTimes(now);
@@ -406,10 +377,6 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
 
       if (currentSlotIndex !== null && currentSlotIndex >= firstStageSlotCount) {
         const relativeSecondStageIndex = currentSlotIndex - firstStageSlotCount;
-        if (occupiedSlotIndices.has(currentSlotIndex)) {
-          return [];
-        }
-
         return Array.from(
           new Set([
             ...getAllowedPointTimesForSlots(
@@ -445,22 +412,21 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
     isEmergencyMode,
     isOpen,
     now,
-    occupiedSlotIndices,
     oxytocinAvailableSlotIndices,
     secondStageSlotCount,
     secondStageStartTime,
     watchOxytocinUsed,
   ]);
 
-  useEffect(() => {
-    if (!isOpen || selectedTime || allowedTimes.length === 0) {
-      return;
+  const displayAllowedTimes = useMemo(() => {
+    if (slotAllowedTimes.length > 0) {
+      return slotAllowedTimes;
     }
+    const nowHHMM = formatHHMM(now);
+    return nowHHMM ? [nowHHMM] : [];
+  }, [now, slotAllowedTimes]);
 
-    setValue('time', allowedTimes[0], { shouldValidate: true, shouldDirty: true });
-  }, [allowedTimes, isOpen, selectedTime, setValue]);
-
-  const isTimeWindowLocked = !isEmergencyMode && !isBaseLocked && allowedTimes.length === 0;
+  const isTimeWindowLocked = !isEmergencyMode && !isBaseLocked && slotAllowedTimes.length === 0;
   const areFieldsEnabled = !isBaseLocked && !isTimeWindowLocked && !!selectedTime;
 
   const handleFormSubmit = async (data: MedicationFormData) => {
@@ -472,7 +438,7 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
       return;
     }
 
-    if (allowedTimes.length > 0 && !allowedTimes.includes(data.time)) {
+    if (slotAllowedTimes.length > 0 && !slotAllowedTimes.includes(data.time)) {
       setError('time', { message: t('timeNotAllowed', 'Select a valid time slot') });
       return;
     }
@@ -569,12 +535,10 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
                     id="med-time-picker"
                     value={field.value}
                     onChange={field.onChange}
-                    allowedTimes={allowedTimes}
-                    currentTime={`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
-                      2,
-                      '0',
-                    )}`}
-                    disabled={isBaseLocked}
+                    allowedTimes={displayAllowedTimes}
+                    disablePastTimes={!isEmergencyMode}
+                    currentTime={formatHHMM(now)}
+                    disabled={!baseTime}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}
                     labelText=""
@@ -582,11 +546,6 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
                 </div>
               )}
             />
-            {isTimeWindowLocked && (
-              <p className={styles.helperTextError}>
-                {t('lockedTime', 'Current time is outside the exact slot time required for this entry.')}
-              </p>
-            )}
           </div>
         </Column>
         <Column lg={16} md={8} sm={4}>

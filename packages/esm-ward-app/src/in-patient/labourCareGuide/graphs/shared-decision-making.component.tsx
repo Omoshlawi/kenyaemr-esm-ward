@@ -96,10 +96,8 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
       );
       if (secondarySlotIndex !== null) {
         const existingGroup = map.get(secondarySlotIndex) ?? {};
-        if (!existingGroup.secondary) {
-          existingGroup.secondary = entry;
-          map.set(secondarySlotIndex, existingGroup);
-        }
+        existingGroup.secondary = entry;
+        map.set(secondarySlotIndex, existingGroup);
       }
     }
     return map;
@@ -129,7 +127,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
         SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
         firstStageCutoffSlotIndex,
       );
-      if (slotIndex !== null && !map.has(slotIndex)) {
+      if (slotIndex !== null) {
         map.set(slotIndex, entry);
       }
     }
@@ -160,7 +158,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
         SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
         firstStageCutoffSlotIndex,
       );
-      if (slotIndex !== null && !map.has(slotIndex)) {
+      if (slotIndex !== null) {
         map.set(slotIndex, entry);
       }
     }

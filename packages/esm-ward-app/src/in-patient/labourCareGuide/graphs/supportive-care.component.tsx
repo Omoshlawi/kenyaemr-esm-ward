@@ -131,7 +131,10 @@ const SupportiveCare: React.FC<SupportiveCareProps> = ({
   const slotEntries = React.useMemo(() => {
     const mapped = new Map<number, SupportiveCareEntry>();
     if (!baseTime) return mapped;
-    graphEntries.forEach((entry) => {
+    const sorted = [...graphEntries].sort(
+      (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
+    );
+    sorted.forEach((entry) => {
       const idx = getStageAwareSlotIndexForTime(
         baseTime,
         entry.time,

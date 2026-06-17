@@ -32,6 +32,7 @@ import {
   activeFirstStageHours,
   getEncounterObsValue,
   getEncounterRecordedTime,
+  getLabourContractionObsFromEncounter,
   parseCervicalDilationValue,
   parseDescentOfHeadValue,
   parseUrgeToPushValue,
@@ -294,11 +295,7 @@ export function useLcgData(patientUuid: string) {
         }
 
         const time = getEncounterRecordedTime(encounter);
-        const contractionsPer10Mins = getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['contraction-count']);
-        const durationOfContractions = getEncounterObsValue(
-          encounter,
-          PARTOGRAPHY_CONCEPTS['uterine-contraction-duration'],
-        );
+        const { contractionsPer10Mins, durationOfContractions } = getLabourContractionObsFromEncounter(encounter);
         const cervicalDilation = parseCervicalDilationValue(
           getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['cervical-dilation']),
         );

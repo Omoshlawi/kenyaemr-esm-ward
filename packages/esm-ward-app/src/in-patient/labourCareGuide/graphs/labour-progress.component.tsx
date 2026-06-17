@@ -45,6 +45,7 @@ import {
 } from '../time-slot-utils';
 import { buildWomanScheduleState } from '../woman-schedule-utils';
 import { getLabourContractionAlertInfo, type LabourContractionMetric } from '../alert-rules';
+import { getLabourContractionObsFromEncounter } from '../labour-care-guide.utils';
 import { SectionToolbar } from '../components/section-toolbar.component';
 
 interface LabourProgressProps {
@@ -403,16 +404,13 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
       const existingEntry = mappedEntries.get(slotIndex) ?? {};
       mappedEntries.set(slotIndex, {
         ...existingEntry,
-        // Persist time metadata for API-derived entries so graph filters/mapping keep them after refresh.
         ...(slotTime ? { time: slotTime } : {}),
         ...(encounter?.encounterDatetime ? { encounterDatetime: encounter.encounterDatetime } : {}),
         ...partialEntry,
-        // Keep the first plotted lower-row values per slot to avoid losing graph points
-        // when another observation in the same slot is saved later.
         cervicalDilation:
-          existingEntry.cervicalDilation !== undefined ? existingEntry.cervicalDilation : partialEntry.cervicalDilation,
+          partialEntry.cervicalDilation !== undefined ? partialEntry.cervicalDilation : existingEntry.cervicalDilation,
         descentOfHead:
-          existingEntry.descentOfHead !== undefined ? existingEntry.descentOfHead : partialEntry.descentOfHead,
+          partialEntry.descentOfHead !== undefined ? partialEntry.descentOfHead : existingEntry.descentOfHead,
       });
     };
 
@@ -421,11 +419,7 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
         return;
       }
 
-      const contractionsPer10Mins = getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['contraction-count']);
-      const durationOfContractions = getEncounterObsValue(
-        encounter,
-        PARTOGRAPHY_CONCEPTS['uterine-contraction-duration'],
-      );
+      const { contractionsPer10Mins, durationOfContractions } = getLabourContractionObsFromEncounter(encounter);
       const cervicalDilation = parseCervicalDilationValue(
         getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['cervical-dilation']),
       );
@@ -479,8 +473,8 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
           ...existingEntry,
           ...entry,
           cervicalDilation:
-            existingEntry.cervicalDilation !== undefined ? existingEntry.cervicalDilation : entry.cervicalDilation,
-          descentOfHead: existingEntry.descentOfHead !== undefined ? existingEntry.descentOfHead : entry.descentOfHead,
+            entry.cervicalDilation !== undefined ? entry.cervicalDilation : existingEntry.cervicalDilation,
+          descentOfHead: entry.descentOfHead !== undefined ? entry.descentOfHead : existingEntry.descentOfHead,
         });
       });
 
@@ -552,11 +546,7 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
       }
 
       const time = getEncounterRecordedTime(encounter);
-      const contractionsPer10Mins = getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['contraction-count']);
-      const durationOfContractions = getEncounterObsValue(
-        encounter,
-        PARTOGRAPHY_CONCEPTS['uterine-contraction-duration'],
-      );
+      const { contractionsPer10Mins, durationOfContractions } = getLabourContractionObsFromEncounter(encounter);
       const cervicalDilation = parseCervicalDilationValue(
         getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['cervical-dilation']),
       );
