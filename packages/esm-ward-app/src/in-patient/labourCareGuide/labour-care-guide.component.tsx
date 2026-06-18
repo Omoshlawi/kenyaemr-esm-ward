@@ -58,6 +58,7 @@ import {
   secondStageHours,
 } from './labour-care-guide.utils';
 import { useLcgData } from './hooks/use-lcg-data';
+import { LcgSectionStateProvider } from './context/lcg-section-state.context';
 import { GlobalCdsAlertProvider, useGlobalCdsAlert } from './global-cds-alerts/global-cds-alert-context';
 import GlobalCdsAlertDisplay from './global-cds-alerts/global-cds-alert-display.component';
 import { LCG_CDS_ALERT_HANDLED_QUERY_KEY, LCG_CDS_ALERT_STORAGE_KEY } from './constants/labour-care-guide.constants';
@@ -188,6 +189,14 @@ const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
 };
 
 const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patientUuid, patient }) => {
+  return (
+    <LcgSectionStateProvider patientUuid={patientUuid}>
+      <LabourCareGuideWorkspace patientUuid={patientUuid} patient={patient} />
+    </LcgSectionStateProvider>
+  );
+};
+
+const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patientUuid, patient }) => {
   const { t } = useTranslation();
   const config = useConfig();
   const session = useSession();

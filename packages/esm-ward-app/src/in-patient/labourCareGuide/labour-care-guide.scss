@@ -496,10 +496,30 @@ $lcg-alert-band: #ffd9bf;
 .sharedDecisionTallCell {
   height: 10rem !important;
   vertical-align: top !important;
+  overflow: hidden;
+  position: relative;
+  max-width: var(--lcg-col-entry);
 }
 
 .sharedDecisionShortCell {
   height: 2rem !important;
+  overflow: hidden;
+}
+
+.sharedDecisionGridText {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: calc(10rem - 0.4rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sharedDecisionTableCell {
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: top;
+  min-width: 12rem;
+  max-width: 28rem;
 }
 
 .cellText {

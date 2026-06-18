@@ -42,6 +42,8 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
   const instanceId = useId().replace(/:/g, '_');
   const resolvedId = `${id}-${instanceId}`;
   const userSelectedFutureRef = useRef(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const [hours, minutes] = value && value.includes(':') ? value.split(':') : ['', ''];
 
   const hasRestrictedTimes = Array.isArray(allowedTimes);
@@ -167,6 +169,16 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
     }, null);
   }, [allowedTimes, currentTime, currentTotalMinutes, disablePastTimes, hasRestrictedOptions]);
 
+  const syncTimeValue = useCallback(
+    (nextTime: string) => {
+      if (!nextTime || nextTime === value) {
+        return;
+      }
+      onChangeRef.current(nextTime);
+    },
+    [value],
+  );
+
   useEffect(() => {
     if (disabled || !defaultTime) {
       return;
@@ -174,7 +186,7 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
 
     if (disablePastTimes && currentTime) {
       if (!value) {
-        onChange(defaultTime ?? currentTime);
+        syncTimeValue(defaultTime ?? currentTime);
         return;
       }
 
@@ -183,22 +195,20 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
         const fallback = allowedTimes?.includes(currentTime)
           ? currentTime
           : (defaultTime ?? allowedTimes?.[0] ?? currentTime);
-        if (fallback !== value) {
-          onChange(fallback);
-        }
+        syncTimeValue(fallback);
         return;
       }
 
       if (!userSelectedFutureRef.current && allowedTimes?.includes(currentTime) && value !== currentTime) {
-        onChange(currentTime);
+        syncTimeValue(currentTime);
       }
       return;
     }
 
     if (!value) {
-      onChange(defaultTime);
+      syncTimeValue(defaultTime);
     }
-  }, [allowedTimes, currentTime, defaultTime, disablePastTimes, disabled, isTimeInPast, onChange, value]);
+  }, [allowedTimes, currentTime, defaultTime, disablePastTimes, disabled, isTimeInPast, syncTimeValue, value]);
 
   useEffect(() => {
     if (!value) {

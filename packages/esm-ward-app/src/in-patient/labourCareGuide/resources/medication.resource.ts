@@ -48,6 +48,20 @@ type MedicationSaveOptions = {
   emergencyReason?: string;
 };
 
+const MEDICATION_REQUEST_TIMEOUT_MS = 15_000;
+
+const fetchWithTimeout = async <T>(url: string): Promise<T> => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), MEDICATION_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await openmrsFetch(url, { signal: controller.signal });
+    return response.json() as Promise<T>;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
 const MEDICATION_CODE_TO_DISPLAY: Record<string, string> = {
   [MEDICATION_CODED_VALUES.YES]: 'Y',
   [MEDICATION_CODED_VALUES.NO]: 'N',
@@ -106,7 +120,7 @@ export async function saveMedicationData(
   options?: MedicationSaveOptions,
 ) {
   try {
-    const session = await openmrsFetch(`${restBaseUrl}/session`).then((res) => res.json());
+    const session = await fetchWithTimeout<any>(`${restBaseUrl}/session`);
     const finalProviderUuid = providerUuid || session?.currentProvider?.uuid;
     const finalLocationUuid = locationUuid || session?.sessionLocation?.uuid;
 
@@ -119,13 +133,21 @@ export async function saveMedicationData(
       encounterProviders: [{ provider: finalProviderUuid, encounterRole: ENCOUNTER_ROLE }],
     };
 
-    const response = await openmrsFetch(`${restBaseUrl}/encounter`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(encounterPayload),
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), MEDICATION_REQUEST_TIMEOUT_MS);
 
-    return { success: response.ok, encounter: await response.json() };
+    try {
+      const response = await openmrsFetch(`${restBaseUrl}/encounter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(encounterPayload),
+        signal: controller.signal,
+      });
+
+      return { success: response.ok, encounter: await response.json() };
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   } catch (error) {
     return { success: false, message: (error as Error).message };
   }
@@ -272,7 +294,13 @@ export function useMedicationData(patientUuid: string) {
       ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
       : null,
     fetcher,
-    { revalidateOnFocus: false, revalidateIfStale: false },
+    {
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      revalidateOnReconnect: false,
+      errorRetryCount: 1,
+      dedupingInterval: 5_000,
+    },
   );
 
   const medicationEntries: MedicationEntry[] = (data?.results || [])

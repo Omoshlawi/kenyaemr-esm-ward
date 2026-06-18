@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal, Grid, Column, TextArea, InlineNotification, Select, SelectItem } from '@carbon/react';
 import { SharedDecisionTimePickerDropdown } from './form-scoped-time-pickers.component';
+import SharedDecisionAssessmentField from './shared-decision-assessment-field.component';
 import styles from '../partography-data-form.scss';
+import { buildAssessmentPrefillFromAlerts, type SharedDecisionAlertItem } from '../alert-rules';
 import {
   SHARED_DECISION_MAKING_ACTIONS,
   UUID_SHARED_DECISION_REFERRAL,
@@ -35,7 +37,7 @@ export type SharedDecisionMakingFormProps = {
   onSubmit: (data: SharedDecisionMakingFormData) => void;
   onDataSaved?: () => void;
   autoPromptSummary?: string;
-  autoPromptItems?: Array<{ section: string; code: string; guidance: string }>;
+  autoPromptItems?: SharedDecisionAlertItem[];
   isAutoPrompt?: boolean;
   autoPromptDebugWindow?: {
     triggerTimeMs: number;
@@ -131,14 +133,24 @@ const SharedDecisionMakingForm: React.FC<
     },
   });
 
+  const wasOpenRef = React.useRef(false);
+
   React.useEffect(() => {
-    if (isOpen) {
-      reset({ assessment: '', action: '', plan: '', time: '' });
+    if (isOpen && !wasOpenRef.current) {
+      const assessmentPrefill = buildAssessmentPrefillFromAlerts(autoPromptItems);
+      reset({
+        assessment: assessmentPrefill,
+        action: '',
+        plan: '',
+        time: '',
+      });
       clearErrors();
       setSaveError(null);
       setSaveSuccess(false);
     }
-  }, [isOpen, reset, clearErrors]);
+
+    wasOpenRef.current = isOpen;
+  }, [autoPromptItems, clearErrors, isOpen, reset]);
 
   const selectedTime = watch('time');
 
@@ -152,6 +164,7 @@ const SharedDecisionMakingForm: React.FC<
   }, []);
 
   const groupedAutoPromptItems = React.useMemo(() => {
+    const sectionOrder = ['Supportive Care', 'Baby', 'Woman', 'Labour Progress'];
     const sectionToTokens = new Map<string, Array<{ code: string; guidance: string }>>();
 
     for (const item of autoPromptItems) {
@@ -166,7 +179,12 @@ const SharedDecisionMakingForm: React.FC<
       sectionToTokens.get(item.section)!.push({ code: item.code, guidance: item.guidance });
     }
 
-    return Array.from(sectionToTokens.entries());
+    const orderedSections = [
+      ...sectionOrder.filter((section) => sectionToTokens.has(section)),
+      ...Array.from(sectionToTokens.keys()).filter((section) => !sectionOrder.includes(section)),
+    ];
+
+    return orderedSections.map((section) => [section, sectionToTokens.get(section)!] as const);
   }, [autoPromptItems]);
 
   const availableAssessmentSlotKeys = React.useMemo(() => {
@@ -456,6 +474,7 @@ const SharedDecisionMakingForm: React.FC<
 
         {groupedAutoPromptItems.length ? (
           <div className={styles.autoPromptSummary}>
+            <p className={styles.autoPromptSummaryTitle}>{t('activeClinicalAlerts', 'Active clinical alerts')}</p>
             <p className={styles.autoPromptHint}>
               {t('hoverAlertInfoForGuidance', 'Hover the info button next to each alert code to view guidance.')}
             </p>
@@ -535,13 +554,13 @@ const SharedDecisionMakingForm: React.FC<
                 control={control}
                 rules={{ required: t('assessmentRequired', 'Assessment is required') }}
                 render={({ field, fieldState }) => (
-                  <TextArea
+                  <SharedDecisionAssessmentField
                     id="assessment-textarea"
                     labelText={t('assessment', 'Assessment *')}
                     placeholder={t('enterAssessment', 'Enter assessment...')}
-                    rows={6}
                     value={typeof field.value === 'string' ? field.value : ''}
-                    onChange={(e) => field.onChange(e.target.value)}
+                    onChange={field.onChange}
+                    alertItems={autoPromptItems}
                     disabled={!areFieldsEnabled}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}

@@ -102,6 +102,50 @@ export const getEncounterRecordedTime = (encounter: any) => {
   return encounterDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 };
 
+export const parseLcgEntryTimeString = (raw: unknown): string => {
+  if (raw === null || raw === undefined) {
+    return '';
+  }
+
+  const text = String(raw).trim();
+  if (!text) {
+    return '';
+  }
+
+  const timeMatch = text.match(/Time:\s*([0-9]{1,2}:[0-9]{2})/i);
+  if (timeMatch) {
+    return timeMatch[1];
+  }
+
+  if (/^([01]?\d|2[0-3]):[0-5]\d$/.test(text)) {
+    return text;
+  }
+
+  return '';
+};
+
+export const resolveEntryTimeMs = (entry: { encounterDatetime?: string; time?: string }) => {
+  const encounterDate = new Date(entry.encounterDatetime ?? Date.now());
+  const resolvedTime = parseLcgEntryTimeString(entry.time);
+
+  if (!resolvedTime) {
+    const fallbackTime = encounterDate.getTime();
+    return Number.isFinite(fallbackTime) ? fallbackTime : null;
+  }
+
+  const [hours, minutes] = resolvedTime.split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+    const fallbackTime = encounterDate.getTime();
+    return Number.isFinite(fallbackTime) ? fallbackTime : null;
+  }
+
+  const entryDate = new Date(encounterDate);
+  entryDate.setHours(hours, minutes, 0, 0);
+  const entryTimeMs = entryDate.getTime();
+
+  return Number.isFinite(entryTimeMs) ? entryTimeMs : null;
+};
+
 export const parseCervicalDilationValue = (value: string) => {
   const normalizedValue = String(value ?? '').trim();
   if (!normalizedValue) {
@@ -229,4 +273,25 @@ export const resolveBirthActionLabel = (action: string) => {
   }
 
   return null;
+};
+
+export const SHARED_DECISION_GRID_TEXT_MAX_LENGTH = 80;
+
+export const truncateSharedDecisionGridText = (
+  text: string,
+  maxLength: number = SHARED_DECISION_GRID_TEXT_MAX_LENGTH,
+): { display: string; isTruncated: boolean } => {
+  const normalized = String(text ?? '').trim();
+  if (!normalized) {
+    return { display: '', isTruncated: false };
+  }
+
+  if (normalized.length <= maxLength) {
+    return { display: normalized, isTruncated: false };
+  }
+
+  return {
+    display: `${normalized.slice(0, maxLength).trimEnd()}…`,
+    isTruncated: true,
+  };
 };

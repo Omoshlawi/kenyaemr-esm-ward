@@ -22,8 +22,7 @@ import {
   formatHHMM,
   getAllowedEmergencyTimes,
   getAllowedPointTimesForSlots,
-  getAllowedTimesForSlots,
-  getSlotIndexForTime,
+  getPointSlotState,
   getSlotState,
   getStageAwarePointSlotIndexForTime,
 } from '../time-slot-utils';
@@ -74,7 +73,21 @@ const MEDICATION_HALF_SLOT_OPTIONS = [
   },
 ] as const;
 
-const DRUG_FETCHER = (url: string) => openmrsFetch(url).then((r) => r.json());
+const DRUG_SEARCH_TIMEOUT_MS = 10_000;
+const DRUG_SEARCH_LIMIT = 10;
+const DRUG_SEARCH_MIN_QUERY_LENGTH = 3;
+
+const fetchDrugsWithTimeout = async (url: string) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DRUG_SEARCH_TIMEOUT_MS);
+
+  try {
+    const response = await openmrsFetch(url, { signal: controller.signal });
+    return response.json();
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
 
 const DrugSearchRow: React.FC<{
   drug: DrugItem;
@@ -88,10 +101,21 @@ const DrugSearchRow: React.FC<{
   const [open, setOpen] = useState(false);
   const debouncedQuery = useDebounce(query, 400);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const shouldFetch = debouncedQuery.length >= 3 && !drug.drugName;
-  const { data, isLoading } = useSWR(
-    shouldFetch ? `${restBaseUrl}/drug?q=${encodeURIComponent(debouncedQuery)}&v=full&limit=10` : null,
-    DRUG_FETCHER,
+  const trimmedQuery = debouncedQuery.trim();
+  const shouldFetch = trimmedQuery.length >= DRUG_SEARCH_MIN_QUERY_LENGTH && !drug.drugName;
+  const { data, isLoading, error } = useSWR(
+    shouldFetch
+      ? `${restBaseUrl}/drug?q=${encodeURIComponent(trimmedQuery)}&v=default&limit=${DRUG_SEARCH_LIMIT}`
+      : null,
+    fetchDrugsWithTimeout,
+    {
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      revalidateOnReconnect: false,
+      errorRetryCount: 1,
+      dedupingInterval: 5_000,
+      keepPreviousData: true,
+    },
   );
   const suggestions: any[] = data?.results ?? [];
   useEffect(() => {
@@ -103,6 +127,10 @@ const DrugSearchRow: React.FC<{
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    setQuery(drug.drugName);
+  }, [drug.drugName]);
 
   return (
     <div className={styles.drugSearchRow}>
@@ -124,6 +152,9 @@ const DrugSearchRow: React.FC<{
           }}
         />
         {isLoading && <p className={styles.drugSearchLoading}>{t('searching', 'Searching...')}</p>}
+        {error && !isLoading ? (
+          <p className={styles.drugSearchLoading}>{t('drugSearchFailed', 'Drug search timed out. Try again.')}</p>
+        ) : null}
         {open && suggestions.length > 0 && (
           <ul className={styles.drugSuggestions}>
             {suggestions.map((s: any) => (
@@ -182,6 +213,8 @@ const DrugSearchRow: React.FC<{
     </div>
   );
 };
+
+const MemoizedDrugSearchRow = React.memo(DrugSearchRow);
 
 export type MedicationFormProps = {
   isOpen: boolean;
@@ -256,7 +289,44 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
 
   const watchOxytocinUsed = watch('oxytocinUsed');
   const watchMedicine = watch('medicine');
+  const watchIvFluids = watch('ivFluids');
   const selectedTime = watch('time');
+  const nowHHMM = useMemo(
+    () => `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    [now],
+  );
+
+  const resolveCurrentMedicationSlotIndex = useMemo(() => {
+    if (!baseTime || slotCount === 0) {
+      return null;
+    }
+
+    return (
+      getStageAwarePointSlotIndexForTime(
+        baseTime,
+        nowHHMM,
+        firstStageSlotCount,
+        secondStageSlotCount,
+        secondStageStartTime,
+        MEDICATION_HALF_SLOT_OPTIONS[0],
+      ) ??
+      getStageAwarePointSlotIndexForTime(
+        baseTime,
+        nowHHMM,
+        firstStageSlotCount,
+        secondStageSlotCount,
+        secondStageStartTime,
+        MEDICATION_HALF_SLOT_OPTIONS[1],
+      )
+    );
+  }, [baseTime, firstStageSlotCount, nowHHMM, secondStageSlotCount, secondStageStartTime, slotCount]);
+
+  const handleTimeChange = React.useCallback(
+    (nextTime: string) => {
+      setValue('time', nextTime, { shouldDirty: true, shouldValidate: false });
+    },
+    [setValue],
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -296,47 +366,59 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
   }, [watchMedicine, setValue]);
 
   useEffect(() => {
-    if (watch('ivFluids') !== 'yes') {
-      setValue('ivFluidType', '');
+    if (watchIvFluids !== 'yes') {
+      setValue('ivFluidType', '', { shouldDirty: false, shouldValidate: false });
     }
-  }, [setValue, watch]);
+  }, [setValue, watchIvFluids]);
 
   const isBaseLocked = !isEmergencyMode && (!baseTime || slotCount === 0);
 
   const availableSlotIndices = useMemo(() => {
-    if (!baseTime || slotCount === 0) return [];
-
-    if (secondStageStartTime && secondStageSlotCount > 0 && firstStageSlotCount > 0) {
-      const currentSlotIndex =
-        getStageAwarePointSlotIndexForTime(
-          baseTime,
-          `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-          firstStageSlotCount,
-          secondStageSlotCount,
-          secondStageStartTime,
-          MEDICATION_HALF_SLOT_OPTIONS[0],
-        ) ??
-        getStageAwarePointSlotIndexForTime(
-          baseTime,
-          `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-          firstStageSlotCount,
-          secondStageSlotCount,
-          secondStageStartTime,
-          MEDICATION_HALF_SLOT_OPTIONS[1],
-        );
-
-      if (currentSlotIndex !== null && currentSlotIndex >= firstStageSlotCount) {
-        const relativeSecondStageIndex = currentSlotIndex - firstStageSlotCount;
-        return getSlotState(secondStageStartTime, relativeSecondStageIndex, now) === 'active'
-          ? [relativeSecondStageIndex]
-          : [];
-      }
+    if (!isOpen || !baseTime || slotCount === 0 || resolveCurrentMedicationSlotIndex === null) {
+      return [];
     }
 
-    return Array.from({ length: slotCount }, (_, i) => i).filter(
-      (idx) => getSlotState(baseTime, idx, now) === 'active',
-    );
-  }, [baseTime, firstStageSlotCount, now, secondStageSlotCount, secondStageStartTime, slotCount]);
+    if (
+      secondStageStartTime &&
+      secondStageSlotCount > 0 &&
+      firstStageSlotCount > 0 &&
+      resolveCurrentMedicationSlotIndex >= firstStageSlotCount
+    ) {
+      const relativeSecondStageIndex = resolveCurrentMedicationSlotIndex - firstStageSlotCount;
+      return getSlotState(secondStageStartTime, relativeSecondStageIndex, now) === 'active'
+        ? [relativeSecondStageIndex]
+        : [];
+    }
+
+    const activeIndices = MEDICATION_HALF_SLOT_OPTIONS.flatMap((option) => {
+      const slotIndex = getStageAwarePointSlotIndexForTime(
+        baseTime,
+        nowHHMM,
+        firstStageSlotCount,
+        secondStageSlotCount,
+        secondStageStartTime,
+        option,
+      );
+
+      if (slotIndex === null || getPointSlotState(baseTime, slotIndex, now, option) !== 'active') {
+        return [];
+      }
+
+      return [slotIndex];
+    });
+
+    return Array.from(new Set(activeIndices));
+  }, [
+    baseTime,
+    firstStageSlotCount,
+    isOpen,
+    now,
+    nowHHMM,
+    resolveCurrentMedicationSlotIndex,
+    secondStageSlotCount,
+    secondStageStartTime,
+    slotCount,
+  ]);
 
   const oxytocinAvailableSlotIndices = useMemo(() => {
     if (availableSlotIndices.length === 0) {
@@ -350,69 +432,106 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
     return availableSlotIndices.filter((idx) => idx % slotsPerInterval === 0);
   }, [availableSlotIndices]);
 
+  const buildMedicationAllowedTimes = React.useCallback(
+    (targetIndices: number[]) => {
+      if (targetIndices.length === 0 || !baseTime) {
+        return [];
+      }
+
+      return Array.from(
+        new Set([
+          ...getAllowedPointTimesForSlots(baseTime, targetIndices, MEDICATION_HALF_SLOT_OPTIONS[0], now),
+          ...getAllowedPointTimesForSlots(baseTime, targetIndices, MEDICATION_HALF_SLOT_OPTIONS[1], now),
+        ]),
+      ).sort();
+    },
+    [baseTime, now],
+  );
+
+  const oxytocinSlotAllowedTimes = useMemo(() => {
+    if (!isOpen || isBaseLocked || isEmergencyMode) {
+      return [];
+    }
+
+    const targetIndices =
+      oxytocinAvailableSlotIndices.length > 0
+        ? oxytocinAvailableSlotIndices
+        : resolveCurrentMedicationSlotIndex !== null &&
+            resolveCurrentMedicationSlotIndex %
+              Math.max(1, Math.round(LCG_MEDICATION_OXYTOCIN_INTERVAL_MINUTES / LCG_TIME_INCREMENT_MINUTES)) ===
+              0
+          ? [resolveCurrentMedicationSlotIndex]
+          : [];
+
+    return buildMedicationAllowedTimes(targetIndices);
+  }, [
+    buildMedicationAllowedTimes,
+    isBaseLocked,
+    isEmergencyMode,
+    isOpen,
+    oxytocinAvailableSlotIndices,
+    resolveCurrentMedicationSlotIndex,
+  ]);
+
   const slotAllowedTimes = useMemo(() => {
     if (!isOpen || isBaseLocked) return [];
     if (isEmergencyMode) {
       return getAllowedEmergencyTimes(now);
     }
 
-    if (secondStageStartTime && secondStageSlotCount > 0 && firstStageSlotCount > 0) {
-      const currentSlotIndex =
-        getStageAwarePointSlotIndexForTime(
-          baseTime ?? '',
-          `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-          firstStageSlotCount,
-          secondStageSlotCount,
-          secondStageStartTime,
-          MEDICATION_HALF_SLOT_OPTIONS[0],
-        ) ??
-        getStageAwarePointSlotIndexForTime(
-          baseTime ?? '',
-          `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-          firstStageSlotCount,
-          secondStageSlotCount,
-          secondStageStartTime,
-          MEDICATION_HALF_SLOT_OPTIONS[1],
-        );
-
-      if (currentSlotIndex !== null && currentSlotIndex >= firstStageSlotCount) {
-        const relativeSecondStageIndex = currentSlotIndex - firstStageSlotCount;
-        return Array.from(
-          new Set([
-            ...getAllowedPointTimesForSlots(
-              secondStageStartTime,
-              [relativeSecondStageIndex],
-              MEDICATION_HALF_SLOT_OPTIONS[0],
-              now,
-            ),
-            ...getAllowedPointTimesForSlots(
-              secondStageStartTime,
-              [relativeSecondStageIndex],
-              MEDICATION_HALF_SLOT_OPTIONS[1],
-              now,
-            ),
-          ]),
-        ).sort();
+    if (
+      secondStageStartTime &&
+      secondStageSlotCount > 0 &&
+      firstStageSlotCount > 0 &&
+      resolveCurrentMedicationSlotIndex !== null &&
+      resolveCurrentMedicationSlotIndex >= firstStageSlotCount
+    ) {
+      const relativeSecondStageIndex = resolveCurrentMedicationSlotIndex - firstStageSlotCount;
+      if (getSlotState(secondStageStartTime, relativeSecondStageIndex, now) !== 'active') {
+        return [];
       }
+
+      return Array.from(
+        new Set([
+          ...getAllowedPointTimesForSlots(
+            secondStageStartTime,
+            [relativeSecondStageIndex],
+            MEDICATION_HALF_SLOT_OPTIONS[0],
+            now,
+          ),
+          ...getAllowedPointTimesForSlots(
+            secondStageStartTime,
+            [relativeSecondStageIndex],
+            MEDICATION_HALF_SLOT_OPTIONS[1],
+            now,
+          ),
+        ]),
+      ).sort();
     }
 
-    const targetIndices = watchOxytocinUsed === 'yes' ? oxytocinAvailableSlotIndices : availableSlotIndices;
-    if (targetIndices.length === 0) return [];
-    return Array.from(
-      new Set([
-        ...getAllowedPointTimesForSlots(baseTime, targetIndices, MEDICATION_HALF_SLOT_OPTIONS[0], now),
-        ...getAllowedPointTimesForSlots(baseTime, targetIndices, MEDICATION_HALF_SLOT_OPTIONS[1], now),
-      ]),
-    ).sort();
+    const targetIndices =
+      watchOxytocinUsed === 'yes'
+        ? oxytocinAvailableSlotIndices
+        : availableSlotIndices.length > 0
+          ? availableSlotIndices
+          : resolveCurrentMedicationSlotIndex !== null
+            ? [resolveCurrentMedicationSlotIndex]
+            : [];
+
+    if (targetIndices.length === 0 || !baseTime) return [];
+
+    return buildMedicationAllowedTimes(targetIndices);
   }, [
     availableSlotIndices,
     baseTime,
+    buildMedicationAllowedTimes,
     firstStageSlotCount,
     isBaseLocked,
     isEmergencyMode,
     isOpen,
     now,
     oxytocinAvailableSlotIndices,
+    resolveCurrentMedicationSlotIndex,
     secondStageSlotCount,
     secondStageStartTime,
     watchOxytocinUsed,
@@ -426,8 +545,10 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
     return nowHHMM ? [nowHHMM] : [];
   }, [now, slotAllowedTimes]);
 
-  const isTimeWindowLocked = !isEmergencyMode && !isBaseLocked && slotAllowedTimes.length === 0;
-  const areFieldsEnabled = !isBaseLocked && !isTimeWindowLocked && !!selectedTime;
+  const areFieldsEnabled =
+    !isBaseLocked &&
+    (isEmergencyMode || slotAllowedTimes.length > 0 || displayAllowedTimes.length > 0) &&
+    Boolean(selectedTime);
 
   const handleFormSubmit = async (data: MedicationFormData) => {
     clearErrors();
@@ -438,8 +559,25 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
       return;
     }
 
-    if (slotAllowedTimes.length > 0 && !slotAllowedTimes.includes(data.time)) {
+    if (
+      !isEmergencyMode &&
+      baseTime &&
+      slotCount > 0 &&
+      (slotAllowedTimes.length > 0 || displayAllowedTimes.length > 0) &&
+      !slotAllowedTimes.includes(data.time) &&
+      !displayAllowedTimes.includes(data.time)
+    ) {
       setError('time', { message: t('timeNotAllowed', 'Select a valid time slot') });
+      return;
+    }
+
+    if (
+      data.oxytocinUsed === 'yes' &&
+      !isEmergencyMode &&
+      oxytocinSlotAllowedTimes.length > 0 &&
+      !oxytocinSlotAllowedTimes.includes(data.time)
+    ) {
+      setError('time', { message: t('oxytocinTimeNotAllowed', 'Select a valid oxytocin time slot') });
       return;
     }
 
@@ -534,7 +672,7 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
                   <MedicationTimePickerDropdown
                     id="med-time-picker"
                     value={field.value}
-                    onChange={field.onChange}
+                    onChange={handleTimeChange}
                     allowedTimes={displayAllowedTimes}
                     disablePastTimes={!isEmergencyMode}
                     currentTime={formatHHMM(now)}
@@ -636,8 +774,8 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
           <Column lg={16} md={8} sm={4}>
             <div className={styles.drugSearchBlock}>
               {drugs.map((drug, idx) => (
-                <DrugSearchRow
-                  key={idx}
+                <MemoizedDrugSearchRow
+                  key={`drug-row-${idx}`}
                   index={idx}
                   drug={drug}
                   disabled={!areFieldsEnabled}
@@ -684,7 +822,7 @@ const MedicationForm: React.FC<MedicationFormProps> = ({
           />
         </Column>
         <Column lg={8} md={4} sm={2}>
-          {watch('ivFluids') === 'yes' ? (
+          {watchIvFluids === 'yes' ? (
             <Controller
               name="ivFluidType"
               control={control}

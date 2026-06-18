@@ -16,6 +16,8 @@ import { createPartographyEncounter, usePartographyData } from '../partography.r
 import type { WomanLocalEntry } from '../graphs/woman.component';
 import type { LabourProgressEntry } from '../graphs/labour-progress.component';
 import type { LabourProgressFormData } from '../forms/labour-progress-form.component';
+import { useLcgAllSectionEntries } from '../context/lcg-section-state.context';
+import { useLcgDebouncedValue } from './use-lcg-debounced-value';
 import {
   acetoneLabelToConceptValue,
   LCG_CERVIX_FIRST_STAGE_LAG_HOURS_BY_DILATION,
@@ -37,6 +39,7 @@ import {
   parseDescentOfHeadValue,
   parseUrgeToPushValue,
   resolveBirthActionLabel,
+  resolveEntryTimeMs,
   resolveStopActionLabel,
   secondStageHours,
 } from '../labour-care-guide.utils';
@@ -110,27 +113,6 @@ const buildSharedDecisionMergeKey = (entry: SharedDecisionMakingEntry) =>
     entry.plan?.trim() ?? ''
   }|${normalizeSharedDecisionMakingAction(entry.action)}`;
 
-const resolveEntryTimeMs = (entry: { encounterDatetime?: string; time?: string }) => {
-  const encounterDate = new Date(entry.encounterDatetime ?? Date.now());
-  const resolvedTime = entry.time?.trim();
-
-  if (!resolvedTime) {
-    const fallbackTime = encounterDate.getTime();
-    return Number.isFinite(fallbackTime) ? fallbackTime : null;
-  }
-
-  const [hours, minutes] = resolvedTime.split(':').map(Number);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
-    return null;
-  }
-
-  const entryDate = new Date(encounterDate);
-  entryDate.setHours(hours, minutes, 0, 0);
-  const entryTimeMs = entryDate.getTime();
-
-  return Number.isFinite(entryTimeMs) ? entryTimeMs : null;
-};
-
 const getEntryPeriodStartMs = (entry: { encounterDatetime?: string; time?: string }) => {
   const entryTimeMs = resolveEntryTimeMs(entry);
   if (entryTimeMs === null) {
@@ -159,14 +141,20 @@ export function useLcgData(patientUuid: string) {
   const [lastAutoPromptKey, setLastAutoPromptKey] = React.useState<string | null>(null);
   const [isAdmissionDetailsFormOpen, setIsAdmissionDetailsFormOpen] = React.useState(false);
   const [labourProgressRefreshToken, setLabourProgressRefreshToken] = React.useState(0);
-  const [localSupportiveCareEntries, setLocalSupportiveCareEntries] = React.useState<SupportiveCareEntry[]>([]);
-  const [localMedicationEntries, setLocalMedicationEntries] = React.useState<MedicationEntry[]>([]);
-  const [localBabyEntries, setLocalBabyEntries] = React.useState<BabyEntry[]>([]);
-  const [localLabourProgressEntries, setLocalLabourProgressEntries] = React.useState<LabourProgressEntry[]>([]);
-  const [localWomanEntries, setLocalWomanEntries] = React.useState<WomanLocalEntry[]>([]);
-  const [localSharedDecisionMakingEntries, setLocalSharedDecisionMakingEntries] = React.useState<
-    SharedDecisionMakingEntry[]
-  >([]);
+  const {
+    localSupportiveCareEntries,
+    setLocalSupportiveCareEntries,
+    localMedicationEntries,
+    setLocalMedicationEntries,
+    localBabyEntries,
+    setLocalBabyEntries,
+    localLabourProgressEntries,
+    setLocalLabourProgressEntries,
+    localWomanEntries,
+    setLocalWomanEntries,
+    localSharedDecisionMakingEntries,
+    setLocalSharedDecisionMakingEntries,
+  } = useLcgAllSectionEntries();
   const [admissionDetails, setAdmissionDetails] = React.useState<AdmissionDetailsState>({
     labourOnset: '',
     activeLabourDiagnosisDate: '',
@@ -188,7 +176,10 @@ export function useLcgData(patientUuid: string) {
     patientUuid,
     true,
   );
-  const { data: womanPulseBpEncounters = [] } = usePartographyData(patientUuid, 'pulse-bp-combined');
+  const { data: womanPulseBpEncounters = [], mutate: mutateWomanPartographyData } = usePartographyData(
+    patientUuid,
+    'pulse-bp-combined',
+  );
   const { data: womanTemperatureEncounters = [] } = usePartographyData(patientUuid, 'temperature');
   const { data: womanUrineEncounters = [] } = usePartographyData(patientUuid, 'urine-analysis');
   const { data: labourContractionEncounters = [] } = usePartographyData(patientUuid, 'uterine-contractions');
@@ -416,6 +407,12 @@ export function useLcgData(patientUuid: string) {
     return entries;
   }, [womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters, localWomanEntries]);
 
+  const debouncedMergedSupportiveCareEntries = useLcgDebouncedValue(mergedSupportiveCareEntries, 300);
+  const debouncedMergedBabyEntries = useLcgDebouncedValue(mergedBabyEntries, 300);
+  const debouncedMergedLabourProgressEntries = useLcgDebouncedValue(mergedLabourProgressEntries, 300);
+  const debouncedMergedSharedDecisionMakingEntries = useLcgDebouncedValue(mergedSharedDecisionMakingEntries, 300);
+  const debouncedMergedWomanAlertEntries = useLcgDebouncedValue(mergedWomanAlertEntries, 300);
+
   const womanFormExistingTimeEntries = React.useMemo(() => {
     const apiEntries = [...womanPulseBpEncounters, ...womanTemperatureEncounters, ...womanUrineEncounters]
       .map((encounter: any) => ({
@@ -529,8 +526,10 @@ export function useLcgData(patientUuid: string) {
       if (failedResult) {
         throw new Error(failedResult.message);
       }
+
+      await mutateWomanPartographyData();
     },
-    [patientUuid],
+    [mutateWomanPartographyData, patientUuid],
   );
 
   const handleLabourProgressFormSubmit = React.useCallback(
@@ -553,29 +552,47 @@ export function useLcgData(patientUuid: string) {
       }
 
       const timestamp = new Date().toISOString();
-      setLocalLabourProgressEntries((prev) => [
-        ...prev,
-        {
-          id: `labour-progress-local-${timestamp}`,
-          encounterDatetime: timestamp,
-          time: formData.time,
-          contractionsPer10Mins: formData.contractionsPer10Mins || undefined,
-          durationOfContractions: formData.durationOfContractions || undefined,
-          ...(formData.cervicalDilation !== '' && formData.cervicalDilation !== undefined
-            ? { cervicalDilation: Number(formData.cervicalDilation) }
-            : {}),
-          ...(formData.descentOfHead !== '' && formData.descentOfHead !== undefined
-            ? { descentOfHead: Number(formData.descentOfHead) }
-            : {}),
-          ...(formData.urgeToPush ? { urgeToPush: formData.urgeToPush } : {}),
-          isEmergency: Boolean(options?.emergencyReason?.trim()),
-          emergencyReason: options?.emergencyReason?.trim() || undefined,
-        },
-      ]);
+      const nextEntry: LabourProgressEntry = {
+        id: `labour-progress-local-${timestamp}`,
+        encounterDatetime: timestamp,
+        time: formData.time,
+        contractionsPer10Mins: formData.contractionsPer10Mins || undefined,
+        durationOfContractions: formData.durationOfContractions || undefined,
+        ...(formData.cervicalDilation !== '' && formData.cervicalDilation !== undefined
+          ? { cervicalDilation: Number(formData.cervicalDilation) }
+          : {}),
+        ...(formData.descentOfHead !== '' && formData.descentOfHead !== undefined
+          ? { descentOfHead: Number(formData.descentOfHead) }
+          : {}),
+        ...(formData.urgeToPush ? { urgeToPush: formData.urgeToPush } : {}),
+        isEmergency: Boolean(options?.emergencyReason?.trim()),
+        emergencyReason: options?.emergencyReason?.trim() || undefined,
+      };
+
+      setLocalLabourProgressEntries((prev) => {
+        const existingIndex = prev.findIndex((entry) => entry.time === formData.time);
+        if (existingIndex === -1) {
+          return [...prev, nextEntry];
+        }
+
+        const existingEntry = prev[existingIndex];
+        const updatedEntries = [...prev];
+        updatedEntries[existingIndex] = {
+          ...existingEntry,
+          ...nextEntry,
+          id: existingEntry.id ?? nextEntry.id,
+          contractionsPer10Mins: nextEntry.contractionsPer10Mins || existingEntry.contractionsPer10Mins,
+          durationOfContractions: nextEntry.durationOfContractions || existingEntry.durationOfContractions,
+          cervicalDilation: nextEntry.cervicalDilation ?? existingEntry.cervicalDilation,
+          descentOfHead: nextEntry.descentOfHead ?? existingEntry.descentOfHead,
+          urgeToPush: nextEntry.urgeToPush || existingEntry.urgeToPush,
+        };
+        return updatedEntries;
+      });
 
       setLabourProgressRefreshToken((value) => value + 1);
     },
-    [patientUuid, t],
+    [patientUuid, setLocalLabourProgressEntries, t],
   );
 
   const [nowMinutes, setNowMinutes] = React.useState(() => {
@@ -757,7 +774,7 @@ export function useLcgData(patientUuid: string) {
     }
 
     // Woman vital-sign alerts
-    for (const entry of mergedWomanAlertEntries) {
+    for (const entry of debouncedMergedWomanAlertEntries) {
       const alerts = getWomanAlertTokens(entry);
       if (alerts.length === 0) {
         continue;
@@ -775,7 +792,7 @@ export function useLcgData(patientUuid: string) {
     }
 
     // Contraction alerts (contractions/10min and duration)
-    for (const entry of mergedLabourProgressEntries) {
+    for (const entry of debouncedMergedLabourProgressEntries) {
       const alerts = getContractionAlertTokens(entry);
       if (alerts.length === 0) {
         continue;
@@ -788,7 +805,7 @@ export function useLcgData(patientUuid: string) {
       }
 
       for (const token of alerts) {
-        addPromptItem(entryTimeMs, periodStartMs, 'Contraction', token, getContractionAlertTokenGuidance(t, token));
+        addPromptItem(entryTimeMs, periodStartMs, 'Labour Progress', token, getContractionAlertTokenGuidance(t, token));
       }
     }
 
@@ -797,7 +814,7 @@ export function useLcgData(patientUuid: string) {
     // with each subsequent entry still at the same level. If the elapsed time
     // since the first reading >= the WHO stall threshold, raise an alert.
     {
-      const dilationEntries = mergedLabourProgressEntries
+      const dilationEntries = debouncedMergedLabourProgressEntries
         .filter((e): e is typeof e & { cervicalDilation: number } => e.cervicalDilation != null)
         .map((e) => ({ entry: e, timeMs: resolveEntryTimeMs(e) }))
         .filter((e): e is { entry: typeof e.entry; timeMs: number } => e.timeMs !== null)
@@ -859,7 +876,7 @@ export function useLcgData(patientUuid: string) {
           return false;
         }
 
-        return !mergedSharedDecisionMakingEntries.some((entry) => {
+        return !debouncedMergedSharedDecisionMakingEntries.some((entry) => {
           if (!hasSharedDecisionContent(entry)) {
             return false;
           }
@@ -885,9 +902,9 @@ export function useLcgData(patientUuid: string) {
   }, [
     mergedSupportiveCareEntries,
     mergedBabyEntries,
-    mergedWomanAlertEntries,
-    mergedLabourProgressEntries,
-    mergedSharedDecisionMakingEntries,
+    debouncedMergedWomanAlertEntries,
+    debouncedMergedLabourProgressEntries,
+    debouncedMergedSharedDecisionMakingEntries,
     t,
   ]);
 
@@ -978,7 +995,7 @@ export function useLcgData(patientUuid: string) {
       return [];
     }
 
-    const nowMs = nowMinutes * 60_000;
+    const nowMs = Date.now();
     const alertLifetimeMs = LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
 
     const dedupedAlerts = new Map<string, SharedDecisionPromptItem & { observedAtMs: number }>();
@@ -1015,7 +1032,7 @@ export function useLcgData(patientUuid: string) {
       }
     }
 
-    for (const entry of mergedWomanAlertEntries) {
+    for (const entry of debouncedMergedWomanAlertEntries) {
       const alerts = getWomanAlertTokens(entry);
       const observedAtMs = resolveEntryTimeMs(entry);
       for (const token of alerts) {
@@ -1023,15 +1040,15 @@ export function useLcgData(patientUuid: string) {
       }
     }
 
-    for (const entry of mergedLabourProgressEntries) {
+    for (const entry of debouncedMergedLabourProgressEntries) {
       const alerts = getContractionAlertTokens(entry);
       const observedAtMs = resolveEntryTimeMs(entry);
       for (const token of alerts) {
-        addAlert('Contraction', token, getContractionAlertTokenGuidance(t, token), observedAtMs);
+        addAlert('Labour Progress', token, getContractionAlertTokenGuidance(t, token), observedAtMs);
       }
     }
 
-    const dilationEntries = mergedLabourProgressEntries
+    const dilationEntries = debouncedMergedLabourProgressEntries
       .filter((e): e is typeof e & { cervicalDilation: number } => e.cervicalDilation != null)
       .map((e) => ({ entry: e, timeMs: resolveEntryTimeMs(e) }))
       .filter((e): e is { entry: typeof e.entry; timeMs: number } => e.timeMs !== null)
@@ -1073,9 +1090,8 @@ export function useLcgData(patientUuid: string) {
     isWorkflowStopped,
     mergedSupportiveCareEntries,
     mergedBabyEntries,
-    mergedWomanAlertEntries,
-    mergedLabourProgressEntries,
-    nowMinutes,
+    debouncedMergedWomanAlertEntries,
+    debouncedMergedLabourProgressEntries,
     t,
   ]);
 

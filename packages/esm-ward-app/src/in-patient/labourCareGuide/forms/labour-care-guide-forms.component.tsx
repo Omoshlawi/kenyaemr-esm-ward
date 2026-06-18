@@ -206,6 +206,32 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
     [],
   );
 
+  const sharedDecisionFormAlerts = React.useMemo(() => {
+    const byKey = new Map<string, SharedDecisionAlertItem>();
+
+    for (const item of activeSharedDecisionAlerts) {
+      byKey.set(`${item.section}|${item.code}`, item);
+    }
+
+    for (const item of sharedDecisionAutoPromptItems) {
+      byKey.set(`${item.section}|${item.code}`, item);
+    }
+
+    const sectionOrder = ['Supportive Care', 'Baby', 'Woman', 'Labour Progress'];
+    return Array.from(byKey.values()).sort((left, right) => {
+      const leftIndex = sectionOrder.indexOf(left.section);
+      const rightIndex = sectionOrder.indexOf(right.section);
+      const normalizedLeft = leftIndex === -1 ? sectionOrder.length : leftIndex;
+      const normalizedRight = rightIndex === -1 ? sectionOrder.length : rightIndex;
+
+      if (normalizedLeft !== normalizedRight) {
+        return normalizedLeft - normalizedRight;
+      }
+
+      return left.code.localeCompare(right.code);
+    });
+  }, [activeSharedDecisionAlerts, sharedDecisionAutoPromptItems]);
+
   const slotCount = activeFirstStageHours.length + secondStageHours.length;
   const firstStageSlotCount = activeFirstStageHours.length;
   const secondStageSlotCount = secondStageHours.length;
@@ -554,9 +580,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
           }}
           onDataSaved={() => mutateSharedDecisionMakingData()}
           autoPromptSummary={sharedDecisionAutoPromptSummary ?? undefined}
-          autoPromptItems={
-            sharedDecisionAutoPromptItems.length ? sharedDecisionAutoPromptItems : activeSharedDecisionAlerts
-          }
+          autoPromptItems={sharedDecisionFormAlerts}
           isAutoPrompt={Boolean(sharedDecisionAutoPromptSummary)}
           autoPromptDebugWindow={sharedDecisionAutoPromptSummary ? sharedDecisionAutoPromptDebugWindow : undefined}
           patient={patientInfo}

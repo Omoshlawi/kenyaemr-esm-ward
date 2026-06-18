@@ -353,13 +353,20 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
   );
   const { data: descentEncounters = [], mutate: mutateDescent } = usePartographyData(patientUuid, 'descent-of-head');
 
+  const mutateContractionsRef = React.useRef(mutateContractions);
+  const mutateCervicalRef = React.useRef(mutateCervical);
+  const mutateDescentRef = React.useRef(mutateDescent);
+  mutateContractionsRef.current = mutateContractions;
+  mutateCervicalRef.current = mutateCervical;
+  mutateDescentRef.current = mutateDescent;
+
   React.useEffect(() => {
     if (refreshToken <= 0) {
       return;
     }
 
-    void Promise.all([mutateContractions(), mutateCervical(), mutateDescent()]);
-  }, [mutateCervical, mutateContractions, mutateDescent, refreshToken]);
+    void Promise.all([mutateContractionsRef.current(), mutateCervicalRef.current(), mutateDescentRef.current()]);
+  }, [refreshToken]);
 
   const mergedEncounters = React.useMemo(() => {
     const merged = new Map<string, any>();
@@ -581,7 +588,31 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
       });
     });
 
-    combinedEntries.push(...entries.filter((entry) => Boolean(entry.time)));
+    for (const entry of entries) {
+      if (!entry.time) {
+        continue;
+      }
+
+      const mergeKey = entry.time;
+      const existingIndex = combinedEntries.findIndex((candidate) => candidate.time === mergeKey);
+      if (existingIndex === -1) {
+        combinedEntries.push(entry);
+        continue;
+      }
+
+      const existingEntry = combinedEntries[existingIndex];
+      combinedEntries[existingIndex] = {
+        ...existingEntry,
+        ...entry,
+        contractionsPer10Mins: entry.contractionsPer10Mins || existingEntry.contractionsPer10Mins,
+        durationOfContractions: entry.durationOfContractions || existingEntry.durationOfContractions,
+        cervicalDilation: entry.cervicalDilation ?? existingEntry.cervicalDilation,
+        descentOfHead: entry.descentOfHead ?? existingEntry.descentOfHead,
+        urgeToPush: entry.urgeToPush || existingEntry.urgeToPush,
+        isEmergency: entry.isEmergency ?? existingEntry.isEmergency,
+        emergencyReason: entry.emergencyReason || existingEntry.emergencyReason,
+      };
+    }
 
     return combinedEntries.sort(
       (left, right) =>
@@ -855,6 +886,11 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
     return Array.from(indices).sort((a, b) => a - b);
   }, [activeFirstStageHours.length, firstStageLowerSlotEntries]);
 
+  const vaginalExamFilledSlotSet = React.useMemo(
+    () => new Set(vaginalExamFilledSlotIndices),
+    [vaginalExamFilledSlotIndices],
+  );
+
   const firstStageCurrentSlotIndex = React.useMemo(() => {
     if (!baseTime || activeFirstStageHours.length <= 0) {
       return null;
@@ -893,7 +929,7 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
     const states = new Map<number, LcgSlotState | null>();
 
     for (let slotIndex = 0; slotIndex < activeFirstStageHours.length; slotIndex += 1) {
-      if (vaginalExamFilledSlotIndices.includes(slotIndex)) {
+      if (vaginalExamFilledSlotSet.has(slotIndex)) {
         states.set(slotIndex, 'locked');
         continue;
       }
@@ -921,7 +957,7 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
     activeFirstStageHours.length,
     firstStageCurrentSlotIndex,
     firstStageLowerActiveSlotIndex,
-    vaginalExamFilledSlotIndices,
+    vaginalExamFilledSlotSet,
   ]);
 
   const vaginalExamScheduleState = React.useMemo(
@@ -1053,11 +1089,25 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
   ]);
 
   const contractionSlotStates = React.useMemo(() => {
-    return Array.from({ length: totalSlots }, (_, slotIndex) => ({
-      primary: baseTime ? getPointSlotState(baseTime, slotIndex, now, BABY_PRIMARY_FHR_SLOT_OPTIONS) : null,
-      secondary: baseTime ? getPointSlotState(baseTime, slotIndex, now, BABY_HALF_GRID_SLOT_OPTIONS) : null,
-    }));
-  }, [baseTime, now, totalSlots]);
+    return Array.from({ length: totalSlots }, (_, slotIndex) => {
+      if (!baseTime) {
+        return { primary: null, secondary: null };
+      }
+
+      if (secondStageStartTime && slotIndex >= activeFirstStageHours.length) {
+        const secondStageSlotIndex = slotIndex - activeFirstStageHours.length;
+        return {
+          primary: getPointSlotState(secondStageStartTime, secondStageSlotIndex, now, BABY_PRIMARY_FHR_SLOT_OPTIONS),
+          secondary: getPointSlotState(secondStageStartTime, secondStageSlotIndex, now, BABY_HALF_GRID_SLOT_OPTIONS),
+        };
+      }
+
+      return {
+        primary: getPointSlotState(baseTime, slotIndex, now, BABY_PRIMARY_FHR_SLOT_OPTIONS),
+        secondary: getPointSlotState(baseTime, slotIndex, now, BABY_HALF_GRID_SLOT_OPTIONS),
+      };
+    });
+  }, [activeFirstStageHours.length, baseTime, now, secondStageStartTime, totalSlots]);
 
   const getSegmentClassName = (slotState: LcgSlotState | null) => {
     if (slotState === 'locked') {
@@ -1094,23 +1144,7 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
     const entryGroup = contractionSlotEntries.get(slotIndex);
     const isPostStop = stopSlotIndex !== undefined && slotIndex > stopSlotIndex;
     const isPreStop = stopSlotIndex !== undefined && slotIndex < stopSlotIndex;
-    const slotState =
-      secondStageStartTime && slotIndex >= activeFirstStageHours.length
-        ? {
-            primary: getPointSlotState(
-              secondStageStartTime,
-              slotIndex - activeFirstStageHours.length,
-              now,
-              BABY_PRIMARY_FHR_SLOT_OPTIONS,
-            ),
-            secondary: getPointSlotState(
-              secondStageStartTime,
-              slotIndex - activeFirstStageHours.length,
-              now,
-              BABY_HALF_GRID_SLOT_OPTIONS,
-            ),
-          }
-        : contractionSlotStates[slotIndex];
+    const slotState = contractionSlotStates[slotIndex];
     const isLockedByStageTransition =
       firstStageCutoffSlotIndex !== undefined &&
       slotIndex < activeFirstStageHours.length &&
@@ -1385,9 +1419,9 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
                   <td className={styles.gapCell} />
 
                   {rowIndex === 0
-                    ? secondStageHours.map((hour) => (
+                    ? secondStageHours.map((hour, secondStageIndex) => (
                         <React.Fragment key={`cervix-second-${row.level}-${hour}`}>
-                          {renderSecondStageQuarteredCervixCell(secondStageHours.indexOf(hour), row.level)}
+                          {renderSecondStageQuarteredCervixCell(secondStageIndex, row.level)}
                         </React.Fragment>
                       ))
                     : rowIndex === 1

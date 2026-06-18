@@ -16,6 +16,7 @@ import type { SharedDecisionMakingEntry } from '../resources/shared-decision-mak
 import {
   isSharedDecisionCriticalActionDisplayLabel,
   resolveSharedDecisionActionDisplayLabel,
+  truncateSharedDecisionGridText,
 } from '../labour-care-guide.utils';
 import {
   formatHHMM,
@@ -185,6 +186,23 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
     return <span className={className}>{actionLabel}</span>;
   };
 
+  const renderGridLongText = (text?: string) => {
+    const fullText = String(text ?? '').trim();
+    if (!fullText) {
+      return null;
+    }
+
+    const { display, isTruncated } = truncateSharedDecisionGridText(fullText);
+
+    return (
+      <span
+        className={`${styles.cellText} ${styles.sharedDecisionGridText}`}
+        title={isTruncated ? fullText : undefined}>
+        {display}
+      </span>
+    );
+  };
+
   const getCellClassName = (
     slotState: LcgSlotState | null,
     isFirstStageLocked: boolean,
@@ -289,9 +307,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                   <td
                     key={`sdm-assessment-active-${hour}`}
                     className={getCellClassName(secondarySlotState, isFirstStageLocked, true, hasAssessmentEntry)}>
-                    {entryGroup?.secondary?.assessment ? (
-                      <span className={styles.cellText}>{entryGroup.secondary.assessment}</span>
-                    ) : null}
+                    {entryGroup?.secondary?.assessment ? renderGridLongText(entryGroup.secondary.assessment) : null}
                   </td>
                 );
               })}
@@ -318,9 +334,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                   <td
                     key={`sdm-assessment-second-${hour}`}
                     className={getCellClassName(secondarySlotState, false, true, hasAssessmentEntry)}>
-                    {entryGroup?.secondary?.assessment ? (
-                      <span className={styles.cellText}>{entryGroup.secondary.assessment}</span>
-                    ) : null}
+                    {entryGroup?.secondary?.assessment ? renderGridLongText(entryGroup.secondary.assessment) : null}
                   </td>
                 );
               })}
@@ -352,7 +366,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                   <td
                     key={`sdm-plan-active-${hour}`}
                     className={getCellClassName(slotState, isFirstStageLocked, true, hasPlanEntry)}>
-                    {entry?.plan ? <span className={styles.cellText}>{entry.plan}</span> : null}
+                    {entry?.plan ? renderGridLongText(entry.plan) : null}
                   </td>
                 );
               })}
@@ -379,7 +393,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                   <td
                     key={`sdm-plan-second-${hour}`}
                     className={getCellClassName(slotState, false, true, hasPlanEntry)}>
-                    {entry?.plan ? <span className={styles.cellText}>{entry.plan}</span> : null}
+                    {entry?.plan ? renderGridLongText(entry.plan) : null}
                   </td>
                 );
               })}
@@ -473,7 +487,13 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                             key={row.id}
                             className={emergencyRowIds.has(row.id) ? styles.emergencyRow : undefined}>
                             {row.cells.map((cell) => (
-                              <TableCell key={cell.id}>
+                              <TableCell
+                                key={cell.id}
+                                className={
+                                  cell.info.header === 'assessment' || cell.info.header === 'plan'
+                                    ? styles.sharedDecisionTableCell
+                                    : undefined
+                                }>
                                 {cell.info.header === 'action' && criticalActionRowIds.has(row.id) ? (
                                   <span className={styles.sharedDecisionCriticalActionText}>{cell.value}</span>
                                 ) : (
