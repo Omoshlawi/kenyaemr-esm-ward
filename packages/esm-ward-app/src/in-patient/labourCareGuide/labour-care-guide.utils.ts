@@ -24,6 +24,22 @@ export const calculateAgeFromBirthDate = (birthDate?: string) => {
   return String(Math.max(age, 0));
 };
 
+export const isEncounterAfterSessionReset = (
+  encounterDatetime: string | undefined,
+  sessionResetAfterMs: number | null | undefined,
+) => {
+  if (!sessionResetAfterMs) {
+    return true;
+  }
+
+  if (!encounterDatetime) {
+    return false;
+  }
+
+  const encounterTimeMs = new Date(encounterDatetime).getTime();
+  return Number.isFinite(encounterTimeMs) && encounterTimeMs > sessionResetAfterMs;
+};
+
 export const readObsValue = (obs: any) => {
   const value = obs?.value;
 
@@ -222,13 +238,29 @@ export const parseUrgeToPushValue = (value: string) => {
   return '';
 };
 
-export const resolveStopActionLabel = (action: string) => {
-  const normalized = String(action ?? '')
+export const normalizeLcgConceptKey = (value: unknown): string =>
+  String(value ?? '')
     .trim()
     .toLowerCase();
 
+export const isTerminateOngoingProgressAction = (action: string) => {
+  const normalized = normalizeLcgConceptKey(action);
+  return (
+    normalized === '737fa73a-509f-40d8-9e84-91dc71db7f4c' ||
+    normalized.includes('terminate ongoing progress') ||
+    normalized.includes('terminate ongoing')
+  );
+};
+
+export const resolveStopActionLabel = (action: string) => {
+  const normalized = normalizeLcgConceptKey(action);
+
   if (normalized.includes('twin 1 birth') || normalized === 'd9ad3cc2-5800-4cd0-ab51-fa3306295617') {
     return null;
+  }
+
+  if (isTerminateOngoingProgressAction(action)) {
+    return 'TERMINATED';
   }
 
   if (normalized === 'fb50f3e1-0971-4f82-9774-41ff57e38043' || normalized === 'delivery' || normalized === 'birth') {
@@ -243,16 +275,18 @@ export const resolveStopActionLabel = (action: string) => {
 };
 
 export const resolveSharedDecisionActionDisplayLabel = (action: string) => {
-  const normalized = String(action ?? '')
-    .trim()
-    .toLowerCase();
+  const normalized = normalizeLcgConceptKey(action);
+
+  if (isTerminateOngoingProgressAction(action)) {
+    return 'Session Terminated';
+  }
 
   if (
     normalized === '159739aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ||
     normalized.includes('caesarean') ||
     normalized === 'cs'
   ) {
-    return 'Transferred to CS';
+    return 'Emergency Caesarean section Prescribed';
   }
 
   if (normalized === '0dcc1312-e83e-4317-97c3-4b127b599744' || normalized.includes('referral')) {
@@ -275,7 +309,7 @@ export const resolveSharedDecisionActionDisplayLabel = (action: string) => {
 };
 
 export const isSharedDecisionCriticalActionDisplayLabel = (label: string) =>
-  label === 'Transferred to CS' || label === 'Referral';
+  label === 'Emergency Caesarean section Prescribed' || label === 'Referral';
 
 export const resolveBirthActionLabel = (action: string) => {
   const normalized = String(action ?? '')

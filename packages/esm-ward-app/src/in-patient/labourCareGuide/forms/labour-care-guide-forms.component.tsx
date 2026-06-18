@@ -26,6 +26,7 @@ import type { LabourProgressFormData } from './labour-progress-form.component';
 import { SUPPORTIVE_CARE_CODED_VALUES, type LcgEmergencySectionKey } from '../types';
 import { activeFirstStageHours, secondStageHours } from '../labour-care-guide.utils';
 import type { SharedDecisionAlertItem } from '../alert-rules';
+import type { LcgCorrectionAuditRecord } from '../resources/lcg-session-correction.resource';
 
 type AdmissionDetailsState = {
   labourOnset: string;
@@ -134,6 +135,8 @@ export type LabourCareGuideFormsProps = {
   activeBabyLockUpperFields: boolean;
   isMultipleGestation: boolean;
   hasTwinOneBirthRecorded: boolean;
+  correctionAuditDisplay?: LcgCorrectionAuditRecord | null;
+  sessionResetAfterMs?: number | null;
 };
 
 export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
@@ -195,6 +198,8 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   activeBabyLockUpperFields,
   isMultipleGestation,
   hasTwinOneBirthRecorded,
+  correctionAuditDisplay = null,
+  sessionResetAfterMs = null,
 }) => {
   const { t } = useTranslation();
 
@@ -286,6 +291,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                 }
               : undefined
           }
+          sessionResetAfterMs={sessionResetAfterMs}
         />
       ) : null}
 
@@ -471,6 +477,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
             }))}
           baseTime={baseTime ?? undefined}
           secondStageStartTime={firstStageTransition?.time}
+          secondStageSlotCount={secondStageSlotCount}
           slotCount={slotCount}
           existingLabourProgressFormData={mergedLabourProgressEntries}
           patient={patientInfo}
@@ -572,6 +579,9 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
               time: data.time,
               isEmergency: isEmergencyEntry,
               emergencyReason: isEmergencyEntry ? (emergencyReason ?? '') : undefined,
+              terminationReasonTypeUuid: data.terminationReasonType,
+              terminationReasonType: data.terminationReasonType,
+              terminationReasonText: data.terminationReasonText,
             };
 
             setLocalSharedDecisionMakingEntries((prev) => [...prev, submittedEntry]);
@@ -595,6 +605,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
           secondStageStartTime={firstStageTransition?.time}
           isMultipleGestation={isMultipleGestation}
           hasTwinOneBirthRecorded={hasTwinOneBirthRecorded}
+          correctionAuditDisplay={correctionAuditDisplay}
           isEmergencyMode={emergencySection === 'shared-decision-making' && Boolean(emergencyReason)}
           emergencyReason={emergencySection === 'shared-decision-making' ? (emergencyReason ?? undefined) : undefined}
         />

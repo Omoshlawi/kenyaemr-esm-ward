@@ -35,11 +35,13 @@ import {
   URINE_TEST_TIME_SLOT_CONCEPT,
 } from '../types';
 import {
+  getPointSlotIndexForTime,
   getPointSlotState,
   getStageAwarePointSlotIndexForTime,
   getStageAwareSlotIndexForTime,
   getForwardMinutesDelta,
   getSlotIndexForTime,
+  isSameDayTimeAtOrAfter,
   parseHHMMToMinutes,
   type LcgSlotState,
 } from '../time-slot-utils';
@@ -107,8 +109,6 @@ const CERVIX_FIRST_STAGE_LAG_MINUTES_BY_DILATION = Object.fromEntries(
     scaleLcgGuidelineMinutes(hours * 60),
   ]),
 ) as Record<number, number>;
-const SECOND_STAGE_CONTRACTION_MAX_WINDOW_MINUTES = LCG_SECOND_STAGE_CONTRACTION_INTERVAL_MINUTES * 12;
-const SECOND_STAGE_DESCENT_MAX_WINDOW_MINUTES = LCG_SECOND_STAGE_DESCENT_INTERVAL_MINUTES * 6;
 
 // First-stage contraction slot options – must match the form so data saved anywhere in the
 // slot window (minutes 0 … interval-1) is both accepted by the form and rendered in the graph.
@@ -133,6 +133,55 @@ const SECOND_STAGE_CONTRACTION_QUARTER_OPTIONS = {
   offsetMinutes: 0,
   earlyAllowanceMinutes: 0,
   lateAllowanceMinutes: LCG_SECOND_STAGE_CONTRACTION_INTERVAL_MINUTES - 1,
+};
+
+const SECOND_STAGE_DESCENT_HALF_OPTIONS = {
+  slotIntervalMinutes: LCG_SECOND_STAGE_DESCENT_INTERVAL_MINUTES,
+  offsetMinutes: 0,
+  earlyAllowanceMinutes: 0,
+  lateAllowanceMinutes: LCG_SECOND_STAGE_DESCENT_INTERVAL_MINUTES - 1,
+};
+
+const mergeSecondStageGridEntry = (
+  existing: LabourProgressEntry | undefined,
+  entry: LabourProgressEntry,
+): LabourProgressEntry => ({
+  ...existing,
+  ...entry,
+  time: entry.time || existing?.time,
+  encounterDatetime: entry.encounterDatetime || existing?.encounterDatetime,
+  contractionsPer10Mins: entry.contractionsPer10Mins || existing?.contractionsPer10Mins,
+  durationOfContractions: entry.durationOfContractions || existing?.durationOfContractions,
+  urgeToPush: entry.urgeToPush || existing?.urgeToPush,
+  cervicalDilation: entry.cervicalDilation ?? existing?.cervicalDilation,
+  descentOfHead: entry.descentOfHead ?? existing?.descentOfHead,
+});
+
+const formatUrgeToPushTableValue = (
+  urgeToPush: LabourProgressEntry['urgeToPush'],
+  t: (key: string, fallback: string) => string,
+) => {
+  if (urgeToPush === 'yes') {
+    return t('yes', 'Yes');
+  }
+
+  if (urgeToPush === 'no') {
+    return t('no', 'No');
+  }
+
+  return '';
+};
+
+const formatUrgeToPushGridMarker = (urgeToPush: LabourProgressEntry['urgeToPush']) => {
+  if (urgeToPush === 'yes') {
+    return 'P';
+  }
+
+  if (urgeToPush === 'no') {
+    return 'N/P';
+  }
+
+  return '';
 };
 
 const formatEncounterTime = (encounterDatetime?: string) => {
@@ -657,30 +706,33 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
       return quarterEntryMap;
     }
 
+    const totalQuarterSlots = secondStageHours.length * 4;
+
     for (const entry of graphLabourProgressEntries) {
-      if (!entry.time) {
+      if (!entry.time || !isSameDayTimeAtOrAfter(secondStageStartTime, entry.time)) {
         continue;
       }
 
-      const minutesFromSecondStageStart = getForwardMinutesDelta(secondStageStartTime, entry.time);
-      if (
-        minutesFromSecondStageStart === null ||
-        minutesFromSecondStageStart < 0 ||
-        minutesFromSecondStageStart > SECOND_STAGE_CONTRACTION_MAX_WINDOW_MINUTES ||
-        minutesFromSecondStageStart % LCG_SECOND_STAGE_CONTRACTION_INTERVAL_MINUTES !== 0
-      ) {
+      const linearSlotIndex = getPointSlotIndexForTime(
+        secondStageStartTime,
+        entry.time,
+        totalQuarterSlots,
+        SECOND_STAGE_CONTRACTION_QUARTER_OPTIONS,
+      );
+
+      if (linearSlotIndex === null) {
         continue;
       }
 
-      const quarterGlobalIndex = minutesFromSecondStageStart / LCG_SECOND_STAGE_CONTRACTION_INTERVAL_MINUTES;
-      const secondStageHourIndex = Math.floor(quarterGlobalIndex / 4);
-      const quarterIndex = quarterGlobalIndex % 4;
+      const secondStageHourIndex = Math.floor(linearSlotIndex / 4);
+      const quarterIndex = linearSlotIndex % 4;
 
       if (secondStageHourIndex < 0 || secondStageHourIndex >= secondStageHours.length) {
         continue;
       }
 
-      quarterEntryMap.set(`${secondStageHourIndex}-${quarterIndex}`, entry);
+      const key = `${secondStageHourIndex}-${quarterIndex}`;
+      quarterEntryMap.set(key, mergeSecondStageGridEntry(quarterEntryMap.get(key), entry));
     }
 
     return quarterEntryMap;
@@ -716,24 +768,30 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
       return descentEntryMap;
     }
 
-    for (const entry of graphLabourProgressEntries) {
-      if (!entry.time || entry.descentOfHead === undefined) {
-        continue;
-      }
+    const totalHalfSlots = secondStageHours.length * 2;
 
-      const minutesFromSecondStageStart = getForwardMinutesDelta(secondStageStartTime, entry.time);
+    for (const entry of graphLabourProgressEntries) {
       if (
-        minutesFromSecondStageStart === null ||
-        minutesFromSecondStageStart < 0 ||
-        minutesFromSecondStageStart > SECOND_STAGE_DESCENT_MAX_WINDOW_MINUTES ||
-        minutesFromSecondStageStart % LCG_SECOND_STAGE_DESCENT_INTERVAL_MINUTES !== 0
+        !entry.time ||
+        entry.descentOfHead === undefined ||
+        !isSameDayTimeAtOrAfter(secondStageStartTime, entry.time)
       ) {
         continue;
       }
 
-      const halfGlobalIndex = minutesFromSecondStageStart / LCG_SECOND_STAGE_DESCENT_INTERVAL_MINUTES;
-      const secondStageHourIndex = Math.floor(halfGlobalIndex / 2);
-      const halfIndex = halfGlobalIndex % 2;
+      const linearSlotIndex = getPointSlotIndexForTime(
+        secondStageStartTime,
+        entry.time,
+        totalHalfSlots,
+        SECOND_STAGE_DESCENT_HALF_OPTIONS,
+      );
+
+      if (linearSlotIndex === null) {
+        continue;
+      }
+
+      const secondStageHourIndex = Math.floor(linearSlotIndex / 2);
+      const halfIndex = linearSlotIndex % 2;
 
       if (secondStageHourIndex < 0 || secondStageHourIndex >= secondStageHours.length) {
         continue;
@@ -744,6 +802,26 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
 
     return descentEntryMap;
   }, [graphLabourProgressEntries, secondStageHours.length, secondStageStartTime]);
+
+  const secondStageDescentSlotStates = React.useMemo(() => {
+    if (!secondStageStartTime) {
+      return new Map<string, LcgSlotState>();
+    }
+
+    const states = new Map<string, LcgSlotState>();
+    const totalHalfSlots = secondStageHours.length * 2;
+
+    for (let linearSlotIndex = 0; linearSlotIndex < totalHalfSlots; linearSlotIndex += 1) {
+      const secondStageHourIndex = Math.floor(linearSlotIndex / 2);
+      const halfIndex = linearSlotIndex % 2;
+      states.set(
+        `${secondStageHourIndex}-${halfIndex}`,
+        getPointSlotState(secondStageStartTime, linearSlotIndex, now, SECOND_STAGE_DESCENT_HALF_OPTIONS) ?? 'pending',
+      );
+    }
+
+    return states;
+  }, [now, secondStageHours.length, secondStageStartTime]);
 
   const firstStageCervixLagState = React.useMemo(() => {
     if (!baseTime) {
@@ -988,7 +1066,7 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
           duration: entry.durationOfContractions || '',
           cervix: entry.cervicalDilation !== undefined ? String(entry.cervicalDilation) : '',
           descent: entry.descentOfHead !== undefined ? String(entry.descentOfHead) : '',
-          urge: entry.urgeToPush === 'yes' ? 'P' : entry.urgeToPush === 'no' ? 'N/P' : '',
+          urge: formatUrgeToPushTableValue(entry.urgeToPush, t),
           reason: entry.isEmergency
             ? emergencyReason
               ? t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: emergencyReason })
@@ -1220,16 +1298,8 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
                 ? 'locked'
                 : rawSlotState;
             const className = getSegmentClassName(slotState);
+            const marker = formatUrgeToPushGridMarker(urgeValue);
 
-            if (urgeValue === 'yes') {
-              return { className, marker: 'P' };
-            }
-
-            if (urgeValue === 'no') {
-              return { className, marker: '-' };
-            }
-
-            const marker = '';
             return { className, marker };
           })
         : [0, 1, 2, 3].map((quarterIndex) => {
@@ -1262,15 +1332,23 @@ const LabourProgress: React.FC<LabourProgressProps> = ({
     const absoluteSlotIndex = activeFirstStageHours.length + secondStageIndex;
     const isPostStop = stopSlotIndex !== undefined && absoluteSlotIndex > stopSlotIndex;
     const isStoppedCellOrEarlier = stopSlotIndex !== undefined && absoluteSlotIndex <= stopSlotIndex;
-    const rawSlotState = secondStageQuarterSlotStates.get(`${secondStageIndex}-0`) ?? null;
-    const slotState = isPostStop ? null : isStoppedCellOrEarlier && rawSlotState === 'active' ? 'locked' : rawSlotState;
-    const segmentClassName = getSegmentClassName(slotState);
+
+    const renderHalf = (halfIndex: number, entry: LabourProgressEntry | undefined) => {
+      const rawSlotState = secondStageDescentSlotStates.get(`${secondStageIndex}-${halfIndex}`) ?? null;
+      const slotState = isPostStop
+        ? null
+        : isStoppedCellOrEarlier && rawSlotState === 'active'
+          ? 'locked'
+          : rawSlotState;
+
+      return <span className={getSegmentClassName(slotState)}>{entry?.descentOfHead === level ? 'O' : ''}</span>;
+    };
 
     return (
       <td className={styles.entryCell}>
         <div className={styles.splitCellTwo}>
-          <span className={segmentClassName}>{firstHalfEntry?.descentOfHead === level ? 'O' : ''}</span>
-          <span className={segmentClassName}>{secondHalfEntry?.descentOfHead === level ? 'O' : ''}</span>
+          {renderHalf(0, firstHalfEntry)}
+          {renderHalf(1, secondHalfEntry)}
         </div>
       </td>
     );

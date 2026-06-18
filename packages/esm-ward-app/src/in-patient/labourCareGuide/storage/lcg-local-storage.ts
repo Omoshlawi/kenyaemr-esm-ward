@@ -172,6 +172,173 @@ export function readPartographyEntries(patientUuid: string, graphType: string): 
   return readJsonArray<PartographyLocalEntry>(getPartographyStorageKey(patientUuid, graphType));
 }
 
+export function replacePartographyEntries(
+  patientUuid: string,
+  graphType: string,
+  entries: PartographyLocalEntry[],
+): Promise<LcgStorageWriteResult> {
+  const storageKey = getPartographyStorageKey(patientUuid, graphType);
+  return enqueueStorageWrite(storageKey, () => writeJsonArraySync(storageKey, entries, MAX_PARTOGRAPHY_ENTRIES));
+}
+
+const LCG_TRANSFER_SECTIONS = [
+  'supportive-care',
+  'baby',
+  'woman',
+  'labour-progress',
+  'medication',
+  'shared-decision-making',
+] as const satisfies ReadonlyArray<Exclude<LcgStorageSection, 'partography'>>;
+
+export function hasLocalLcgSessionData(patientUuid: string, partographyGraphTypes: readonly string[]): boolean {
+  if (LCG_TRANSFER_SECTIONS.some((section) => readLcgSectionEntries(patientUuid, section).length > 0)) {
+    return true;
+  }
+
+  return partographyGraphTypes.some((graphType) => readPartographyEntries(patientUuid, graphType).length > 0);
+}
+
+export async function copyLcgLocalStorageBetweenPatients(
+  sourcePatientUuid: string,
+  targetPatientUuid: string,
+  partographyGraphTypes: readonly string[],
+): Promise<void> {
+  await Promise.all(
+    LCG_TRANSFER_SECTIONS.map(async (section) => {
+      const entries = readLcgSectionEntries(sourcePatientUuid, section);
+      if (entries.length > 0) {
+        await replaceLcgSectionEntries(targetPatientUuid, section, entries);
+      }
+    }),
+  );
+
+  await Promise.all(
+    partographyGraphTypes.map(async (graphType) => {
+      const entries = readPartographyEntries(sourcePatientUuid, graphType);
+      if (entries.length > 0) {
+        await replacePartographyEntries(targetPatientUuid, graphType, entries);
+      }
+    }),
+  );
+}
+
+export async function clearLcgLocalStorageForPatient(
+  patientUuid: string,
+  partographyGraphTypes: readonly string[],
+): Promise<void> {
+  await Promise.all(LCG_TRANSFER_SECTIONS.map((section) => replaceLcgSectionEntries(patientUuid, section, [])));
+
+  await Promise.all(partographyGraphTypes.map((graphType) => replacePartographyEntries(patientUuid, graphType, [])));
+}
+
+const LCG_SESSION_TRANSFERRED_PREFIX = 'lcg_session_transferred_';
+
+export function markLcgSessionTransferredAway(sourcePatientUuid: string, targetPatientUuid: string): void {
+  if (typeof window === 'undefined' || !sourcePatientUuid || !targetPatientUuid) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      `${LCG_SESSION_TRANSFERRED_PREFIX}${sourcePatientUuid}`,
+      JSON.stringify({ targetPatientUuid, transferredAt: new Date().toISOString() }),
+    );
+  } catch {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+export type LcgSessionTransferredAwayMarker = {
+  targetPatientUuid: string;
+  transferredAt: string;
+};
+
+export function getLcgSessionTransferredAwayMarker(sourcePatientUuid: string): LcgSessionTransferredAwayMarker | null {
+  if (typeof window === 'undefined' || !sourcePatientUuid) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`${LCG_SESSION_TRANSFERRED_PREFIX}${sourcePatientUuid}`);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<LcgSessionTransferredAwayMarker>;
+    if (!parsed?.targetPatientUuid) {
+      return null;
+    }
+
+    return {
+      targetPatientUuid: parsed.targetPatientUuid,
+      transferredAt: parsed.transferredAt ?? new Date(0).toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function getLcgSessionTransferredAwayTarget(sourcePatientUuid: string): string | null {
+  return getLcgSessionTransferredAwayMarker(sourcePatientUuid)?.targetPatientUuid ?? null;
+}
+
+export function clearLcgSessionTransferredAwayMarker(sourcePatientUuid: string): void {
+  if (typeof window === 'undefined' || !sourcePatientUuid) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(`${LCG_SESSION_TRANSFERRED_PREFIX}${sourcePatientUuid}`);
+  } catch {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+const LCG_CORRECTION_AUDIT_PREFIX = 'lcg_correction_audit_';
+
+export type StoredLcgCorrectionAuditRecord = {
+  encounterUuid: string;
+  encounterDatetime: string;
+  sourcePatientUuid: string;
+  sourcePatientDisplay: string;
+  sourceTerminateEncounterUuid: string;
+  terminationReason: string;
+  terminatedAt?: string;
+  transferNotes?: string;
+};
+
+export function saveLcgCorrectionAuditForPatient(
+  targetPatientUuid: string,
+  record: StoredLcgCorrectionAuditRecord,
+): void {
+  if (typeof window === 'undefined' || !targetPatientUuid) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(`${LCG_CORRECTION_AUDIT_PREFIX}${targetPatientUuid}`, JSON.stringify(record));
+  } catch {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+export function getLcgCorrectionAuditForPatient(targetPatientUuid: string): StoredLcgCorrectionAuditRecord | null {
+  if (typeof window === 'undefined' || !targetPatientUuid) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`${LCG_CORRECTION_AUDIT_PREFIX}${targetPatientUuid}`);
+    if (!raw) {
+      return null;
+    }
+
+    return JSON.parse(raw) as StoredLcgCorrectionAuditRecord;
+  } catch {
+    return null;
+  }
+}
+
 export function appendPartographyEntry(
   patientUuid: string,
   graphType: string,

@@ -27,6 +27,13 @@ import {
   type LcgSlotState,
 } from '../time-slot-utils';
 import { SectionToolbar } from '../components/section-toolbar.component';
+import LcgCorrectionAuditBanner from '../components/lcg-correction-audit-banner.component';
+import {
+  buildCorrectionAuditTableRow,
+  formatCorrectionAuditSubtitle,
+  resolveCorrectionAuditSlotTime,
+  type LcgCorrectionAuditRecord,
+} from '../resources/lcg-session-correction.resource';
 
 interface SharedDecisionMakingProps {
   activeFirstStageHours: number[];
@@ -38,6 +45,7 @@ interface SharedDecisionMakingProps {
   entries?: SharedDecisionMakingEntry[];
   secondStageStartTime?: string;
   stopSlotIndex?: number;
+  correctionAuditDisplay?: LcgCorrectionAuditRecord | null;
 }
 
 const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
@@ -50,6 +58,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
   entries = [],
   secondStageStartTime,
   stopSlotIndex,
+  correctionAuditDisplay = null,
 }) => {
   const { t } = useTranslation();
   const [isTableView, setIsTableView] = React.useState(false);
@@ -174,6 +183,61 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
     firstStageCutoffSlotIndex,
   ]);
 
+  const correctionAuditSlotIndex = React.useMemo(() => {
+    if (!correctionAuditDisplay || !baseTime) {
+      return null;
+    }
+
+    const terminatedAt = correctionAuditDisplay.terminatedAt || correctionAuditDisplay.encounterDatetime;
+    if (!terminatedAt) {
+      return null;
+    }
+
+    const slotTime = resolveCorrectionAuditSlotTime(terminatedAt);
+    if (!slotTime) {
+      return null;
+    }
+
+    return getStageAwarePointSlotIndexForTime(
+      baseTime,
+      slotTime,
+      activeFirstStageHours.length,
+      secondStageHours.length,
+      secondStageStartTime,
+      SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
+      firstStageCutoffSlotIndex,
+    );
+  }, [
+    activeFirstStageHours.length,
+    baseTime,
+    correctionAuditDisplay,
+    firstStageCutoffSlotIndex,
+    secondStageHours.length,
+    secondStageStartTime,
+  ]);
+
+  const renderCorrectionAuditCellContent = () => {
+    if (!correctionAuditDisplay) {
+      return null;
+    }
+
+    const subtitle = formatCorrectionAuditSubtitle(correctionAuditDisplay);
+    const { display, isTruncated } = truncateSharedDecisionGridText(subtitle);
+
+    return (
+      <div className={styles.sharedDecisionAuditGridCell}>
+        <span className={styles.sharedDecisionAuditActionText}>
+          {t('lcgAuditSdmTitle', 'Shared Decision Making — transferred session audit')}
+        </span>
+        <span
+          className={`${styles.cellText} ${styles.sharedDecisionGridText}`}
+          title={isTruncated ? subtitle : undefined}>
+          {display}
+        </span>
+      </div>
+    );
+  };
+
   const renderActionLabel = (actionLabel: string) => {
     if (!actionLabel) {
       return null;
@@ -231,28 +295,48 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
     [showEmergencyReasonColumn, t],
   );
 
-  const tableRows = React.useMemo(
-    () =>
-      entries.map((entry) => {
-        const emergencyReason = entry.emergencyReason?.trim();
-        const actionLabel = entry.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '-';
-        return {
-          id: entry.id,
-          time: formatHHMM(new Date(entry.encounterDatetime)),
-          assessment: entry.assessment || '-',
-          plan: entry.plan || '-',
-          action: actionLabel,
-          isCriticalAction: isSharedDecisionCriticalActionDisplayLabel(actionLabel),
-          reason: entry.isEmergency
-            ? emergencyReason
-              ? t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: emergencyReason })
-              : t('emergencyEntry', 'Emergency entry')
-            : '',
-          isEmergency: Boolean(entry.isEmergency),
-        };
-      }),
-    [entries, t],
-  );
+  const tableRows = React.useMemo(() => {
+    const entryRows = entries.map((entry) => {
+      const emergencyReason = entry.emergencyReason?.trim();
+      const actionLabel = entry.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '-';
+      return {
+        id: entry.id,
+        time: formatHHMM(new Date(entry.encounterDatetime)),
+        assessment: entry.assessment || '-',
+        plan: entry.plan || '-',
+        action: actionLabel,
+        isCriticalAction: isSharedDecisionCriticalActionDisplayLabel(actionLabel),
+        isAuditRow: false,
+        reason: entry.isEmergency
+          ? emergencyReason
+            ? t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: emergencyReason })
+            : t('emergencyEntry', 'Emergency entry')
+          : '',
+        isEmergency: Boolean(entry.isEmergency),
+      };
+    });
+
+    if (!correctionAuditDisplay) {
+      return entryRows;
+    }
+
+    const auditRow = buildCorrectionAuditTableRow(correctionAuditDisplay, t);
+
+    return [
+      {
+        id: 'lcg-session-correction-audit',
+        time: auditRow.time || '-',
+        assessment: auditRow.assessment || '-',
+        plan: auditRow.plan || '-',
+        action: auditRow.action,
+        isCriticalAction: false,
+        isAuditRow: true,
+        reason: '',
+        isEmergency: false,
+      },
+      ...entryRows,
+    ];
+  }, [correctionAuditDisplay, entries, t]);
 
   const emergencyRowIds = React.useMemo(
     () => new Set(tableRows.filter((r) => r.isEmergency).map((r) => r.id)),
@@ -266,6 +350,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
 
   return (
     <div className={styles.sectionBlock}>
+      <LcgCorrectionAuditBanner auditRecord={correctionAuditDisplay} variant="sdm" />
       <div className={styles.sectionHeaderControls}>
         <SectionToolbar
           showViewToggle={showViewToggle}
@@ -420,12 +505,13 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                       : rawSlotState;
                 const entry = actionSlotEntries.get(idx);
                 const actionLabel = entry?.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '';
-                const hasActionEntry = Boolean(actionLabel);
+                const isAuditSlot = correctionAuditSlotIndex === idx;
+                const hasActionEntry = Boolean(actionLabel) || isAuditSlot;
                 return (
                   <td
                     key={`sdm-action-active-${hour}`}
                     className={getCellClassName(slotState, isFirstStageLocked, true, hasActionEntry)}>
-                    {renderActionLabel(actionLabel)}
+                    {isAuditSlot ? renderCorrectionAuditCellContent() : renderActionLabel(actionLabel)}
                   </td>
                 );
               })}
@@ -448,12 +534,13 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                       : rawSlotState;
                 const entry = actionSlotEntries.get(slotIndex);
                 const actionLabel = entry?.action ? resolveSharedDecisionActionDisplayLabel(entry.action) : '';
-                const hasActionEntry = Boolean(actionLabel);
+                const isAuditSlot = correctionAuditSlotIndex === slotIndex;
+                const hasActionEntry = Boolean(actionLabel) || isAuditSlot;
                 return (
                   <td
                     key={`sdm-action-second-${hour}`}
                     className={getCellClassName(slotState, false, true, hasActionEntry)}>
-                    {renderActionLabel(actionLabel)}
+                    {isAuditSlot ? renderCorrectionAuditCellContent() : renderActionLabel(actionLabel)}
                   </td>
                 );
               })}
@@ -464,7 +551,7 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
 
       {isTableView && (
         <div className={styles.tableContainer}>
-          {entries.length === 0 ? (
+          {entries.length === 0 && !correctionAuditDisplay ? (
             <p className={styles.emptyState}>{t('noSharedDecisionMakingData', 'No shared decision making data.')}</p>
           ) : (
             <>
@@ -485,7 +572,13 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                         {rows.map((row) => (
                           <TableRow
                             key={row.id}
-                            className={emergencyRowIds.has(row.id) ? styles.emergencyRow : undefined}>
+                            className={
+                              row.id === 'lcg-session-correction-audit'
+                                ? styles.sharedDecisionAuditRow
+                                : emergencyRowIds.has(row.id)
+                                  ? styles.emergencyRow
+                                  : undefined
+                            }>
                             {row.cells.map((cell) => (
                               <TableCell
                                 key={cell.id}
@@ -494,7 +587,9 @@ const SharedDecisionMaking: React.FC<SharedDecisionMakingProps> = ({
                                     ? styles.sharedDecisionTableCell
                                     : undefined
                                 }>
-                                {cell.info.header === 'action' && criticalActionRowIds.has(row.id) ? (
+                                {cell.info.header === 'action' && row.id === 'lcg-session-correction-audit' ? (
+                                  <span className={styles.sharedDecisionAuditActionText}>{cell.value}</span>
+                                ) : cell.info.header === 'action' && criticalActionRowIds.has(row.id) ? (
                                   <span className={styles.sharedDecisionCriticalActionText}>{cell.value}</span>
                                 ) : (
                                   cell.value

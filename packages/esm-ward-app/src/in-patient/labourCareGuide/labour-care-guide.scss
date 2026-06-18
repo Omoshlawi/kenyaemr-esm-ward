@@ -541,6 +541,15 @@ $lcg-alert-band: #ffd9bf;
   font-weight: 600;
 }
 
+.sharedDecisionAuditRow {
+  background-color: colors.$yellow-10;
+}
+
+.sharedDecisionAuditActionText {
+  color: colors.$gray-100;
+  font-weight: 600;
+}
+
 .summaryBox {
   border: 1px solid colors.$gray-60;
   padding: layout.$spacing-05;
@@ -857,6 +866,24 @@ $lcg-alert-band: #ffd9bf;
 
 .womanSecondStageSplitSegment:first-child {
   border-left: none;
+}
+
+.correctionAuditBanner,
+.correctionAuditBannerForm,
+.correctionAuditBannerChart {
+  margin-bottom: layout.$spacing-05;
+}
+
+.sharedDecisionAuditGridCell {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  text-align: left;
+}
+
+.correctionWizardHelp {
+  margin: 0;
+  color: colors.$gray-70;
 }
 
 @media (max-width: 1024px) {

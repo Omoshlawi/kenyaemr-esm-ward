@@ -82,6 +82,7 @@ function codedDisplay(raw: unknown): string {
 const IV_FLUID_TYPE_TO_DISPLAY: Record<string, string> = {
   '80804AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Normal saline',
   '78617AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': "Ringer's lactate",
+  '1175AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Not Available',
 };
 
 function ivFluidTypeDisplay(raw: unknown): string {

@@ -56,6 +56,7 @@ export type MedicationFormData = {
 const IV_FLUID_TYPE_OPTIONS = [
   { value: '80804AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', labelKey: 'normalSaline', defaultLabel: 'Normal saline' },
   { value: '78617AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', labelKey: 'ringersLactate', defaultLabel: "Ringer's lactate" },
+  { value: '1175AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', labelKey: 'ivFluidNotAvailable', defaultLabel: 'Not Available' },
 ] as const;
 
 const MEDICATION_HALF_SLOT_OPTIONS = [

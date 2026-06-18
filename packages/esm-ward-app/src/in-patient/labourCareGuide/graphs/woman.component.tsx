@@ -137,7 +137,7 @@ const formatProteinToken = (raw?: string) => {
   if (!value) {
     return '';
   }
-  if (value.includes('2001195') || value === 'ND') {
+  if (value.includes('1118') || value.includes('NOT DONE') || value === 'ND') {
     return 'ND';
   }
   if (value.includes('1364') || value.includes('THREE PLUS') || value.includes('+++')) {
@@ -160,7 +160,7 @@ const formatAcetoneToken = (raw?: string) => {
   if (!value) {
     return '';
   }
-  if (value.includes('2001195') || value === 'ND') {
+  if (value.includes('1118') || value.includes('NOT DONE') || value === 'ND') {
     return 'ND';
   }
   if (value.includes('1364') || value.includes('THREE PLUS') || value.includes('+++')) {

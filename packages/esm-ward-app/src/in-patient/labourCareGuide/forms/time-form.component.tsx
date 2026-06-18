@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal, Grid, Column, InlineNotification, TextInput } from '@carbon/react';
 import { saveLabourTimeSetData, useLabourTimeSetData } from '../resources/labour-time-set-select-setup.resource';
+import { isEncounterAfterSessionReset } from '../labour-care-guide.utils';
 
 type LabourTimeSetDataInput = {
   hour: number;
@@ -26,6 +27,7 @@ type TimeFormProps = {
     gender: string;
     age: string;
   };
+  sessionResetAfterMs?: number | null;
 };
 
 const TimeForm: React.FC<TimeFormProps> = ({
@@ -35,6 +37,7 @@ const TimeForm: React.FC<TimeFormProps> = ({
   onDataSaved,
   existingTimeEntries = [],
   patient,
+  sessionResetAfterMs = null,
 }) => {
   const { t } = useTranslation();
   const [isSaving, setIsSaving] = React.useState(false);
@@ -47,10 +50,15 @@ const TimeForm: React.FC<TimeFormProps> = ({
   }, []);
 
   const { labourTimeSetData, mutate: mutateTimeEntries } = useLabourTimeSetData(patient?.uuid ?? '', isOpen);
-  const isTimeAlreadySet = (existingTimeEntries?.length ?? 0) > 0 || (labourTimeSetData?.length ?? 0) > 0;
+  const activeLabourTimeSetData = React.useMemo(
+    () =>
+      labourTimeSetData.filter((entry) => isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs)),
+    [labourTimeSetData, sessionResetAfterMs],
+  );
+  const isTimeAlreadySet = (existingTimeEntries?.length ?? 0) > 0 || activeLabourTimeSetData.length > 0;
   const savedBaseTime = React.useMemo(() => {
-    if (labourTimeSetData.length > 0) {
-      const earliest = [...labourTimeSetData].sort(
+    if (activeLabourTimeSetData.length > 0) {
+      const earliest = [...activeLabourTimeSetData].sort(
         (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
       )[0];
 
@@ -62,7 +70,7 @@ const TimeForm: React.FC<TimeFormProps> = ({
     }
 
     return existingTimeEntries[0]?.time ?? '';
-  }, [existingTimeEntries, labourTimeSetData]);
+  }, [existingTimeEntries, activeLabourTimeSetData]);
 
   const {
     control,

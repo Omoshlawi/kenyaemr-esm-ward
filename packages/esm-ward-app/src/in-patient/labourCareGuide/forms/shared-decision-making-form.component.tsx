@@ -9,9 +9,14 @@ import { buildAssessmentPrefillFromAlerts, type SharedDecisionAlertItem } from '
 import {
   SHARED_DECISION_MAKING_ACTIONS,
   UUID_SHARED_DECISION_REFERRAL,
+  UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS,
   UUID_SHARED_DECISION_TRANSFER_TO_CS,
+  LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID,
+  LCG_TERMINATION_REASON_WRONG_PATIENT_CONCEPT_UUID,
 } from '../types';
 import { saveSharedDecisionMakingData } from '../resources/shared-decision-making.resource';
+import LcgCorrectionAuditBanner from '../components/lcg-correction-audit-banner.component';
+import type { LcgCorrectionAuditRecord } from '../resources/lcg-session-correction.resource';
 import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
   formatHHMM,
@@ -29,6 +34,8 @@ export type SharedDecisionMakingFormData = {
   action: string;
   plan: string;
   time: string;
+  terminationReasonType?: string;
+  terminationReasonText?: string;
 };
 
 export type SharedDecisionMakingFormProps = {
@@ -54,6 +61,7 @@ export type SharedDecisionMakingFormProps = {
   };
   isMultipleGestation?: boolean;
   hasTwinOneBirthRecorded?: boolean;
+  correctionAuditDisplay?: LcgCorrectionAuditRecord | null;
 };
 
 const SharedDecisionMakingForm: React.FC<
@@ -79,6 +87,7 @@ const SharedDecisionMakingForm: React.FC<
   patient,
   isMultipleGestation = false,
   hasTwinOneBirthRecorded = false,
+  correctionAuditDisplay = null,
   existingTimeEntries = [],
   baseTime,
   slotCount = 0,
@@ -118,20 +127,28 @@ const SharedDecisionMakingForm: React.FC<
     [],
   );
   const consentExemptActionValues = React.useMemo(
-    () => new Set<string>([UUID_SHARED_DECISION_REFERRAL, UUID_SHARED_DECISION_TRANSFER_TO_CS]),
+    () =>
+      new Set<string>([
+        UUID_SHARED_DECISION_REFERRAL,
+        UUID_SHARED_DECISION_TRANSFER_TO_CS,
+        UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS,
+      ]),
     [],
   );
   const resolvedFirstStageSlotCount = firstStageSlotCount ?? slotCount;
   const resolvedSecondStageSlotCount = secondStageStartTime ? secondStageSlotCount : 0;
 
-  const { control, handleSubmit, reset, setError, clearErrors, watch } = useForm<SharedDecisionMakingFormData>({
-    defaultValues: {
-      assessment: '',
-      action: '',
-      plan: '',
-      time: '',
-    },
-  });
+  const { control, handleSubmit, reset, setError, clearErrors, watch, setValue } =
+    useForm<SharedDecisionMakingFormData>({
+      defaultValues: {
+        assessment: '',
+        action: '',
+        plan: '',
+        time: '',
+        terminationReasonType: '',
+        terminationReasonText: '',
+      },
+    });
 
   const wasOpenRef = React.useRef(false);
 
@@ -143,6 +160,8 @@ const SharedDecisionMakingForm: React.FC<
         action: '',
         plan: '',
         time: '',
+        terminationReasonType: '',
+        terminationReasonText: '',
       });
       clearErrors();
       setSaveError(null);
@@ -153,6 +172,25 @@ const SharedDecisionMakingForm: React.FC<
   }, [autoPromptItems, clearErrors, isOpen, reset]);
 
   const selectedTime = watch('time');
+  const selectedAction = watch('action');
+  const selectedTerminationReasonType = watch('terminationReasonType');
+  const isTerminateActionSelected = selectedAction === UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS;
+  const isOtherTerminationReason = selectedTerminationReasonType === LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID;
+
+  React.useEffect(() => {
+    if (!isTerminateActionSelected) {
+      return;
+    }
+
+    setValue('assessment', t('lcgTerminateAssessmentDefault', 'Session terminated — pending data correction'), {
+      shouldDirty: true,
+    });
+    setValue(
+      'plan',
+      t('lcgTerminatePlanDefault', 'Use the correction workflow to reopen or transfer this session if needed.'),
+      { shouldDirty: true },
+    );
+  }, [isTerminateActionSelected, setValue, t]);
 
   const formatDebugTime = React.useCallback((timeMs: number) => {
     if (!Number.isFinite(timeMs)) {
@@ -371,11 +409,34 @@ const SharedDecisionMakingForm: React.FC<
         return;
       }
 
+      const isTerminateAction = data.action === UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS;
+      if (isTerminateAction && !data.terminationReasonType) {
+        setError('terminationReasonType', {
+          type: 'manual',
+          message: t('terminationReasonTypeRequired', 'Termination reason is required'),
+        });
+        return;
+      }
+
+      if (
+        isTerminateAction &&
+        data.terminationReasonType === LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID &&
+        !data.terminationReasonText?.trim()
+      ) {
+        setError('terminationReasonText', {
+          type: 'manual',
+          message: t('terminationReasonTextRequired', 'Please describe the termination reason'),
+        });
+        return;
+      }
+
       const cleanData: SharedDecisionMakingFormData = {
         assessment: data.assessment.trim(),
         action: typeof data.action === 'string' ? data.action : (data.action as any)?.uuid || '',
         plan: data.plan.trim(),
         time: data.time,
+        terminationReasonType: data.terminationReasonType,
+        terminationReasonText: data.terminationReasonText?.trim(),
       };
 
       if (criticalActionValues.has(cleanData.action) && !consentExemptActionValues.has(cleanData.action)) {
@@ -397,6 +458,8 @@ const SharedDecisionMakingForm: React.FC<
     try {
       const result = await saveSharedDecisionMakingData(patient!.uuid, cleanData, t, undefined, undefined, {
         emergencyReason: isEmergencyMode ? emergencyReason : undefined,
+        terminationReasonType: cleanData.terminationReasonType,
+        terminationReasonText: cleanData.terminationReasonText,
       });
 
       if (!result.success) {
@@ -471,6 +534,8 @@ const SharedDecisionMakingForm: React.FC<
             hideCloseButton
           />
         ) : null}
+
+        <LcgCorrectionAuditBanner auditRecord={correctionAuditDisplay} variant="form" />
 
         {groupedAutoPromptItems.length ? (
           <div className={styles.autoPromptSummary}>
@@ -625,6 +690,65 @@ const SharedDecisionMakingForm: React.FC<
               />
             </div>
           </Column>
+
+          {isTerminateActionSelected ? (
+            <>
+              <Column lg={16} md={8} sm={4}>
+                <div className={styles.formField}>
+                  <Controller
+                    name="terminationReasonType"
+                    control={control}
+                    rules={{
+                      required: t('terminationReasonTypeRequired', 'Termination reason is required'),
+                    }}
+                    render={({ field, fieldState }) => (
+                      <Select
+                        id="termination-reason-type"
+                        labelText={t('terminationReasonType', 'Termination reason *')}
+                        value={typeof field.value === 'string' ? field.value : ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        disabled={!areFieldsEnabled}
+                        invalid={!!fieldState.error}
+                        invalidText={fieldState.error?.message}>
+                        <SelectItem value="" text={t('selectReason', 'Select reason')} />
+                        <SelectItem
+                          value={LCG_TERMINATION_REASON_WRONG_PATIENT_CONCEPT_UUID}
+                          text={t('wrongPatientSelected', 'Wrong patient selected')}
+                        />
+                        <SelectItem value={LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID} text={t('other', 'Other')} />
+                      </Select>
+                    )}
+                  />
+                </div>
+              </Column>
+
+              {isOtherTerminationReason ? (
+                <Column lg={16} md={8} sm={4}>
+                  <div className={styles.formField}>
+                    <Controller
+                      name="terminationReasonText"
+                      control={control}
+                      rules={{
+                        required: t('terminationReasonTextRequired', 'Please describe the termination reason'),
+                      }}
+                      render={({ field, fieldState }) => (
+                        <TextArea
+                          id="termination-reason-text"
+                          labelText={t('terminationReasonDetails', 'Reason details *')}
+                          rows={3}
+                          value={typeof field.value === 'string' ? field.value : ''}
+                          onChange={(event) => field.onChange(event.target.value)}
+                          disabled={!areFieldsEnabled}
+                          invalid={!!fieldState.error}
+                          invalidText={fieldState.error?.message}
+                        />
+                      )}
+                    />
+                  </div>
+                </Column>
+              ) : null}
+            </>
+          ) : null}
         </Grid>
       </Modal>
 

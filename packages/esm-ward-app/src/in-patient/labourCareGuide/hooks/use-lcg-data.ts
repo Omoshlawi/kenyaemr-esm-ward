@@ -12,6 +12,7 @@ import {
   useSharedDecisionMakingData,
   type SharedDecisionMakingEntry,
 } from '../resources/shared-decision-making.resource';
+import { buildSessionTerminationState, useLcgCorrectionAudit } from '../resources/lcg-session-correction.resource';
 import { createPartographyEncounter, usePartographyData } from '../partography.resource';
 import type { WomanLocalEntry } from '../graphs/woman.component';
 import type { LabourProgressEntry } from '../graphs/labour-progress.component';
@@ -35,6 +36,7 @@ import {
   getEncounterObsValue,
   getEncounterRecordedTime,
   getLabourContractionObsFromEncounter,
+  isEncounterAfterSessionReset,
   parseCervicalDilationValue,
   parseDescentOfHeadValue,
   parseUrgeToPushValue,
@@ -133,7 +135,12 @@ const getSharedDecisionEntryTimesMs = (entries: SharedDecisionMakingEntry[]) =>
     .map((entry) => resolveAlertCreatedTimeMs(entry))
     .filter((entryTimeMs): entryTimeMs is number => entryTimeMs !== null);
 
-export function useLcgData(patientUuid: string) {
+type UseLcgDataOptions = {
+  sessionResetAfterMs?: number | null;
+};
+
+export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {}) {
+  const sessionResetAfterMs = options.sessionResetAfterMs ?? null;
   const { t } = useTranslation();
 
   const [isTimeFormOpen, setIsTimeFormOpen] = React.useState(false);
@@ -180,47 +187,177 @@ export function useLcgData(patientUuid: string) {
 
   const { admissionData, mutate: mutateAdmissionDetails } = useAdmissionDetails(patientUuid);
   const admissionRiskFactorCodes = React.useMemo(() => admissionData?.riskFactors ?? [], [admissionData]);
-  const { labourTimeSetData, mutate: mutateLabourTimeSetData } = useLabourTimeSetData(patientUuid, true);
-  const { babyEntries, mutate: mutateBabyData } = useBabyData(patientUuid, true);
-  const { medicationEntries, mutate: mutateMedicationData } = useMedicationData(patientUuid);
-  const { supportiveCareEntries, mutate: mutateSupportiveCareData } = useSupportiveCareData(patientUuid, true);
-  const { entries: sharedDecisionMakingEntries, mutate: mutateSharedDecisionMakingData } = useSharedDecisionMakingData(
+  const { labourTimeSetData: rawLabourTimeSetData, mutate: mutateLabourTimeSetData } = useLabourTimeSetData(
     patientUuid,
     true,
   );
-  const { data: womanPulseBpEncounters = [], mutate: mutateWomanPartographyData } = usePartographyData(
+  const labourTimeSetData = React.useMemo(
+    () =>
+      rawLabourTimeSetData.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawLabourTimeSetData, sessionResetAfterMs],
+  );
+  const { babyEntries: rawBabyEntries, mutate: mutateBabyData } = useBabyData(patientUuid, true);
+  const babyEntries = React.useMemo(
+    () => rawBabyEntries.filter((entry) => isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs)),
+    [rawBabyEntries, sessionResetAfterMs],
+  );
+  const { medicationEntries: rawMedicationEntries, mutate: mutateMedicationData } = useMedicationData(patientUuid);
+  const medicationEntries = React.useMemo(
+    () =>
+      rawMedicationEntries.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawMedicationEntries, sessionResetAfterMs],
+  );
+  const { supportiveCareEntries: rawSupportiveCareEntries, mutate: mutateSupportiveCareData } = useSupportiveCareData(
+    patientUuid,
+    true,
+  );
+  const supportiveCareEntries = React.useMemo(
+    () =>
+      rawSupportiveCareEntries.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawSupportiveCareEntries, sessionResetAfterMs],
+  );
+  const { entries: rawSharedDecisionMakingEntries, mutate: mutateSharedDecisionMakingData } =
+    useSharedDecisionMakingData(patientUuid, true);
+  const sharedDecisionMakingEntries = React.useMemo(
+    () =>
+      rawSharedDecisionMakingEntries.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawSharedDecisionMakingEntries, sessionResetAfterMs],
+  );
+  const { auditRecord: correctionAuditRecord, mutate: mutateCorrectionAudit } = useLcgCorrectionAudit(patientUuid);
+  const { data: rawWomanPulseBpEncounters = [], mutate: mutateWomanPartographyData } = usePartographyData(
     patientUuid,
     'pulse-bp-combined',
   );
-  const { data: womanTemperatureEncounters = [] } = usePartographyData(patientUuid, 'temperature');
-  const { data: womanUrineEncounters = [] } = usePartographyData(patientUuid, 'urine-analysis');
-  const { data: labourContractionEncounters = [] } = usePartographyData(patientUuid, 'uterine-contractions');
-  const { data: cervicalEncounters = [] } = usePartographyData(patientUuid, 'cervical-dilation');
-  const { data: labourDescentEncounters = [] } = usePartographyData(patientUuid, 'descent-of-head');
+  const womanPulseBpEncounters = React.useMemo(
+    () =>
+      rawWomanPulseBpEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawWomanPulseBpEncounters, sessionResetAfterMs],
+  );
+  const { data: rawWomanTemperatureEncounters = [] } = usePartographyData(patientUuid, 'temperature');
+  const womanTemperatureEncounters = React.useMemo(
+    () =>
+      rawWomanTemperatureEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawWomanTemperatureEncounters, sessionResetAfterMs],
+  );
+  const { data: rawWomanUrineEncounters = [] } = usePartographyData(patientUuid, 'urine-analysis');
+  const womanUrineEncounters = React.useMemo(
+    () =>
+      rawWomanUrineEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawWomanUrineEncounters, sessionResetAfterMs],
+  );
+  const { data: rawLabourContractionEncounters = [] } = usePartographyData(patientUuid, 'uterine-contractions');
+  const labourContractionEncounters = React.useMemo(
+    () =>
+      rawLabourContractionEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawLabourContractionEncounters, sessionResetAfterMs],
+  );
+  const { data: rawCervicalEncounters = [] } = usePartographyData(patientUuid, 'cervical-dilation');
+  const cervicalEncounters = React.useMemo(
+    () =>
+      rawCervicalEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawCervicalEncounters, sessionResetAfterMs],
+  );
+  const { data: rawLabourDescentEncounters = [] } = usePartographyData(patientUuid, 'descent-of-head');
+  const labourDescentEncounters = React.useMemo(
+    () =>
+      rawLabourDescentEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawLabourDescentEncounters, sessionResetAfterMs],
+  );
+
+  const activeLocalMedicationEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localMedicationEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localMedicationEntries,
+    [localMedicationEntries, sessionResetAfterMs],
+  );
+  const activeLocalSupportiveCareEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localSupportiveCareEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localSupportiveCareEntries,
+    [localSupportiveCareEntries, sessionResetAfterMs],
+  );
+  const activeLocalBabyEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localBabyEntries.filter((entry) => isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs))
+        : localBabyEntries,
+    [localBabyEntries, sessionResetAfterMs],
+  );
+  const activeLocalSharedDecisionMakingEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localSharedDecisionMakingEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localSharedDecisionMakingEntries,
+    [localSharedDecisionMakingEntries, sessionResetAfterMs],
+  );
+  const activeLocalLabourProgressEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localLabourProgressEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localLabourProgressEntries,
+    [localLabourProgressEntries, sessionResetAfterMs],
+  );
+  const activeLocalWomanEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localWomanEntries.filter((entry) => isEncounterAfterSessionReset(entry.recordedAt, sessionResetAfterMs))
+        : localWomanEntries,
+    [localWomanEntries, sessionResetAfterMs],
+  );
 
   const mergedMedicationEntries = React.useMemo(() => {
     const merged = new Map<string, MedicationEntry>();
-    for (const entry of [...medicationEntries, ...localMedicationEntries]) {
+    for (const entry of [...medicationEntries, ...activeLocalMedicationEntries]) {
       merged.set(entry.id, entry);
     }
     return Array.from(merged.values()).sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [medicationEntries, localMedicationEntries]);
+  }, [medicationEntries, activeLocalMedicationEntries]);
 
   const mergedSupportiveCareEntries = React.useMemo(() => {
     const merged = new Map<string, SupportiveCareEntry>();
-    for (const entry of [...supportiveCareEntries, ...localSupportiveCareEntries]) {
+    for (const entry of [...supportiveCareEntries, ...activeLocalSupportiveCareEntries]) {
       merged.set(entry.id, entry);
     }
     return Array.from(merged.values()).sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [supportiveCareEntries, localSupportiveCareEntries]);
+  }, [supportiveCareEntries, activeLocalSupportiveCareEntries]);
 
   const mergedBabyEntries = React.useMemo(() => {
     const merged = new Map<string, BabyEntry>();
-    const orderedEntries = [...babyEntries, ...localBabyEntries].sort(
+    const orderedEntries = [...babyEntries, ...activeLocalBabyEntries].sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
 
@@ -250,14 +387,14 @@ export function useLcgData(patientUuid: string) {
     return Array.from(merged.values()).sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [babyEntries, localBabyEntries]);
+  }, [babyEntries, activeLocalBabyEntries]);
 
   const mergedSharedDecisionMakingEntries = React.useMemo(() => {
     const normalizedApiEntries = sharedDecisionMakingEntries.map((entry) => ({
       ...entry,
       action: normalizeSharedDecisionMakingAction(entry.action),
     }));
-    const normalizedLocalEntries = localSharedDecisionMakingEntries.map((entry) => ({
+    const normalizedLocalEntries = activeLocalSharedDecisionMakingEntries.map((entry) => ({
       ...entry,
       action: normalizeSharedDecisionMakingAction(entry.action),
     }));
@@ -275,7 +412,7 @@ export function useLcgData(patientUuid: string) {
     return [...normalizedApiEntries, ...unsyncedLocalEntries].sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [sharedDecisionMakingEntries, localSharedDecisionMakingEntries]);
+  }, [sharedDecisionMakingEntries, activeLocalSharedDecisionMakingEntries]);
 
   const mergedLabourProgressEntries = React.useMemo(() => {
     const apiEntries = [...labourContractionEncounters, ...cervicalEncounters, ...labourDescentEncounters]
@@ -333,7 +470,7 @@ export function useLcgData(patientUuid: string) {
       })
       .filter(Boolean) as LabourProgressEntry[];
 
-    const orderedEntries = [...apiEntries, ...localLabourProgressEntries].sort(
+    const orderedEntries = [...apiEntries, ...activeLocalLabourProgressEntries].sort(
       (left, right) =>
         new Date(left.encounterDatetime ?? 0).getTime() - new Date(right.encounterDatetime ?? 0).getTime(),
     );
@@ -363,7 +500,7 @@ export function useLcgData(patientUuid: string) {
       (left, right) =>
         new Date(left.encounterDatetime ?? 0).getTime() - new Date(right.encounterDatetime ?? 0).getTime(),
     );
-  }, [cervicalEncounters, labourContractionEncounters, labourDescentEncounters, localLabourProgressEntries]);
+  }, [cervicalEncounters, labourContractionEncounters, labourDescentEncounters, activeLocalLabourProgressEntries]);
 
   // Flat list of woman observations for alert-rule evaluation.
   // Each element represents one encounter or local entry; the addPromptItem
@@ -401,7 +538,7 @@ export function useLcgData(patientUuid: string) {
       }
     }
 
-    for (const entry of localWomanEntries) {
+    for (const entry of activeLocalWomanEntries) {
       const protein = formatProteinForAlert(entry.protein);
       const acetone = formatAcetoneForAlert(entry.acetone);
       const urine = [protein, acetone].filter(Boolean).join('/') || undefined;
@@ -417,7 +554,7 @@ export function useLcgData(patientUuid: string) {
     }
 
     return entries;
-  }, [womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters, localWomanEntries]);
+  }, [womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters, activeLocalWomanEntries]);
 
   const debouncedMergedSupportiveCareEntries = useLcgDebouncedValue(mergedSupportiveCareEntries, 300);
   const debouncedMergedBabyEntries = useLcgDebouncedValue(mergedBabyEntries, 300);
@@ -433,7 +570,7 @@ export function useLcgData(patientUuid: string) {
       }))
       .filter((entry) => Boolean(entry.time));
 
-    const localTimeEntries = localWomanEntries.map((entry) => ({
+    const localTimeEntries = activeLocalWomanEntries.map((entry) => ({
       time: entry.time,
       encounterDatetime: entry.recordedAt,
     }));
@@ -455,7 +592,7 @@ export function useLcgData(patientUuid: string) {
         hour: index + 1,
         time: entry.time,
       }));
-  }, [localWomanEntries, womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters]);
+  }, [activeLocalWomanEntries, womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters]);
 
   const handleWomanFormSubmit = React.useCallback(
     async (
@@ -743,6 +880,14 @@ export function useLcgData(patientUuid: string) {
   }, [baseTime, mergedSharedDecisionMakingEntries]);
 
   const isWorkflowStopped = Boolean(workflowStopState);
+
+  const sessionTerminationState = React.useMemo(
+    () => buildSessionTerminationState(mergedSharedDecisionMakingEntries),
+    [mergedSharedDecisionMakingEntries],
+  );
+
+  const isSessionTerminated = Boolean(sessionTerminationState);
+  const isClinicalWorkflowStopped = isWorkflowStopped && !isSessionTerminated;
 
   const pendingSharedDecisionPrompt = React.useMemo(() => {
     if (!baseTime) {
@@ -1261,6 +1406,7 @@ export function useLcgData(patientUuid: string) {
     mutateMedicationData,
     mutateSupportiveCareData,
     mutateSharedDecisionMakingData,
+    mutateWomanPartographyData,
     mergedMedicationEntries,
     mergedSupportiveCareEntries,
     mergedBabyEntries,
@@ -1275,6 +1421,11 @@ export function useLcgData(patientUuid: string) {
     baseTime,
     workflowStopState,
     isWorkflowStopped,
+    isSessionTerminated,
+    isClinicalWorkflowStopped,
+    sessionTerminationState,
+    correctionAuditRecord,
+    mutateCorrectionAudit,
     sharedDecisionAutoPromptDebugWindow,
     cdsPendingAlert,
     activeSharedDecisionAlerts,
