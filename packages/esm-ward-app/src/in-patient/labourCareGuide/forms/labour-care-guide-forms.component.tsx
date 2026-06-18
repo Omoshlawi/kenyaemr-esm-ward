@@ -39,6 +39,8 @@ type AdmissionDetailsState = {
   ipNumber: string;
 };
 
+type SharedDecisionAlertItem = { section: string; code: string; guidance: string };
+
 export type LabourCareGuideFormsProps = {
   // patient
   patient: any;
