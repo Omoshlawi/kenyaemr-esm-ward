@@ -72,6 +72,7 @@ import {
   secondStageHours,
 } from './labour-care-guide.utils';
 import { useLcgData } from './hooks/use-lcg-data';
+import { expandMedicationEntryToTableRows } from './resources/medication.resource';
 import { LcgSectionStateProvider } from './context/lcg-section-state.context';
 import { GlobalCdsAlertProvider, useGlobalCdsAlert } from './global-cds-alerts/global-cds-alert-context';
 import GlobalCdsAlertDisplay from './global-cds-alerts/global-cds-alert-display.component';
@@ -628,19 +629,25 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
       recordedAt: formatEncounterDateTime(entry.encounterDatetime),
     }));
 
-    const medicationRows = mergedMedicationEntries.map((entry) => ({
-      time: entry.time ?? '',
-      oxytocin: entry.oxytocin ?? '',
-      oxytocinUnitsPerLitre: entry.oxytocinU_L ?? '',
-      oxytocinDropsPerMinute: entry.oxytocinDrops ?? '',
-      medicine: entry.medicine ?? '',
-      drugName: entry.drugName ?? '',
-      dosage: entry.dosage ?? '',
-      route: entry.route ?? '',
-      ivFluids: entry.ivFluids ?? '',
-      ivFluidType: entry.ivFluidType ?? '',
-      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
-    }));
+    const medicationRows = mergedMedicationEntries.flatMap((entry) =>
+      expandMedicationEntryToTableRows(entry, {
+        formatDate: (encounterDatetime) => formatEncounterDateTime(encounterDatetime),
+        formatTimeSaved: (encounterDatetime) => formatEncounterDateTime(encounterDatetime),
+        formatEmergencyReason: (reason) => t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: reason ?? '' }),
+      }).map((row) => ({
+        time: row.lcgTime,
+        oxytocin: entry.oxytocin ?? '',
+        oxytocinUnitsPerLitre: row.oxytocinUL,
+        oxytocinDropsPerMinute: row.oxytocinDrops,
+        medicine: entry.medicine ?? '',
+        drugName: row.drug,
+        dosage: row.dosage,
+        route: row.route,
+        ivFluids: entry.ivFluids ?? '',
+        ivFluidType: row.ivFluidType,
+        recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+      })),
+    );
 
     const sharedDecisionRows = [
       ...(correctionAuditDisplay ? [buildCorrectionAuditTableRow(correctionAuditDisplay, t)] : []),

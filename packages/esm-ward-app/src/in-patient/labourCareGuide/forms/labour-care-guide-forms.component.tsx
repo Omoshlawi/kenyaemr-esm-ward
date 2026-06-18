@@ -513,6 +513,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                 ivFluids: data.ivFluids === 'yes' ? 'Y' : 'N',
                 oxytocinU_L: oxytocinUnitsValue,
                 oxytocinDrops: oxytocinDropsValue,
+                drugs: data.medicine === 'yes' ? data.drugLines : undefined,
                 drugName: data.medicine === 'yes' ? data.drug : undefined,
                 dosage: data.medicine === 'yes' ? data.dosage : undefined,
                 route: data.medicine === 'yes' ? data.route : undefined,

@@ -13,6 +13,7 @@ import {
 } from '@carbon/react';
 import styles from '../labour-care-guide.scss';
 import type { MedicationEntry } from '../resources/medication.resource';
+import { expandMedicationEntryToTableRows } from '../resources/medication.resource';
 import { getPointSlotState, getStageAwarePointSlotIndexForTime, type LcgSlotState } from '../time-slot-utils';
 import {
   LCG_MEDICATION_OXYTOCIN_INTERVAL_MINUTES,
@@ -246,6 +247,10 @@ const Medication: React.FC<MedicationProps> = ({
       return getOxytocinDropsValue(entry);
     }
 
+    if (rowKey === 'medicine') {
+      return entry.medicine ?? '';
+    }
+
     return (entry as any)[rowKey] ?? '';
   };
 
@@ -281,28 +286,15 @@ const Medication: React.FC<MedicationProps> = ({
   ];
 
   const tableRows = entries
-    .map((entry) => {
-      const emergencyReason = entry.emergencyReason?.trim();
-      return {
-        id: entry.id,
-        date: new Date(entry.encounterDatetime).toLocaleDateString(),
-        timeSaved: new Date(entry.encounterDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        lcgTime: entry.time,
-        oxytocinUL: entry.oxytocinU_L ?? 'No',
-        oxytocinDrops: entry.oxytocinDrops ?? 'No',
-        drug: entry.drugName ?? 'No',
-        dosage: entry.dosage ?? 'No',
-        route: entry.route ?? 'No',
-        ivFluidType: entry.ivFluidType ?? 'No',
-        reason: entry.isEmergency
-          ? emergencyReason
-            ? t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: emergencyReason })
-            : t('emergencyEntry', 'Emergency entry')
-          : '',
-        isEmergency: Boolean(entry.isEmergency),
-      };
-    })
-    .reverse(); // Show latest entries first in table
+    .flatMap((entry) =>
+      expandMedicationEntryToTableRows(entry, {
+        formatDate: (encounterDatetime) => new Date(encounterDatetime).toLocaleDateString(),
+        formatTimeSaved: (encounterDatetime) =>
+          new Date(encounterDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        formatEmergencyReason: (reason) => t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: reason ?? '' }),
+      }),
+    )
+    .reverse();
 
   const emergencyRowIds = React.useMemo(
     () => new Set(tableRows.filter((r) => r.isEmergency).map((r) => r.id)),

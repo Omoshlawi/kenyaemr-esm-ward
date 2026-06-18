@@ -423,12 +423,54 @@
 }
 
 .drugSearchRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+.drugSearchFields {
   display: grid;
-  grid-template-columns: 2fr 1.2fr 1fr auto;
+  grid-template-columns: 2fr 1.2fr 1fr 0.9fr auto;
   gap: 0.5rem;
   align-items: flex-end;
-  margin-bottom: 0.5rem;
-  position: relative;
+}
+
+.drugStockChecking {
+  font-size: 0.75rem;
+  color: #6f6f6f;
+}
+
+.drugStockInStock {
+  @include type.type-style('helper-text-01');
+  color: colors.$green-50;
+  margin: 0;
+}
+
+.drugStockOutOfStock {
+  @include type.type-style('label-01');
+  color: colors.$red-60;
+  font-weight: 700;
+  margin: 0;
+}
+
+.drugStockPreview {
+  @include type.type-style('helper-text-01');
+  color: colors.$gray-70;
+  margin: 0;
+}
+
+.drugStockInsufficient {
+  @include type.type-style('helper-text-01');
+  color: colors.$red-60;
+  margin: 0;
+}
+
+.drugStockError {
+  @include type.type-style('helper-text-01');
+  color: colors.$red-60;
+  margin: 0;
 }
 
 .drugSearchInputWrapper {
