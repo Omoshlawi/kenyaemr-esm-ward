@@ -477,9 +477,11 @@ export const getCervixStallTokenGuidance = (t: TFunction, token: string): string
 // ─── Shared Decision Making assessment prefill ───────────────────────────────
 
 export type SharedDecisionAlertItem = {
+  id?: string;
   section: string;
   code: string;
   guidance: string;
+  timestampCreatedMs?: number;
 };
 
 export type SharedDecisionAssessmentLine = {

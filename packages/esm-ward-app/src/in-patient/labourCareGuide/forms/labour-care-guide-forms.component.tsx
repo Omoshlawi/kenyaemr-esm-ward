@@ -25,6 +25,7 @@ import {
 import type { LabourProgressFormData } from './labour-progress-form.component';
 import { SUPPORTIVE_CARE_CODED_VALUES, type LcgEmergencySectionKey } from '../types';
 import { activeFirstStageHours, secondStageHours } from '../labour-care-guide.utils';
+import type { SharedDecisionAlertItem } from '../alert-rules';
 
 type AdmissionDetailsState = {
   labourOnset: string;
@@ -36,8 +37,6 @@ type AdmissionDetailsState = {
   riskFactorOtherText: string;
   ipNumber: string;
 };
-
-type SharedDecisionAlertItem = { section: string; code: string; guidance: string };
 
 export type LabourCareGuideFormsProps = {
   // patient
@@ -92,8 +91,11 @@ export type LabourCareGuideFormsProps = {
   sharedDecisionAutoPromptItems: Array<SharedDecisionAlertItem>;
   setSharedDecisionAutoPromptItems: (value: Array<SharedDecisionAlertItem>) => void;
   activeSharedDecisionAlerts: Array<SharedDecisionAlertItem>;
-  sharedDecisionAutoPromptDebugWindow: { triggerTimeMs: number; openAtMs: number; expiresAtMs: number } | undefined;
+  sharedDecisionAutoPromptDebugWindow:
+    | { triggerTimeMs: number; openAtMs: number | null; expiresAtMs: number }
+    | undefined;
   onSharedDecisionFormInteraction?: () => void;
+  onSharedDecisionAlertSessionAcknowledged?: (entry: SharedDecisionMakingEntry) => void;
 
   // complex submit callbacks
   handleWomanFormSubmit: (
@@ -176,6 +178,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   activeSharedDecisionAlerts,
   sharedDecisionAutoPromptDebugWindow,
   onSharedDecisionFormInteraction,
+  onSharedDecisionAlertSessionAcknowledged,
   handleWomanFormSubmit,
   handleLabourProgressFormSubmit,
   mutateLabourTimeSetData,
@@ -210,11 +213,11 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
     const byKey = new Map<string, SharedDecisionAlertItem>();
 
     for (const item of activeSharedDecisionAlerts) {
-      byKey.set(`${item.section}|${item.code}`, item);
+      byKey.set(item.id ?? `${item.section}|${item.code}|${item.timestampCreatedMs ?? ''}`, item);
     }
 
     for (const item of sharedDecisionAutoPromptItems) {
-      byKey.set(`${item.section}|${item.code}`, item);
+      byKey.set(item.id ?? `${item.section}|${item.code}|${item.timestampCreatedMs ?? ''}`, item);
     }
 
     const sectionOrder = ['Supportive Care', 'Baby', 'Woman', 'Labour Progress'];
@@ -559,22 +562,20 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                   })()
                 : timestamp;
 
-            setLocalSharedDecisionMakingEntries((prev) => [
-              ...prev,
-              {
-                id: `shared-decision-local-${timestamp}`,
-                encounterUuid: `shared-decision-local-${timestamp}`,
-                encounterDatetime: entryTime,
-                assessment: data.assessment,
-                plan: data.plan,
-                action: normalizeSharedDecisionMakingAction(data.action),
-                time: data.time,
-                isEmergency: isEmergencyEntry,
-                emergencyReason: isEmergencyEntry ? (emergencyReason ?? '') : undefined,
-              },
-            ]);
-            setSharedDecisionAutoPromptSummary(null);
-            setSharedDecisionAutoPromptItems([]);
+            const submittedEntry: SharedDecisionMakingEntry = {
+              id: `shared-decision-local-${timestamp}`,
+              encounterUuid: `shared-decision-local-${timestamp}`,
+              encounterDatetime: entryTime,
+              assessment: data.assessment,
+              plan: data.plan,
+              action: normalizeSharedDecisionMakingAction(data.action),
+              time: data.time,
+              isEmergency: isEmergencyEntry,
+              emergencyReason: isEmergencyEntry ? (emergencyReason ?? '') : undefined,
+            };
+
+            setLocalSharedDecisionMakingEntries((prev) => [...prev, submittedEntry]);
+            onSharedDecisionAlertSessionAcknowledged?.(submittedEntry);
             onSharedDecisionFormInteraction?.();
             setIsSharedDecisionMakingFormOpen(false);
           }}

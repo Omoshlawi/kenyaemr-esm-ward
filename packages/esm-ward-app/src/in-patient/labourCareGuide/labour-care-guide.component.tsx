@@ -41,10 +41,16 @@ import {
 } from './types';
 import {
   addStepsToHHMM,
+  formatHHMM,
   getSlotIndexForTime,
   resolveStageAwareStopSlots,
   SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
 } from './time-slot-utils';
+import {
+  computeLcgAlertActivationMs,
+  getLcgHourlyCellBoundsForEntry,
+  shouldFireLcgAlertAlarm,
+} from './lcg-alert-lifecycle';
 import { LabourCareGuideSummaryHeader } from './labour-care-guide-header.component';
 import {
   activeFirstStageHours,
@@ -214,6 +220,17 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
   const printableCanvasRef = React.useRef<HTMLDivElement | null>(null);
   // Track first detection time of current alert for threshold calculation
   const alertFirstDetectionTimeRef = React.useRef<number | null>(null);
+  const cdsAlertTimersRef = React.useRef<{ activation?: number; expiry?: number }>({});
+  const clearCdsAlertTimers = React.useCallback(() => {
+    if (cdsAlertTimersRef.current.activation !== undefined) {
+      window.clearTimeout(cdsAlertTimersRef.current.activation);
+      cdsAlertTimersRef.current.activation = undefined;
+    }
+    if (cdsAlertTimersRef.current.expiry !== undefined) {
+      window.clearTimeout(cdsAlertTimersRef.current.expiry);
+      cdsAlertTimersRef.current.expiry = undefined;
+    }
+  }, []);
   const {
     isTimeFormOpen,
     setIsTimeFormOpen,
@@ -271,8 +288,27 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
     sharedDecisionAutoPromptDebugWindow,
     cdsPendingAlert,
     activeSharedDecisionAlerts,
+    acknowledgeSharedDecisionAlertSession,
     cervicalEncounters,
   } = useLcgData(patientUuid);
+
+  const handleSharedDecisionAlertSessionAcknowledged = React.useCallback(
+    (entry: Parameters<typeof acknowledgeSharedDecisionAlertSession>[0]) => {
+      acknowledgeSharedDecisionAlertSession(entry);
+      clearCdsAlertTimers();
+      lastBroadcastKeyRef.current = null;
+      alertFirstDetectionTimeRef.current = null;
+      setActiveAlertKey(null);
+      setActiveCdsToast(null);
+      stopAlertBeep();
+      try {
+        window.localStorage.removeItem(LCG_CDS_ALERT_STORAGE_KEY);
+      } catch {
+        // Storage can be unavailable in restricted browser contexts.
+      }
+    },
+    [acknowledgeSharedDecisionAlertSession, clearCdsAlertTimers, stopAlertBeep],
+  );
 
   const currentPatientName = React.useMemo(() => {
     if (!patient) {
@@ -1059,6 +1095,8 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
   ]);
 
   React.useEffect(() => {
+    clearCdsAlertTimers();
+
     if (!cdsPendingAlert || isWorkflowStopped) {
       const hasSamePatientActiveAlert =
         activeCdsToast?.sourcePatientUuid === patientUuid ||
@@ -1084,25 +1122,42 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
 
     const nowMs = Date.now();
     const alertKey = `${patientUuid}-${cdsPendingAlert.triggerTimeMs}-${cdsPendingAlert.summary}`;
+    const { activatesAtMs, expiresAtMs } = cdsPendingAlert;
 
     if (alertFirstDetectionTimeRef.current === null || activeAlertKey !== alertKey) {
       alertFirstDetectionTimeRef.current = nowMs;
       setActiveAlertKey(alertKey);
     }
 
-    const activatesAtMs = cdsPendingAlert.activatesAtMs;
-    const expiresAtMs = cdsPendingAlert.expiresAtMs;
+    const dismissExpiredAlert = () => {
+      clearCdsAlertTimers();
+      setActiveCdsToast(null);
+      setActiveAlertKey(null);
+      alertFirstDetectionTimeRef.current = null;
+      lastBroadcastKeyRef.current = null;
+      stopAlertBeep();
+      setIsSharedDecisionMakingFormOpen(false);
+      setSharedDecisionAutoPromptSummary(null);
+      setSharedDecisionAutoPromptItems([]);
+    };
+
     if (nowMs >= expiresAtMs) {
-      if (lastBroadcastKeyRef.current === alertKey) {
-        setActiveCdsToast(null);
-        setActiveAlertKey(null);
-        alertFirstDetectionTimeRef.current = null;
-        lastBroadcastKeyRef.current = null;
+      if (lastBroadcastKeyRef.current === alertKey || activeCdsToast) {
+        dismissExpiredAlert();
       }
       return;
     }
-    if (nowMs >= activatesAtMs) {
+
+    const broadcastAlert = () => {
+      if (!shouldFireLcgAlertAlarm(Date.now(), activatesAtMs, expiresAtMs, false)) {
+        return;
+      }
+
       if (lastBroadcastKeyRef.current === alertKey) {
+        return;
+      }
+
+      if (activatesAtMs === null) {
         return;
       }
 
@@ -1111,8 +1166,8 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
         sourcePatientUuid: patientUuid,
         sourcePatientName: currentPatientName,
         triggerTimeMs: cdsPendingAlert.triggerTimeMs,
-        expiresAtMs: expiresAtMs,
-        activatesAtMs: activatesAtMs,
+        expiresAtMs,
+        activatesAtMs,
         summary: cdsPendingAlert.summary,
         items: cdsPendingAlert.items,
       };
@@ -1133,18 +1188,29 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
         detectedAtMs: Date.now(),
       });
       startAlertBeep();
+    };
+
+    if (shouldFireLcgAlertAlarm(nowMs, activatesAtMs, expiresAtMs, false)) {
+      broadcastAlert();
+    } else if (activatesAtMs !== null && nowMs < activatesAtMs) {
+      cdsAlertTimersRef.current.activation = window.setTimeout(broadcastAlert, activatesAtMs - nowMs);
     }
+
+    cdsAlertTimersRef.current.expiry = window.setTimeout(dismissExpiredAlert, expiresAtMs - nowMs);
+
+    return clearCdsAlertTimers;
   }, [
-    cdsPendingAlert,
-    currentPatientName,
     activeAlertKey,
     activeCdsToast,
+    broadcastAlertToGlobalContext,
+    cdsPendingAlert,
+    clearCdsAlertTimers,
+    currentPatientName,
     isWorkflowStopped,
     patientUuid,
     sharedDecisionAutoPromptSummary,
     startAlertBeep,
     stopAlertBeep,
-    broadcastAlertToGlobalContext,
     setIsSharedDecisionMakingFormOpen,
     setSharedDecisionAutoPromptSummary,
     setSharedDecisionAutoPromptItems,
@@ -1163,7 +1229,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
         }
 
         const nowMs = Date.now();
-        if (nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) {
+        if (payload.activatesAtMs == null || nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) {
           return;
         }
 
@@ -1218,11 +1284,22 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
     }
 
     const triggerTimeMs = Number(triggerTime) || Date.now();
-    const activatesAtMs = triggerTimeMs + LCG_SHARED_DECISION_ALERT_TIMER_MINUTES * 60_000;
-    const expiresAtMs = triggerTimeMs + LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
+    const triggerDate = new Date(triggerTimeMs);
+    const hourlyBounds = baseTime
+      ? getLcgHourlyCellBoundsForEntry(baseTime, {
+          encounterDatetime: triggerDate.toISOString(),
+          time: formatHHMM(triggerDate),
+        })
+      : null;
+    const expiresAtMs = hourlyBounds?.periodEndMs ?? triggerTimeMs + LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
+    const activatesAtMs = computeLcgAlertActivationMs(
+      triggerTimeMs,
+      expiresAtMs,
+      LCG_SHARED_DECISION_ALERT_TIMER_MINUTES,
+    );
     const nowMs = Date.now();
 
-    if (nowMs < activatesAtMs || nowMs >= expiresAtMs) {
+    if (activatesAtMs === null || !shouldFireLcgAlertAlarm(nowMs, activatesAtMs, expiresAtMs, false)) {
       params.set(LCG_CDS_ALERT_HANDLED_QUERY_KEY, '1');
       window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
       lastHandledRouteKeyRef.current = routeKey;
@@ -1247,6 +1324,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
     lastHandledRouteKeyRef.current = routeKey;
   }, [
+    baseTime,
     patientUuid,
     setIsSharedDecisionMakingFormOpen,
     setSharedDecisionAutoPromptItems,
@@ -1585,6 +1663,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideContentProps> = ({ patie
         activeSharedDecisionAlerts={activeSharedDecisionAlerts}
         sharedDecisionAutoPromptDebugWindow={sharedDecisionAutoPromptDebugWindow}
         onSharedDecisionFormInteraction={stopAlertBeep}
+        onSharedDecisionAlertSessionAcknowledged={handleSharedDecisionAlertSessionAcknowledged}
         handleWomanFormSubmit={handleWomanFormSubmit}
         handleLabourProgressFormSubmit={handleLabourProgressFormSubmit}
         mutateLabourTimeSetData={mutateLabourTimeSetData}

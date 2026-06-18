@@ -41,7 +41,7 @@ export type SharedDecisionMakingFormProps = {
   isAutoPrompt?: boolean;
   autoPromptDebugWindow?: {
     triggerTimeMs: number;
-    openAtMs: number;
+    openAtMs: number | null;
     expiresAtMs: number;
   };
   isEmergencyMode?: boolean;
@@ -504,7 +504,9 @@ const SharedDecisionMakingForm: React.FC<
         {isAutoPrompt && autoPromptDebugWindow ? (
           <p style={{ marginTop: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem', color: '#525252' }}>
             {t('autoPromptDebugWindowLabel', 'Alert at')} {formatDebugTime(autoPromptDebugWindow.triggerTimeMs)} •{' '}
-            {t('autoPromptDebugOpenLabel', 'opens at')} {formatDebugTime(autoPromptDebugWindow.openAtMs)} •{' '}
+            {autoPromptDebugWindow.openAtMs != null
+              ? `${t('autoPromptDebugOpenLabel', 'opens at')} ${formatDebugTime(autoPromptDebugWindow.openAtMs)} • `
+              : `${t('autoPromptDebugNoAudioLabel', 'audio suppressed before hour end')} • `}
             {t('autoPromptDebugCloseLabel', 'closes at')} {formatDebugTime(autoPromptDebugWindow.expiresAtMs)}
           </p>
         ) : null}

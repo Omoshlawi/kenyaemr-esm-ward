@@ -146,6 +146,25 @@ export const resolveEntryTimeMs = (entry: { encounterDatetime?: string; time?: s
   return Number.isFinite(entryTimeMs) ? entryTimeMs : null;
 };
 
+/** Alert lifecycle timestamp: max(slot time, recorded encounter time) for same-hour re-entry. */
+export const resolveAlertCreatedTimeMs = (entry: { encounterDatetime?: string; time?: string }) => {
+  const slotTimeMs = resolveEntryTimeMs(entry);
+  if (!entry.encounterDatetime) {
+    return slotTimeMs;
+  }
+
+  const recordedTimeMs = new Date(entry.encounterDatetime).getTime();
+  if (!Number.isFinite(recordedTimeMs)) {
+    return slotTimeMs;
+  }
+
+  if (slotTimeMs === null) {
+    return recordedTimeMs;
+  }
+
+  return Math.max(slotTimeMs, recordedTimeMs);
+};
+
 export const parseCervicalDilationValue = (value: string) => {
   const normalizedValue = String(value ?? '').trim();
   if (!normalizedValue) {
