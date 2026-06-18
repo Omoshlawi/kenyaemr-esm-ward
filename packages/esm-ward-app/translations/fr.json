@@ -48,6 +48,7 @@
   "At least one baby observation is required": "",
   "At least one labour progress observation is required": "",
   "autoPromptDebugCloseLabel": "closes at",
+  "autoPromptDebugNoAudioLabel": "audio suppressed before hour end",
   "autoPromptDebugOpenLabel": "opens at",
   "autoPromptDebugWindowLabel": "Alert at",
   "awaitingAdmision": "En attente d’admission",
