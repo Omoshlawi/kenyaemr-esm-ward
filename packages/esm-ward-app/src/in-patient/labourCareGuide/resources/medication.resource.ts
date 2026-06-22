@@ -41,7 +41,7 @@ export interface MedicationEntry {
   oxytocin: string;
   medicine: string;
   ivFluids: string;
-  oxytocinU_L?: number;
+  oxytocinUL?: number;
   oxytocinDrops?: number;
   drugs?: MedicationDrugLine[];
   drugName?: string;
@@ -239,7 +239,7 @@ export function expandMedicationEntryToTableRows(
     date: formatters.formatDate(entry.encounterDatetime),
     timeSaved: formatters.formatTimeSaved(entry.encounterDatetime),
     lcgTime: entry.time,
-    oxytocinUL: entry.oxytocinU_L ?? 'No',
+    oxytocinUL: entry.oxytocinUL ?? 'No',
     oxytocinDrops: entry.oxytocinDrops ?? 'No',
     ivFluidType: formatMedicationIvFluidTypeForTable(entry),
     reason,
@@ -505,7 +505,7 @@ export function useMedicationData(patientUuid: string) {
         medicine: codedDisplay(medObs?.value),
         ivFluids: codedDisplay(ivObs?.value),
         ivFluidType: ivFluidTypeDisplay(ivFluidTypeObs?.value),
-        oxytocinU_L: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.oxytocinDose)?.value,
+        oxytocinUL: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.oxytocinDose)?.value,
         oxytocinDrops: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.oxytocinDropsPerMinute)?.value,
         drugs,
         drugName: joinMedicationDrugLines(drugs, 'drugName'),

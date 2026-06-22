@@ -24,6 +24,7 @@ import {
 } from '../resources/shared-decision-making.resource';
 import type { LabourProgressFormData } from './labour-progress-form.component';
 import { SUPPORTIVE_CARE_CODED_VALUES, type LcgEmergencySectionKey } from '../types';
+import { LCG_ADMISSION_RISK_FACTOR_CODE } from '../constants/admission-form.constants';
 import { activeFirstStageHours, secondStageHours } from '../labour-care-guide.utils';
 import type { SharedDecisionAlertItem } from '../alert-rules';
 import type { LcgCorrectionAuditRecord } from '../resources/lcg-session-correction.resource';
@@ -513,7 +514,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                 oxytocin: data.oxytocinUsed === 'yes' ? 'Y' : 'N',
                 medicine: data.medicine === 'yes' ? 'Y' : 'N',
                 ivFluids: data.ivFluids === 'yes' ? 'Y' : 'N',
-                oxytocinU_L: oxytocinUnitsValue,
+                oxytocinUL: oxytocinUnitsValue,
                 oxytocinDrops: oxytocinDropsValue,
                 drugs: data.medicine === 'yes' ? data.drugLines : undefined,
                 drugName: data.medicine === 'yes' ? data.drug : undefined,
@@ -622,23 +623,23 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
             const riskFactorsDisplay = (data.riskFactors || [])
               .map((risk) => {
                 switch (risk) {
-                  case 'chronic_hypertension':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.chronicHypertension:
                     return t('chronicHypertension', 'Chronic hypertension');
-                  case 'pre_eclampsia':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.preEclampsia:
                     return t('preEclampsia', 'Pre-eclampsia');
-                  case 'advanced_age':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.advancedAge:
                     return t('advancedAge', "Woman's advanced age");
-                  case 'adolescent_pregnancy':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy:
                     return t('adolescentPregnancy', 'Adolescent pregnancy');
-                  case 'preterm_labour':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.pretermLabour:
                     return t('pretermLabour', 'Preterm labour');
-                  case 'colonization':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.colonization:
                     return t('colonization', 'Colonization');
-                  case 'other':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.other:
                     return data.riskFactorOtherText?.trim()
                       ? `${t('other', 'Other')}: ${data.riskFactorOtherText.trim()}`
                       : t('other', 'Other');
-                  case 'none':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.none:
                     return t('none', 'None');
                   default:
                     return risk;

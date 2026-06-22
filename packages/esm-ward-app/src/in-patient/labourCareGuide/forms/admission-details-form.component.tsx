@@ -16,6 +16,7 @@ import {
 import styles from '../partography-data-form.scss';
 import { saveAdmissionDetails } from '../resources/admission-details.resource';
 import { AdmissionDetailsTimePickerDropdown } from './form-scoped-time-pickers.component';
+import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from '../constants/admission-form.constants';
 
 export type AdmissionDetailsFormData = {
   labourOnset: string;
@@ -89,22 +90,30 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
 
   const rupturedMembranesValue = watch('rupturedMembranes');
   const riskFactorsValue = watch('riskFactors');
-  const hasOtherRiskFactor = (riskFactorsValue || []).includes('other');
+  const hasOtherRiskFactor = (riskFactorsValue || []).includes(LCG_ADMISSION_RISK_FACTOR_CODE.other);
   const patientAge = React.useMemo(() => resolvePatientAge(patient), [patient]);
   const canSelectAdolescentPregnancy = Number.isFinite(patientAge) && patientAge >= 10 && patientAge <= 19;
 
   const riskFactorOptions = React.useMemo(
     () =>
       [
-        { id: 'chronic_hypertension', text: t('chronicHypertension', 'Chronic hypertension') },
-        { id: 'pre_eclampsia', text: t('preEclampsia', 'Pre-eclampsia') },
-        { id: 'advanced_age', text: t('advancedAge', "Woman's advanced age") },
-        { id: 'adolescent_pregnancy', text: t('adolescentPregnancy', 'Adolescent pregnancy') },
-        { id: 'multiple_gestation', text: t('multipleGestation', 'Multiple gestation') },
-        { id: 'colonization', text: t('colonization', 'Colonization') },
-        { id: 'other', text: t('other', 'Other') },
-        { id: 'none', text: t('none', 'None') },
-      ].filter((option) => option.id !== 'adolescent_pregnancy' || canSelectAdolescentPregnancy),
+        {
+          id: LCG_ADMISSION_RISK_FACTOR_CODE.chronicHypertension,
+          text: t('chronicHypertension', 'Chronic hypertension'),
+        },
+        { id: LCG_ADMISSION_RISK_FACTOR_CODE.preEclampsia, text: t('preEclampsia', 'Pre-eclampsia') },
+        { id: LCG_ADMISSION_RISK_FACTOR_CODE.advancedAge, text: t('advancedAge', "Woman's advanced age") },
+        {
+          id: LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy,
+          text: t('adolescentPregnancy', 'Adolescent pregnancy'),
+        },
+        { id: LCG_ADMISSION_RISK_FACTOR_CODE.multipleGestation, text: t('multipleGestation', 'Multiple gestation') },
+        { id: LCG_ADMISSION_RISK_FACTOR_CODE.colonization, text: t('colonization', 'Colonization') },
+        { id: LCG_ADMISSION_RISK_FACTOR_CODE.other, text: t('other', 'Other') },
+        { id: LCG_ADMISSION_RISK_FACTOR_CODE.none, text: t('none', 'None') },
+      ].filter(
+        (option) => option.id !== LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy || canSelectAdolescentPregnancy,
+      ),
     [canSelectAdolescentPregnancy, t],
   );
 
@@ -131,7 +140,9 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
         ...data,
         riskFactors: canSelectAdolescentPregnancy
           ? data.riskFactors
-          : (data.riskFactors || []).filter((riskFactor) => riskFactor !== 'adolescent_pregnancy'),
+          : (data.riskFactors || []).filter(
+              (riskFactor) => riskFactor !== LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy,
+            ),
       };
       const result = await saveAdmissionDetails(patientUuid, payload, t);
       if (!result.success) {
@@ -191,9 +202,12 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
                   invalid={!!fieldState.error}
                   invalidText={fieldState.error?.message}>
                   <SelectItem value="" text={t('selectOption', 'Select option')} />
-                  <SelectItem value="spontaneous" text={t('spontaneous', 'Spontaneous')} />
-                  <SelectItem value="induction" text={t('induction', 'Induction')} />
-                  <SelectItem value="pre_labour_csection" text={t('preLabourCsection', 'Pre-labour C-section')} />
+                  <SelectItem value={LCG_LABOUR_ONSET_CODE.spontaneous} text={t('spontaneous', 'Spontaneous')} />
+                  <SelectItem value={LCG_LABOUR_ONSET_CODE.induction} text={t('induction', 'Induction')} />
+                  <SelectItem
+                    value={LCG_LABOUR_ONSET_CODE.preLabourCsection}
+                    text={t('preLabourCsection', 'Pre-labour C-section')}
+                  />
                 </Select>
               )}
             />

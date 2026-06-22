@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { ENCOUNTER_ROLE, MCH_PARTOGRAPHY_ENCOUNTER_UUID, PARTOGRAPHY_CONCEPTS } from '../types';
 import type { TFunction } from 'react-i18next';
 import type { AdmissionDetailsFormData } from '../forms/admission-details-form.component';
+import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from '../constants/admission-form.constants';
 
 export interface AdmissionDetailsEncounter {
   uuid: string;
@@ -96,11 +97,11 @@ export async function saveAdmissionDetails(
     // Labour Onset - coded value
     if (formData.labourOnset) {
       let labourOnsetValue = '';
-      if (formData.labourOnset === 'spontaneous') {
+      if (formData.labourOnset === LCG_LABOUR_ONSET_CODE.spontaneous) {
         labourOnsetValue = CONCEPT_UUIDS.SPONTANEOUS_LABOUR;
-      } else if (formData.labourOnset === 'induction') {
+      } else if (formData.labourOnset === LCG_LABOUR_ONSET_CODE.induction) {
         labourOnsetValue = CONCEPT_UUIDS.INDUCTION;
-      } else if (formData.labourOnset === 'pre_labour_csection') {
+      } else if (formData.labourOnset === LCG_LABOUR_ONSET_CODE.preLabourCsection) {
         labourOnsetValue = CONCEPT_UUIDS.PRE_LABOUR_CSECTION;
       }
 
@@ -164,7 +165,7 @@ export async function saveAdmissionDetails(
 
     // Risk Factors - coded values
     if (formData.riskFactors && formData.riskFactors.length > 0) {
-      if (formData.riskFactors.includes('none')) {
+      if (formData.riskFactors.includes(LCG_ADMISSION_RISK_FACTOR_CODE.none)) {
         observations.push({
           concept: CONCEPT_UUIDS.RISK_FACTOR,
           value: CONCEPT_UUIDS.NONE,
@@ -174,28 +175,28 @@ export async function saveAdmissionDetails(
         for (const riskFactor of formData.riskFactors) {
           let riskFactorValue = '';
           switch (riskFactor) {
-            case 'chronic_hypertension':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.chronicHypertension:
               riskFactorValue = CONCEPT_UUIDS.CHRONIC_HYPERTENSION;
               break;
-            case 'pre_eclampsia':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.preEclampsia:
               riskFactorValue = CONCEPT_UUIDS.PRE_ECLAMPSIA;
               break;
-            case 'advanced_age':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.advancedAge:
               riskFactorValue = CONCEPT_UUIDS.WOMANS_ADVANCED_AGE;
               break;
-            case 'adolescent_pregnancy':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy:
               riskFactorValue = CONCEPT_UUIDS.ADOLESCENT_PREGNANCY;
               break;
-            case 'preterm_labour':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.pretermLabour:
               riskFactorValue = CONCEPT_UUIDS.PRETERM_LABOUR;
               break;
-            case 'multiple_gestation':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.multipleGestation:
               riskFactorValue = CONCEPT_UUIDS.MULTIPLE_GESTATION;
               break;
-            case 'colonization':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.colonization:
               riskFactorValue = CONCEPT_UUIDS.COLONIZATION;
               break;
-            case 'other':
+            case LCG_ADMISSION_RISK_FACTOR_CODE.other:
               riskFactorValue = CONCEPT_UUIDS.OTHER;
               break;
             default:
@@ -209,7 +210,7 @@ export async function saveAdmissionDetails(
               obsDatetime,
             });
 
-            if (riskFactor === 'other' && formData.riskFactorOtherText?.trim()) {
+            if (riskFactor === LCG_ADMISSION_RISK_FACTOR_CODE.other && formData.riskFactorOtherText?.trim()) {
               observations.push({
                 concept: CONCEPT_UUIDS.OTHER_SPECIFY,
                 value: formData.riskFactorOtherText.trim(),
@@ -325,11 +326,11 @@ export function useAdmissionDetails(patientUuid: string) {
         typeof labourOnsetObs.value === 'string' ? labourOnsetObs.value : (labourOnsetObs.value as any).uuid || '';
 
       if (valueStr === CONCEPT_UUIDS.SPONTANEOUS_LABOUR) {
-        labourOnset = 'spontaneous';
+        labourOnset = LCG_LABOUR_ONSET_CODE.spontaneous;
       } else if (valueStr === CONCEPT_UUIDS.INDUCTION) {
-        labourOnset = 'induction';
+        labourOnset = LCG_LABOUR_ONSET_CODE.induction;
       } else if (valueStr === CONCEPT_UUIDS.PRE_LABOUR_CSECTION) {
-        labourOnset = 'pre_labour_csection';
+        labourOnset = LCG_LABOUR_ONSET_CODE.preLabourCsection;
       }
     }
 
@@ -385,24 +386,24 @@ export function useAdmissionDetails(patientUuid: string) {
         const valueStr = typeof riskObs.value === 'string' ? riskObs.value : (riskObs.value as any).uuid || '';
 
         if (valueStr === CONCEPT_UUIDS.NONE) {
-          riskFactors.push('none');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.none);
           break;
         } else if (valueStr === CONCEPT_UUIDS.CHRONIC_HYPERTENSION) {
-          riskFactors.push('chronic_hypertension');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.chronicHypertension);
         } else if (valueStr === CONCEPT_UUIDS.PRE_ECLAMPSIA) {
-          riskFactors.push('pre_eclampsia');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.preEclampsia);
         } else if (valueStr === CONCEPT_UUIDS.WOMANS_ADVANCED_AGE) {
-          riskFactors.push('advanced_age');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.advancedAge);
         } else if (valueStr === CONCEPT_UUIDS.ADOLESCENT_PREGNANCY) {
-          riskFactors.push('adolescent_pregnancy');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy);
         } else if (valueStr === CONCEPT_UUIDS.PRETERM_LABOUR) {
-          riskFactors.push('preterm_labour');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.pretermLabour);
         } else if (valueStr === CONCEPT_UUIDS.MULTIPLE_GESTATION) {
-          riskFactors.push('multiple_gestation');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.multipleGestation);
         } else if (valueStr === CONCEPT_UUIDS.COLONIZATION) {
-          riskFactors.push('colonization');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.colonization);
         } else if (valueStr === CONCEPT_UUIDS.OTHER) {
-          riskFactors.push('other');
+          riskFactors.push(LCG_ADMISSION_RISK_FACTOR_CODE.other);
         }
       }
     }

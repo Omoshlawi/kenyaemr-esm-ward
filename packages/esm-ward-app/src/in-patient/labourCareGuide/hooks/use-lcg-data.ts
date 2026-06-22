@@ -46,6 +46,7 @@ import {
   resolveStopActionLabel,
   secondStageHours,
 } from '../labour-care-guide.utils';
+import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from '../constants/admission-form.constants';
 import {
   buildLcgAlertId,
   computeLcgAlertActivationMs,
@@ -1083,23 +1084,23 @@ export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {})
         ? admissionData.riskFactors
             .map((risk) => {
               switch (risk) {
-                case 'chronic_hypertension':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.chronicHypertension:
                   return t('chronicHypertension', 'Chronic hypertension');
-                case 'pre_eclampsia':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.preEclampsia:
                   return t('preEclampsia', 'Pre-eclampsia');
-                case 'advanced_age':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.advancedAge:
                   return t('advancedAge', "Woman's advanced age");
-                case 'adolescent_pregnancy':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy:
                   return t('adolescentPregnancy', 'Adolescent pregnancy');
-                case 'preterm_labour':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.pretermLabour:
                   return t('pretermLabour', 'Preterm labour');
-                case 'multiple_gestation':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.multipleGestation:
                   return t('multipleGestation', 'Multiple gestation');
-                case 'colonization':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.colonization:
                   return t('colonization', 'Colonization');
-                case 'other':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.other:
                   return otherRiskFactorText ? `${t('other', 'Other')}: ${otherRiskFactorText}` : t('other', 'Other');
-                case 'none':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.none:
                   return t('none', 'None');
                 default:
                   return risk;

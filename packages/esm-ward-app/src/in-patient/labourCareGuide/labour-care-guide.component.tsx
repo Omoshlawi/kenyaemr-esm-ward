@@ -73,6 +73,7 @@ import {
 } from './labour-care-guide.utils';
 import { useLcgData } from './hooks/use-lcg-data';
 import { expandMedicationEntryToTableRows } from './resources/medication.resource';
+import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from './constants/admission-form.constants';
 import { LcgSectionStateProvider } from './context/lcg-section-state.context';
 import { GlobalCdsAlertProvider, useGlobalCdsAlert } from './global-cds-alerts/global-cds-alert-context';
 import GlobalCdsAlertDisplay from './global-cds-alerts/global-cds-alert-display.component';
@@ -440,7 +441,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
   }, [session]);
 
   const isMultipleGestation = React.useMemo(
-    () => admissionRiskFactorCodes.includes('multiple_gestation'),
+    () => admissionRiskFactorCodes.includes(LCG_ADMISSION_RISK_FACTOR_CODE.multipleGestation),
     [admissionRiskFactorCodes],
   );
 
@@ -561,11 +562,11 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
 
   const labourOnsetDisplay = React.useMemo(() => {
     switch (admissionDetails.labourOnset) {
-      case 'spontaneous':
+      case LCG_LABOUR_ONSET_CODE.spontaneous:
         return t('spontaneous', 'Spontaneous');
-      case 'induction':
+      case LCG_LABOUR_ONSET_CODE.induction:
         return t('induction', 'Induction');
-      case 'pre_labour_csection':
+      case LCG_LABOUR_ONSET_CODE.preLabourCsection:
         return t('preLabourCsection', 'Pre-labour C-section');
       default:
         return admissionDetails.labourOnset;

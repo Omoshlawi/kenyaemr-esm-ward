@@ -224,7 +224,7 @@ const Medication: React.FC<MedicationProps> = ({
 
   const getOxytocinUnitsValue = (entry?: MedicationEntry) => {
     if (!entry) return '';
-    if (entry.oxytocinU_L !== undefined && entry.oxytocinU_L !== null) return entry.oxytocinU_L;
+    if (entry.oxytocinUL !== undefined && entry.oxytocinUL !== null) return entry.oxytocinUL;
     return entry.oxytocin === 'N' ? 'N' : '';
   };
 
