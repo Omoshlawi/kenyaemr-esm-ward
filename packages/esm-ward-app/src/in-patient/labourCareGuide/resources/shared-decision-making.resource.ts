@@ -6,6 +6,7 @@ import {
   getValidEncounterDatetime,
   LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID,
   LCG_EMERGENCY_REASON_CONCEPT_UUID,
+  LCG_TERMINATION_REASON_TYPE_CONCEPT_UUID,
   PARTOGRAPHY_CONCEPTS,
   SHARED_DECISION_MAKING_CONCEPTS,
   SHARED_DECISION_MAKING_ACTIONS,
@@ -34,10 +35,15 @@ export interface SharedDecisionMakingEntry {
   time?: string;
   isEmergency?: boolean;
   emergencyReason?: string;
+  terminationReasonType?: string;
+  terminationReasonTypeUuid?: string;
+  terminationReasonText?: string;
 }
 
 type SharedDecisionSaveOptions = {
   emergencyReason?: string;
+  terminationReasonType?: string;
+  terminationReasonText?: string;
 };
 
 export const normalizeSharedDecisionMakingAction = (value: unknown): string => {
@@ -186,6 +192,24 @@ export async function saveSharedDecisionMakingData(
               },
             ]
           : []),
+        ...(options?.terminationReasonType
+          ? [
+              {
+                concept: LCG_TERMINATION_REASON_TYPE_CONCEPT_UUID,
+                value: options.terminationReasonType,
+                obsDatetime,
+              },
+            ]
+          : []),
+        ...(options?.terminationReasonText && options.terminationReasonText.trim()
+          ? [
+              {
+                concept: LCG_EMERGENCY_REASON_CONCEPT_UUID,
+                value: options.terminationReasonText.trim(),
+                obsDatetime,
+              },
+            ]
+          : []),
       ],
       encounterProviders: [
         {
@@ -278,11 +302,18 @@ export function useSharedDecisionMakingData(patientUuid: string, enabled = true)
           const timeObs = observations.find(
             (obs) => obs.concept?.uuid === PARTOGRAPHY_CONCEPTS['time-slot'] && typeof obs.value === 'string',
           );
+          const terminationReasonTypeObs = observations.find(
+            (obs) => obs.concept?.uuid === LCG_TERMINATION_REASON_TYPE_CONCEPT_UUID,
+          );
+          const terminationReasonTextObs = observations.find(
+            (obs) => obs.concept?.uuid === LCG_EMERGENCY_REASON_CONCEPT_UUID,
+          );
           if (!assessmentObs && !planObs && !actionObs) {
             return null;
           }
 
           const normalizedTime = toHHMMFromObsValue(timeObs?.value);
+          const terminationReasonTypeUuid = normalizeObsValue(terminationReasonTypeObs?.value);
 
           return {
             id: `shared-decision-${encounter.uuid}`,
@@ -297,9 +328,12 @@ export function useSharedDecisionMakingData(patientUuid: string, enabled = true)
                 observations.find((obs) => obs.concept?.uuid === LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID)?.value || '',
               ).toLowerCase(),
             ),
-            emergencyReason: String(
-              observations.find((obs) => obs.concept?.uuid === LCG_EMERGENCY_REASON_CONCEPT_UUID)?.value || '',
-            ),
+            emergencyReason: terminationReasonTypeObs ? '' : String(terminationReasonTextObs?.value || ''),
+            terminationReasonTypeUuid,
+            terminationReasonType: terminationReasonTypeUuid
+              ? sharedDecisionActionLabelMap[terminationReasonTypeUuid] || terminationReasonTypeUuid
+              : undefined,
+            terminationReasonText: terminationReasonTypeObs ? String(terminationReasonTextObs?.value || '') : undefined,
           };
         })
         .filter(Boolean)

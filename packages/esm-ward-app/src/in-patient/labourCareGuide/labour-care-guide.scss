@@ -496,10 +496,30 @@ $lcg-alert-band: #ffd9bf;
 .sharedDecisionTallCell {
   height: 10rem !important;
   vertical-align: top !important;
+  overflow: hidden;
+  position: relative;
+  max-width: var(--lcg-col-entry);
 }
 
 .sharedDecisionShortCell {
   height: 2rem !important;
+  overflow: hidden;
+}
+
+.sharedDecisionGridText {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: calc(10rem - 0.4rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sharedDecisionTableCell {
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: top;
+  min-width: 12rem;
+  max-width: 28rem;
 }
 
 .cellText {
@@ -518,6 +538,15 @@ $lcg-alert-band: #ffd9bf;
 
 .sharedDecisionCriticalActionText {
   color: colors.$red-60;
+  font-weight: 600;
+}
+
+.sharedDecisionAuditRow {
+  background-color: colors.$yellow-10;
+}
+
+.sharedDecisionAuditActionText {
+  color: colors.$gray-100;
   font-weight: 600;
 }
 
@@ -837,6 +866,24 @@ $lcg-alert-band: #ffd9bf;
 
 .womanSecondStageSplitSegment:first-child {
   border-left: none;
+}
+
+.correctionAuditBanner,
+.correctionAuditBannerForm,
+.correctionAuditBannerChart {
+  margin-bottom: layout.$spacing-05;
+}
+
+.sharedDecisionAuditGridCell {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  text-align: left;
+}
+
+.correctionWizardHelp {
+  margin: 0;
+  color: colors.$gray-70;
 }
 
 @media (max-width: 1024px) {

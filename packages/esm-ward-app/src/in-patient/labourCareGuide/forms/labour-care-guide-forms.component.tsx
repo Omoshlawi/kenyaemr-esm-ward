@@ -24,7 +24,10 @@ import {
 } from '../resources/shared-decision-making.resource';
 import type { LabourProgressFormData } from './labour-progress-form.component';
 import { SUPPORTIVE_CARE_CODED_VALUES, type LcgEmergencySectionKey } from '../types';
+import { LCG_ADMISSION_RISK_FACTOR_CODE } from '../constants/admission-form.constants';
 import { activeFirstStageHours, secondStageHours } from '../labour-care-guide.utils';
+import type { SharedDecisionAlertItem } from '../alert-rules';
+import type { LcgCorrectionAuditRecord } from '../resources/lcg-session-correction.resource';
 
 type AdmissionDetailsState = {
   labourOnset: string;
@@ -36,8 +39,6 @@ type AdmissionDetailsState = {
   riskFactorOtherText: string;
   ipNumber: string;
 };
-
-type SharedDecisionAlertItem = { section: string; code: string; guidance: string };
 
 export type LabourCareGuideFormsProps = {
   // patient
@@ -92,8 +93,11 @@ export type LabourCareGuideFormsProps = {
   sharedDecisionAutoPromptItems: Array<SharedDecisionAlertItem>;
   setSharedDecisionAutoPromptItems: (value: Array<SharedDecisionAlertItem>) => void;
   activeSharedDecisionAlerts: Array<SharedDecisionAlertItem>;
-  sharedDecisionAutoPromptDebugWindow: { triggerTimeMs: number; openAtMs: number; expiresAtMs: number } | undefined;
+  sharedDecisionAutoPromptDebugWindow:
+    | { triggerTimeMs: number; openAtMs: number | null; expiresAtMs: number }
+    | undefined;
   onSharedDecisionFormInteraction?: () => void;
+  onSharedDecisionAlertSessionAcknowledged?: (entry: SharedDecisionMakingEntry) => void;
 
   // complex submit callbacks
   handleWomanFormSubmit: (
@@ -132,6 +136,8 @@ export type LabourCareGuideFormsProps = {
   activeBabyLockUpperFields: boolean;
   isMultipleGestation: boolean;
   hasTwinOneBirthRecorded: boolean;
+  correctionAuditDisplay?: LcgCorrectionAuditRecord | null;
+  sessionResetAfterMs?: number | null;
 };
 
 export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
@@ -176,6 +182,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   activeSharedDecisionAlerts,
   sharedDecisionAutoPromptDebugWindow,
   onSharedDecisionFormInteraction,
+  onSharedDecisionAlertSessionAcknowledged,
   handleWomanFormSubmit,
   handleLabourProgressFormSubmit,
   mutateLabourTimeSetData,
@@ -192,6 +199,8 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   activeBabyLockUpperFields,
   isMultipleGestation,
   hasTwinOneBirthRecorded,
+  correctionAuditDisplay = null,
+  sessionResetAfterMs = null,
 }) => {
   const { t } = useTranslation();
 
@@ -205,6 +214,32 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
     }),
     [],
   );
+
+  const sharedDecisionFormAlerts = React.useMemo(() => {
+    const byKey = new Map<string, SharedDecisionAlertItem>();
+
+    for (const item of activeSharedDecisionAlerts) {
+      byKey.set(item.id ?? `${item.section}|${item.code}|${item.timestampCreatedMs ?? ''}`, item);
+    }
+
+    for (const item of sharedDecisionAutoPromptItems) {
+      byKey.set(item.id ?? `${item.section}|${item.code}|${item.timestampCreatedMs ?? ''}`, item);
+    }
+
+    const sectionOrder = ['Supportive Care', 'Baby', 'Woman', 'Labour Progress'];
+    return Array.from(byKey.values()).sort((left, right) => {
+      const leftIndex = sectionOrder.indexOf(left.section);
+      const rightIndex = sectionOrder.indexOf(right.section);
+      const normalizedLeft = leftIndex === -1 ? sectionOrder.length : leftIndex;
+      const normalizedRight = rightIndex === -1 ? sectionOrder.length : rightIndex;
+
+      if (normalizedLeft !== normalizedRight) {
+        return normalizedLeft - normalizedRight;
+      }
+
+      return left.code.localeCompare(right.code);
+    });
+  }, [activeSharedDecisionAlerts, sharedDecisionAutoPromptItems]);
 
   const slotCount = activeFirstStageHours.length + secondStageHours.length;
   const firstStageSlotCount = activeFirstStageHours.length;
@@ -257,6 +292,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                 }
               : undefined
           }
+          sessionResetAfterMs={sessionResetAfterMs}
         />
       ) : null}
 
@@ -442,6 +478,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
             }))}
           baseTime={baseTime ?? undefined}
           secondStageStartTime={firstStageTransition?.time}
+          secondStageSlotCount={secondStageSlotCount}
           slotCount={slotCount}
           existingLabourProgressFormData={mergedLabourProgressEntries}
           patient={patientInfo}
@@ -475,8 +512,9 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                 oxytocin: data.oxytocinUsed === 'yes' ? 'Y' : 'N',
                 medicine: data.medicine === 'yes' ? 'Y' : 'N',
                 ivFluids: data.ivFluids === 'yes' ? 'Y' : 'N',
-                oxytocinU_L: oxytocinUnitsValue,
+                oxytocinUL: oxytocinUnitsValue,
                 oxytocinDrops: oxytocinDropsValue,
+                drugs: data.medicine === 'yes' ? data.drugLines : undefined,
                 drugName: data.medicine === 'yes' ? data.drug : undefined,
                 dosage: data.medicine === 'yes' ? data.dosage : undefined,
                 route: data.medicine === 'yes' ? data.route : undefined,
@@ -533,30 +571,29 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
                   })()
                 : timestamp;
 
-            setLocalSharedDecisionMakingEntries((prev) => [
-              ...prev,
-              {
-                id: `shared-decision-local-${timestamp}`,
-                encounterUuid: `shared-decision-local-${timestamp}`,
-                encounterDatetime: entryTime,
-                assessment: data.assessment,
-                plan: data.plan,
-                action: normalizeSharedDecisionMakingAction(data.action),
-                time: data.time,
-                isEmergency: isEmergencyEntry,
-                emergencyReason: isEmergencyEntry ? (emergencyReason ?? '') : undefined,
-              },
-            ]);
-            setSharedDecisionAutoPromptSummary(null);
-            setSharedDecisionAutoPromptItems([]);
+            const submittedEntry: SharedDecisionMakingEntry = {
+              id: `shared-decision-local-${timestamp}`,
+              encounterUuid: `shared-decision-local-${timestamp}`,
+              encounterDatetime: entryTime,
+              assessment: data.assessment,
+              plan: data.plan,
+              action: normalizeSharedDecisionMakingAction(data.action),
+              time: data.time,
+              isEmergency: isEmergencyEntry,
+              emergencyReason: isEmergencyEntry ? (emergencyReason ?? '') : undefined,
+              terminationReasonTypeUuid: data.terminationReasonType,
+              terminationReasonType: data.terminationReasonType,
+              terminationReasonText: data.terminationReasonText,
+            };
+
+            setLocalSharedDecisionMakingEntries((prev) => [...prev, submittedEntry]);
+            onSharedDecisionAlertSessionAcknowledged?.(submittedEntry);
             onSharedDecisionFormInteraction?.();
             setIsSharedDecisionMakingFormOpen(false);
           }}
           onDataSaved={() => mutateSharedDecisionMakingData()}
           autoPromptSummary={sharedDecisionAutoPromptSummary ?? undefined}
-          autoPromptItems={
-            sharedDecisionAutoPromptItems.length ? sharedDecisionAutoPromptItems : activeSharedDecisionAlerts
-          }
+          autoPromptItems={sharedDecisionFormAlerts}
           isAutoPrompt={Boolean(sharedDecisionAutoPromptSummary)}
           autoPromptDebugWindow={sharedDecisionAutoPromptSummary ? sharedDecisionAutoPromptDebugWindow : undefined}
           patient={patientInfo}
@@ -570,6 +607,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
           secondStageStartTime={firstStageTransition?.time}
           isMultipleGestation={isMultipleGestation}
           hasTwinOneBirthRecorded={hasTwinOneBirthRecorded}
+          correctionAuditDisplay={correctionAuditDisplay}
           isEmergencyMode={emergencySection === 'shared-decision-making' && Boolean(emergencyReason)}
           emergencyReason={emergencySection === 'shared-decision-making' ? (emergencyReason ?? undefined) : undefined}
         />
@@ -583,23 +621,23 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
             const riskFactorsDisplay = (data.riskFactors || [])
               .map((risk) => {
                 switch (risk) {
-                  case 'chronic_hypertension':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.chronicHypertension:
                     return t('chronicHypertension', 'Chronic hypertension');
-                  case 'pre_eclampsia':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.preEclampsia:
                     return t('preEclampsia', 'Pre-eclampsia');
-                  case 'advanced_age':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.advancedAge:
                     return t('advancedAge', "Woman's advanced age");
-                  case 'adolescent_pregnancy':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy:
                     return t('adolescentPregnancy', 'Adolescent pregnancy');
-                  case 'preterm_labour':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.pretermLabour:
                     return t('pretermLabour', 'Preterm labour');
-                  case 'colonization':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.colonization:
                     return t('colonization', 'Colonization');
-                  case 'other':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.other:
                     return data.riskFactorOtherText?.trim()
                       ? `${t('other', 'Other')}: ${data.riskFactorOtherText.trim()}`
                       : t('other', 'Other');
-                  case 'none':
+                  case LCG_ADMISSION_RISK_FACTOR_CODE.none:
                     return t('none', 'None');
                   default:
                     return risk;

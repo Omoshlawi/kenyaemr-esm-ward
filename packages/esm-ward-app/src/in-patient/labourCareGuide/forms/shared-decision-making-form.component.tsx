@@ -3,14 +3,23 @@ import { useTranslation } from 'react-i18next';
 import { useForm, Controller } from 'react-hook-form';
 import { Modal, Grid, Column, TextArea, InlineNotification, Select, SelectItem } from '@carbon/react';
 import { SharedDecisionTimePickerDropdown } from './form-scoped-time-pickers.component';
+import SharedDecisionAssessmentField from './shared-decision-assessment-field.component';
 import styles from '../partography-data-form.scss';
+import { buildAssessmentPrefillFromAlerts, type SharedDecisionAlertItem } from '../alert-rules';
 import {
   SHARED_DECISION_MAKING_ACTIONS,
   UUID_SHARED_DECISION_REFERRAL,
+  UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS,
   UUID_SHARED_DECISION_TRANSFER_TO_CS,
+  LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID,
+  LCG_TERMINATION_REASON_WRONG_PATIENT_CONCEPT_UUID,
 } from '../types';
 import { saveSharedDecisionMakingData } from '../resources/shared-decision-making.resource';
+import LcgCorrectionAuditBanner from '../components/lcg-correction-audit-banner.component';
+import type { LcgCorrectionAuditRecord } from '../resources/lcg-session-correction.resource';
+import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
+  formatHHMM,
   getAllowedEmergencyTimes,
   getAllowedPointTimesForSlots,
   getPointSlotIndexForTime,
@@ -25,6 +34,8 @@ export type SharedDecisionMakingFormData = {
   action: string;
   plan: string;
   time: string;
+  terminationReasonType?: string;
+  terminationReasonText?: string;
 };
 
 export type SharedDecisionMakingFormProps = {
@@ -33,11 +44,11 @@ export type SharedDecisionMakingFormProps = {
   onSubmit: (data: SharedDecisionMakingFormData) => void;
   onDataSaved?: () => void;
   autoPromptSummary?: string;
-  autoPromptItems?: Array<{ section: string; code: string; guidance: string }>;
+  autoPromptItems?: SharedDecisionAlertItem[];
   isAutoPrompt?: boolean;
   autoPromptDebugWindow?: {
     triggerTimeMs: number;
-    openAtMs: number;
+    openAtMs: number | null;
     expiresAtMs: number;
   };
   isEmergencyMode?: boolean;
@@ -50,6 +61,7 @@ export type SharedDecisionMakingFormProps = {
   };
   isMultipleGestation?: boolean;
   hasTwinOneBirthRecorded?: boolean;
+  correctionAuditDisplay?: LcgCorrectionAuditRecord | null;
 };
 
 const SharedDecisionMakingForm: React.FC<
@@ -75,6 +87,7 @@ const SharedDecisionMakingForm: React.FC<
   patient,
   isMultipleGestation = false,
   hasTwinOneBirthRecorded = false,
+  correctionAuditDisplay = null,
   existingTimeEntries = [],
   baseTime,
   slotCount = 0,
@@ -86,7 +99,7 @@ const SharedDecisionMakingForm: React.FC<
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
-  const [now, setNow] = React.useState(() => new Date());
+  const now = useLcgFormClock(isOpen);
   const [consentModalOpen, setConsentModalOpen] = React.useState(false);
   const [pendingCleanData, setPendingCleanData] = React.useState<SharedDecisionMakingFormData | null>(null);
   const actionOptions = React.useMemo(() => {
@@ -114,54 +127,70 @@ const SharedDecisionMakingForm: React.FC<
     [],
   );
   const consentExemptActionValues = React.useMemo(
-    () => new Set<string>([UUID_SHARED_DECISION_REFERRAL, UUID_SHARED_DECISION_TRANSFER_TO_CS]),
+    () =>
+      new Set<string>([
+        UUID_SHARED_DECISION_REFERRAL,
+        UUID_SHARED_DECISION_TRANSFER_TO_CS,
+        UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS,
+      ]),
     [],
   );
   const resolvedFirstStageSlotCount = firstStageSlotCount ?? slotCount;
   const resolvedSecondStageSlotCount = secondStageStartTime ? secondStageSlotCount : 0;
 
-  const { control, handleSubmit, reset, setError, clearErrors, watch } = useForm<SharedDecisionMakingFormData>({
-    defaultValues: {
-      assessment: '',
-      action: '',
-      plan: '',
-      time: '',
-    },
-  });
+  const { control, handleSubmit, reset, setError, clearErrors, watch, setValue } =
+    useForm<SharedDecisionMakingFormData>({
+      defaultValues: {
+        assessment: '',
+        action: '',
+        plan: '',
+        time: '',
+        terminationReasonType: '',
+        terminationReasonText: '',
+      },
+    });
+
+  const wasOpenRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (isOpen) {
-      reset({ assessment: '', action: '', plan: '', time: '' });
+    if (isOpen && !wasOpenRef.current) {
+      const assessmentPrefill = buildAssessmentPrefillFromAlerts(autoPromptItems);
+      reset({
+        assessment: assessmentPrefill,
+        action: '',
+        plan: '',
+        time: '',
+        terminationReasonType: '',
+        terminationReasonText: '',
+      });
       clearErrors();
       setSaveError(null);
       setSaveSuccess(false);
     }
-  }, [isOpen, reset, clearErrors]);
+
+    wasOpenRef.current = isOpen;
+  }, [autoPromptItems, clearErrors, isOpen, reset]);
+
+  const selectedTime = watch('time');
+  const selectedAction = watch('action');
+  const selectedTerminationReasonType = watch('terminationReasonType');
+  const isTerminateActionSelected = selectedAction === UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS;
+  const isOtherTerminationReason = selectedTerminationReasonType === LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID;
 
   React.useEffect(() => {
-    if (!isOpen) {
+    if (!isTerminateActionSelected) {
       return;
     }
 
-    setNow(new Date());
-
-    const msUntilNextMinute = 60_000 - (Date.now() % 60_000);
-    let intervalId: number | undefined;
-
-    const timeoutId = window.setTimeout(() => {
-      setNow(new Date());
-      intervalId = window.setInterval(() => setNow(new Date()), 60_000);
-    }, msUntilNextMinute);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
-    };
-  }, [isOpen]);
-
-  const selectedTime = watch('time');
+    setValue('assessment', t('lcgTerminateAssessmentDefault', 'Session terminated — pending data correction'), {
+      shouldDirty: true,
+    });
+    setValue(
+      'plan',
+      t('lcgTerminatePlanDefault', 'Use the correction workflow to reopen or transfer this session if needed.'),
+      { shouldDirty: true },
+    );
+  }, [isTerminateActionSelected, setValue, t]);
 
   const formatDebugTime = React.useCallback((timeMs: number) => {
     if (!Number.isFinite(timeMs)) {
@@ -173,6 +202,7 @@ const SharedDecisionMakingForm: React.FC<
   }, []);
 
   const groupedAutoPromptItems = React.useMemo(() => {
+    const sectionOrder = ['Supportive Care', 'Baby', 'Woman', 'Labour Progress'];
     const sectionToTokens = new Map<string, Array<{ code: string; guidance: string }>>();
 
     for (const item of autoPromptItems) {
@@ -187,102 +217,13 @@ const SharedDecisionMakingForm: React.FC<
       sectionToTokens.get(item.section)!.push({ code: item.code, guidance: item.guidance });
     }
 
-    return Array.from(sectionToTokens.entries());
+    const orderedSections = [
+      ...sectionOrder.filter((section) => sectionToTokens.has(section)),
+      ...Array.from(sectionToTokens.keys()).filter((section) => !sectionOrder.includes(section)),
+    ];
+
+    return orderedSections.map((section) => [section, sectionToTokens.get(section)!] as const);
   }, [autoPromptItems]);
-
-  const occupiedAssessmentSlotKeys = React.useMemo(() => {
-    const occupiedSlots = new Set<string>();
-
-    if (!baseTime || slotCount === 0) {
-      return occupiedSlots;
-    }
-
-    for (const entry of existingTimeEntries) {
-      const secondarySlotIndex = getStageAwarePointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        resolvedFirstStageSlotCount,
-        resolvedSecondStageSlotCount,
-        secondStageStartTime,
-        SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS,
-      );
-      if (secondarySlotIndex !== null) {
-        occupiedSlots.add(`secondary-${secondarySlotIndex}`);
-      }
-    }
-
-    return occupiedSlots;
-  }, [
-    baseTime,
-    existingTimeEntries,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
-
-  const occupiedActionPlanSlotKeys = React.useMemo(() => {
-    const occupiedSlots = new Set<string>();
-
-    if (!baseTime || slotCount === 0) {
-      return occupiedSlots;
-    }
-
-    for (const entry of existingTimeEntries) {
-      const hourlySlotIndex = getStageAwarePointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        resolvedFirstStageSlotCount,
-        resolvedSecondStageSlotCount,
-        secondStageStartTime,
-        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
-      );
-      if (hourlySlotIndex !== null) {
-        occupiedSlots.add(`hourly-${hourlySlotIndex}`);
-      }
-    }
-
-    return occupiedSlots;
-  }, [
-    baseTime,
-    existingTimeEntries,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
-
-  const occupiedHourlySlotIndices = React.useMemo(() => {
-    const occupied = new Set<number>();
-
-    if (!baseTime || slotCount === 0) {
-      return occupied;
-    }
-
-    for (const entry of existingTimeEntries) {
-      const slotIndex = getStageAwarePointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        resolvedFirstStageSlotCount,
-        resolvedSecondStageSlotCount,
-        secondStageStartTime,
-        SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
-      );
-
-      if (slotIndex !== null) {
-        occupied.add(slotIndex);
-      }
-    }
-
-    return occupied;
-  }, [
-    baseTime,
-    existingTimeEntries,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
 
   const availableAssessmentSlotKeys = React.useMemo(() => {
     if (!baseTime || slotCount === 0) {
@@ -293,11 +234,7 @@ const SharedDecisionMakingForm: React.FC<
 
     Array.from({ length: resolvedFirstStageSlotCount }, (_, slotIndex) => slotIndex).forEach((slotIndex) => {
       const secondaryKey = `secondary-${slotIndex}`;
-      if (
-        !occupiedHourlySlotIndices.has(slotIndex) &&
-        !occupiedAssessmentSlotKeys.has(secondaryKey) &&
-        getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS) === 'active') {
         availableSlots.push(secondaryKey);
       }
     });
@@ -307,8 +244,6 @@ const SharedDecisionMakingForm: React.FC<
         const absoluteSlotIndex = resolvedFirstStageSlotCount + slotIndex;
         const secondaryKey = `secondary-${absoluteSlotIndex}`;
         if (
-          !occupiedHourlySlotIndices.has(absoluteSlotIndex) &&
-          !occupiedAssessmentSlotKeys.has(secondaryKey) &&
           getPointSlotState(secondStageStartTime, slotIndex, now, SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS) === 'active'
         ) {
           availableSlots.push(secondaryKey);
@@ -317,16 +252,7 @@ const SharedDecisionMakingForm: React.FC<
     }
 
     return availableSlots;
-  }, [
-    baseTime,
-    now,
-    occupiedHourlySlotIndices,
-    occupiedAssessmentSlotKeys,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
+  }, [baseTime, now, resolvedFirstStageSlotCount, resolvedSecondStageSlotCount, secondStageStartTime, slotCount]);
 
   const availableActionPlanSlotKeys = React.useMemo(() => {
     if (!baseTime || slotCount === 0) {
@@ -337,10 +263,7 @@ const SharedDecisionMakingForm: React.FC<
 
     Array.from({ length: resolvedFirstStageSlotCount }, (_, slotIndex) => slotIndex).forEach((slotIndex) => {
       const hourlyKey = `hourly-${slotIndex}`;
-      if (
-        !occupiedActionPlanSlotKeys.has(hourlyKey) &&
-        getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS) === 'active') {
         availableSlots.push(hourlyKey);
       }
     });
@@ -350,7 +273,6 @@ const SharedDecisionMakingForm: React.FC<
         const absoluteSlotIndex = resolvedFirstStageSlotCount + slotIndex;
         const hourlyKey = `hourly-${absoluteSlotIndex}`;
         if (
-          !occupiedActionPlanSlotKeys.has(hourlyKey) &&
           getPointSlotState(secondStageStartTime, slotIndex, now, SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS) === 'active'
         ) {
           availableSlots.push(hourlyKey);
@@ -359,15 +281,7 @@ const SharedDecisionMakingForm: React.FC<
     }
 
     return availableSlots;
-  }, [
-    baseTime,
-    now,
-    occupiedActionPlanSlotKeys,
-    resolvedFirstStageSlotCount,
-    resolvedSecondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
+  }, [baseTime, now, resolvedFirstStageSlotCount, resolvedSecondStageSlotCount, secondStageStartTime, slotCount]);
 
   const assessmentAllowedTimes = React.useMemo(() => {
     if (!baseTime || availableAssessmentSlotKeys.length === 0) {
@@ -429,7 +343,7 @@ const SharedDecisionMakingForm: React.FC<
     ).sort();
   }, [availableActionPlanSlotKeys, baseTime, now, resolvedFirstStageSlotCount, secondStageStartTime]);
 
-  const allowedTimes = React.useMemo(() => {
+  const slotAllowedTimes = React.useMemo(() => {
     if (isEmergencyMode) {
       return getAllowedEmergencyTimes(now);
     }
@@ -437,7 +351,15 @@ const SharedDecisionMakingForm: React.FC<
     return Array.from(new Set([...assessmentAllowedTimes, ...actionPlanAllowedTimes])).sort();
   }, [actionPlanAllowedTimes, assessmentAllowedTimes, isEmergencyMode, now]);
 
-  const isInputLocked = !isEmergencyMode && Boolean(baseTime) && allowedTimes.length === 0;
+  const displayAllowedTimes = React.useMemo(() => {
+    if (slotAllowedTimes.length > 0) {
+      return slotAllowedTimes;
+    }
+    const nowHHMM = formatHHMM(now);
+    return nowHHMM ? [nowHHMM] : [];
+  }, [now, slotAllowedTimes]);
+
+  const isInputLocked = !isEmergencyMode && Boolean(baseTime) && slotAllowedTimes.length === 0;
   const isTimeSelectable = !isInputLocked || isAutoPrompt;
   const areFieldsEnabled = ((!isInputLocked && Boolean(selectedTime)) || isEmergencyMode) && !isSaving;
 
@@ -455,7 +377,7 @@ const SharedDecisionMakingForm: React.FC<
         return;
       }
 
-      if (!isEmergencyMode && baseTime && slotCount > 0 && !allowedTimes.includes(data.time)) {
+      if (!isEmergencyMode && baseTime && slotCount > 0 && !slotAllowedTimes.includes(data.time)) {
         setError('time', {
           type: 'manual',
           message: t('timeNotAllowed', 'Select a valid time slot'),
@@ -487,11 +409,34 @@ const SharedDecisionMakingForm: React.FC<
         return;
       }
 
+      const isTerminateAction = data.action === UUID_SHARED_DECISION_TERMINATE_ONGOING_PROGRESS;
+      if (isTerminateAction && !data.terminationReasonType) {
+        setError('terminationReasonType', {
+          type: 'manual',
+          message: t('terminationReasonTypeRequired', 'Termination reason is required'),
+        });
+        return;
+      }
+
+      if (
+        isTerminateAction &&
+        data.terminationReasonType === LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID &&
+        !data.terminationReasonText?.trim()
+      ) {
+        setError('terminationReasonText', {
+          type: 'manual',
+          message: t('terminationReasonTextRequired', 'Please describe the termination reason'),
+        });
+        return;
+      }
+
       const cleanData: SharedDecisionMakingFormData = {
         assessment: data.assessment.trim(),
         action: typeof data.action === 'string' ? data.action : (data.action as any)?.uuid || '',
         plan: data.plan.trim(),
         time: data.time,
+        terminationReasonType: data.terminationReasonType,
+        terminationReasonText: data.terminationReasonText?.trim(),
       };
 
       if (criticalActionValues.has(cleanData.action) && !consentExemptActionValues.has(cleanData.action)) {
@@ -513,6 +458,8 @@ const SharedDecisionMakingForm: React.FC<
     try {
       const result = await saveSharedDecisionMakingData(patient!.uuid, cleanData, t, undefined, undefined, {
         emergencyReason: isEmergencyMode ? emergencyReason : undefined,
+        terminationReasonType: cleanData.terminationReasonType,
+        terminationReasonText: cleanData.terminationReasonText,
       });
 
       if (!result.success) {
@@ -557,18 +504,6 @@ const SharedDecisionMakingForm: React.FC<
         onSecondarySubmit={handleClose}
         className={styles.cervixModal}
         size="md">
-        {isInputLocked && baseTime && (
-          <InlineNotification
-            kind="warning"
-            title={t('formLocked', 'Entry Window Closed')}
-            subtitle={t(
-              'sharedDecisionWindowLocked',
-              'No active shared decision making time slot is currently available.',
-            )}
-            hideCloseButton
-          />
-        )}
-
         {saveSuccess && (
           <InlineNotification
             kind="success"
@@ -600,8 +535,11 @@ const SharedDecisionMakingForm: React.FC<
           />
         ) : null}
 
+        <LcgCorrectionAuditBanner auditRecord={correctionAuditDisplay} variant="form" />
+
         {groupedAutoPromptItems.length ? (
           <div className={styles.autoPromptSummary}>
+            <p className={styles.autoPromptSummaryTitle}>{t('activeClinicalAlerts', 'Active clinical alerts')}</p>
             <p className={styles.autoPromptHint}>
               {t('hoverAlertInfoForGuidance', 'Hover the info button next to each alert code to view guidance.')}
             </p>
@@ -631,7 +569,9 @@ const SharedDecisionMakingForm: React.FC<
         {isAutoPrompt && autoPromptDebugWindow ? (
           <p style={{ marginTop: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem', color: '#525252' }}>
             {t('autoPromptDebugWindowLabel', 'Alert at')} {formatDebugTime(autoPromptDebugWindow.triggerTimeMs)} •{' '}
-            {t('autoPromptDebugOpenLabel', 'opens at')} {formatDebugTime(autoPromptDebugWindow.openAtMs)} •{' '}
+            {autoPromptDebugWindow.openAtMs != null
+              ? `${t('autoPromptDebugOpenLabel', 'opens at')} ${formatDebugTime(autoPromptDebugWindow.openAtMs)} • `
+              : `${t('autoPromptDebugNoAudioLabel', 'audio suppressed before hour end')} • `}
             {t('autoPromptDebugCloseLabel', 'closes at')} {formatDebugTime(autoPromptDebugWindow.expiresAtMs)}
           </p>
         ) : null}
@@ -646,7 +586,9 @@ const SharedDecisionMakingForm: React.FC<
                 rules={{
                   required: t('timeRequired', 'Time is required'),
                   validate: (value) =>
-                    !allowedTimes.length || allowedTimes.includes(value) || t('timeNotAllowed', 'Select a valid time'),
+                    !slotAllowedTimes.length ||
+                    slotAllowedTimes.includes(value) ||
+                    t('timeNotAllowed', 'Select a valid time'),
                 }}
                 render={({ field, fieldState }) => (
                   <div>
@@ -656,13 +598,11 @@ const SharedDecisionMakingForm: React.FC<
                       labelText=""
                       value={typeof field.value === 'string' ? field.value : ''}
                       onChange={field.onChange}
-                      disabled={!isTimeSelectable}
+                      disabled={!baseTime}
                       existingTimeEntries={existingTimeEntries}
-                      allowedTimes={baseTime ? allowedTimes : undefined}
-                      currentTime={`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
-                        2,
-                        '0',
-                      )}`}
+                      allowedTimes={baseTime ? displayAllowedTimes : undefined}
+                      disablePastTimes={!isEmergencyMode}
+                      currentTime={formatHHMM(now)}
                       invalid={!!fieldState.error}
                       invalidText={fieldState.error?.message}
                     />
@@ -681,13 +621,13 @@ const SharedDecisionMakingForm: React.FC<
                 control={control}
                 rules={{ required: t('assessmentRequired', 'Assessment is required') }}
                 render={({ field, fieldState }) => (
-                  <TextArea
+                  <SharedDecisionAssessmentField
                     id="assessment-textarea"
                     labelText={t('assessment', 'Assessment *')}
                     placeholder={t('enterAssessment', 'Enter assessment...')}
-                    rows={6}
                     value={typeof field.value === 'string' ? field.value : ''}
-                    onChange={(e) => field.onChange(e.target.value)}
+                    onChange={field.onChange}
+                    alertItems={autoPromptItems}
                     disabled={!areFieldsEnabled}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}
@@ -750,6 +690,65 @@ const SharedDecisionMakingForm: React.FC<
               />
             </div>
           </Column>
+
+          {isTerminateActionSelected ? (
+            <>
+              <Column lg={16} md={8} sm={4}>
+                <div className={styles.formField}>
+                  <Controller
+                    name="terminationReasonType"
+                    control={control}
+                    rules={{
+                      required: t('terminationReasonTypeRequired', 'Termination reason is required'),
+                    }}
+                    render={({ field, fieldState }) => (
+                      <Select
+                        id="termination-reason-type"
+                        labelText={t('terminationReasonType', 'Termination reason *')}
+                        value={typeof field.value === 'string' ? field.value : ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        disabled={!areFieldsEnabled}
+                        invalid={!!fieldState.error}
+                        invalidText={fieldState.error?.message}>
+                        <SelectItem value="" text={t('selectReason', 'Select reason')} />
+                        <SelectItem
+                          value={LCG_TERMINATION_REASON_WRONG_PATIENT_CONCEPT_UUID}
+                          text={t('wrongPatientSelected', 'Wrong patient selected')}
+                        />
+                        <SelectItem value={LCG_TERMINATION_REASON_OTHER_CONCEPT_UUID} text={t('other', 'Other')} />
+                      </Select>
+                    )}
+                  />
+                </div>
+              </Column>
+
+              {isOtherTerminationReason ? (
+                <Column lg={16} md={8} sm={4}>
+                  <div className={styles.formField}>
+                    <Controller
+                      name="terminationReasonText"
+                      control={control}
+                      rules={{
+                        required: t('terminationReasonTextRequired', 'Please describe the termination reason'),
+                      }}
+                      render={({ field, fieldState }) => (
+                        <TextArea
+                          id="termination-reason-text"
+                          labelText={t('terminationReasonDetails', 'Reason details *')}
+                          rows={3}
+                          value={typeof field.value === 'string' ? field.value : ''}
+                          onChange={(event) => field.onChange(event.target.value)}
+                          disabled={!areFieldsEnabled}
+                          invalid={!!fieldState.error}
+                          invalidText={fieldState.error?.message}
+                        />
+                      )}
+                    />
+                  </div>
+                </Column>
+              ) : null}
+            </>
+          ) : null}
         </Grid>
       </Modal>
 

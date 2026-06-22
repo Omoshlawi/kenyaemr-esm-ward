@@ -10,6 +10,8 @@ import {
   SUPPORTIVE_CARE_FORM_CONCEPTS,
   ENCOUNTER_ROLE,
 } from '../types';
+import { type LcgGridSlotOptions, validateStageAwareGridSlotSubmission } from '../time-slot-utils';
+import { parseLcgEntryTimeString } from '../labour-care-guide.utils';
 
 export interface SupportiveCareFormPayload {
   time: string;
@@ -41,6 +43,14 @@ export interface SupportiveCareEntry {
 
 type SupportiveCareSaveOptions = {
   emergencyReason?: string;
+  lcgValidation?: {
+    baseTime: string;
+    slotCount: number;
+    firstStageSlotCount?: number;
+    secondStageSlotCount?: number;
+    secondStageStartTime?: string;
+    gridSlotOptions?: LcgGridSlotOptions;
+  };
 };
 
 /**
@@ -65,6 +75,31 @@ export async function saveSupportiveCareData(
         message: t('sessionInfoMissing', 'Provider or Location information is missing'),
         error: 'NO_SESSION',
       };
+    }
+
+    if (!options?.emergencyReason && options?.lcgValidation) {
+      const { baseTime, slotCount, firstStageSlotCount, secondStageSlotCount, secondStageStartTime, gridSlotOptions } =
+        options.lcgValidation;
+      const validation = validateStageAwareGridSlotSubmission(
+        baseTime,
+        formData.time,
+        new Date(),
+        firstStageSlotCount ?? slotCount,
+        secondStageSlotCount ?? 0,
+        secondStageStartTime,
+        gridSlotOptions,
+      );
+
+      if (!validation.valid) {
+        return {
+          success: false,
+          message: t(
+            'lcgSlotLocked',
+            'This time slot has closed. Data can only be entered during the active monitoring window.',
+          ),
+          error: validation.errorCode ?? 'SLOT_LOCKED',
+        };
+      }
     }
 
     const encounterPayload = {
@@ -184,6 +219,19 @@ const SUPPORTIVE_CARE_CODE_TO_DISPLAY: Record<string, string> = {
   [SUPPORTIVE_CARE_CODED_VALUES.MOBILE]: 'MO',
 };
 
+const toSupportiveCareDisplayValue = (raw: unknown): string => {
+  if (raw === null || raw === undefined || raw === '') {
+    return '';
+  }
+
+  const key =
+    typeof raw === 'object' && raw && 'uuid' in (raw as Record<string, unknown>)
+      ? String((raw as { uuid?: string }).uuid ?? '')
+      : String(raw).trim();
+
+  return SUPPORTIVE_CARE_CODE_TO_DISPLAY[key] || key;
+};
+
 /**
  * Data Hook for fetching and parsing entries
  */
@@ -217,11 +265,11 @@ export function useSupportiveCareData(patientUuid: string, enabled = true) {
             id: encounter.uuid,
             encounterUuid: encounter.uuid,
             encounterDatetime: encounter.encounterDatetime,
-            time: getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.time) || '',
-            companion: SUPPORTIVE_CARE_CODE_TO_DISPLAY[companion] || companion,
-            painRelief: SUPPORTIVE_CARE_CODE_TO_DISPLAY[getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.painReliefGiven)] || '',
-            oralFluid: SUPPORTIVE_CARE_CODE_TO_DISPLAY[getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.oral)] || '',
-            posture: SUPPORTIVE_CARE_CODE_TO_DISPLAY[getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.posture)] || '',
+            time: parseLcgEntryTimeString(getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.time)) || '',
+            companion: toSupportiveCareDisplayValue(companion),
+            painRelief: toSupportiveCareDisplayValue(getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.painReliefGiven)),
+            oralFluid: toSupportiveCareDisplayValue(getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.oral)),
+            posture: toSupportiveCareDisplayValue(getVal(SUPPORTIVE_CARE_FORM_CONCEPTS.posture)),
             isEmergency: ['true', SUPPORTIVE_CARE_CODED_VALUES.YES.toLowerCase()].includes(
               String(getVal(LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID)).toLowerCase(),
             ),

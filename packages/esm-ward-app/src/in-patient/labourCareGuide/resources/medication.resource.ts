@@ -13,6 +13,12 @@ import {
   ENCOUNTER_ROLE,
 } from '../types';
 
+export interface MedicationDrugLine {
+  drugName: string;
+  dosage: string;
+  route: string;
+}
+
 export interface MedicationFormPayload {
   time: string;
   oxytocinUsed: string;
@@ -22,6 +28,7 @@ export interface MedicationFormPayload {
   drug: string;
   dosage: string;
   route: string;
+  drugLines?: MedicationDrugLine[];
   ivFluids: string;
   ivFluidType: string;
 }
@@ -34,8 +41,9 @@ export interface MedicationEntry {
   oxytocin: string;
   medicine: string;
   ivFluids: string;
-  oxytocinU_L?: number;
+  oxytocinUL?: number;
   oxytocinDrops?: number;
+  drugs?: MedicationDrugLine[];
   drugName?: string;
   dosage?: string;
   route?: string;
@@ -46,6 +54,20 @@ export interface MedicationEntry {
 
 type MedicationSaveOptions = {
   emergencyReason?: string;
+};
+
+const MEDICATION_REQUEST_TIMEOUT_MS = 15_000;
+
+const fetchWithTimeout = async <T>(url: string): Promise<T> => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), MEDICATION_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await openmrsFetch(url, { signal: controller.signal });
+    return response.json() as Promise<T>;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 };
 
 const MEDICATION_CODE_TO_DISPLAY: Record<string, string> = {
@@ -68,6 +90,7 @@ function codedDisplay(raw: unknown): string {
 const IV_FLUID_TYPE_TO_DISPLAY: Record<string, string> = {
   '80804AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Normal saline',
   '78617AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': "Ringer's lactate",
+  '1175AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Not Available',
 };
 
 function ivFluidTypeDisplay(raw: unknown): string {
@@ -97,6 +120,164 @@ function parseRouteValue(raw: unknown): string {
   return raw.trim();
 }
 
+const MEDICATION_MULTI_VALUE_SEPARATOR = /\s*;\s*/;
+
+export function splitMedicationFieldValues(raw: unknown): string[] {
+  if (raw === null || raw === undefined) {
+    return [];
+  }
+
+  const text = String(raw).trim();
+  if (!text) {
+    return [];
+  }
+
+  return text
+    .split(MEDICATION_MULTI_VALUE_SEPARATOR)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function splitRouteFieldValues(raw: unknown): string[] {
+  if (typeof raw !== 'string') {
+    return [];
+  }
+
+  const normalized = raw.replace(/^Route:\s*/i, '').trim();
+  return splitMedicationFieldValues(normalized);
+}
+
+function readObsText(obs: { value?: unknown } | undefined): string {
+  if (!obs?.value && obs?.value !== 0) {
+    return '';
+  }
+
+  return String(obs.value).trim();
+}
+
+export function parseMedicationDrugsFromObs(
+  obs: Array<{ concept?: { uuid?: string }; value?: unknown }>,
+): MedicationDrugLine[] {
+  const medicationNameObs = obs.filter((item) => item.concept?.uuid === MEDICATION_FORM_CONCEPTS.medicationName);
+  const dosageObs = obs.filter((item) => item.concept?.uuid === MEDICATION_FORM_CONCEPTS.dosage);
+  const routeObs = obs.filter(
+    (item) =>
+      item.concept?.uuid === MEDICATION_FORM_CONCEPTS.route ||
+      (item.concept?.uuid === PARTOGRAPHY_CONCEPTS['event-description'] &&
+        typeof item.value === 'string' &&
+        item.value.trim().startsWith('Route:')),
+  );
+
+  if (medicationNameObs.length > 1) {
+    return medicationNameObs
+      .map((nameObs, index) => ({
+        drugName: readObsText(nameObs),
+        dosage: readObsText(dosageObs[index]),
+        route: parseRouteValue(readObsText(routeObs[index])),
+      }))
+      .filter((line) => line.drugName);
+  }
+
+  const drugNames = splitMedicationFieldValues(medicationNameObs[0]?.value);
+  const dosages = splitMedicationFieldValues(dosageObs[0]?.value);
+  const routes = splitRouteFieldValues(readObsText(routeObs[0]));
+
+  const lineCount = Math.max(drugNames.length, dosages.length, routes.length, medicationNameObs.length > 0 ? 1 : 0);
+
+  return Array.from({ length: lineCount }, (_, index) => ({
+    drugName: drugNames[index] ?? readObsText(medicationNameObs[0]),
+    dosage: dosages[index] ?? '',
+    route: routes[index] ?? '',
+  })).filter((line) => line.drugName);
+}
+
+export function joinMedicationDrugLines(lines: MedicationDrugLine[], field: keyof MedicationDrugLine): string {
+  return lines
+    .map((line) => line[field])
+    .filter(Boolean)
+    .join('; ');
+}
+
+export type MedicationTableRow = {
+  id: string;
+  date: string;
+  timeSaved: string;
+  lcgTime: string;
+  oxytocinUL: string | number;
+  oxytocinDrops: string | number;
+  drug: string;
+  dosage: string;
+  route: string;
+  ivFluidType: string;
+  reason: string;
+  isEmergency: boolean;
+};
+
+export function formatMedicationIvFluidTypeForTable(entry: Pick<MedicationEntry, 'ivFluids' | 'ivFluidType'>): string {
+  if (entry.ivFluids !== 'Y') {
+    return 'No';
+  }
+
+  return entry.ivFluidType?.trim() || 'No';
+}
+
+export function expandMedicationEntryToTableRows(
+  entry: MedicationEntry,
+  formatters: {
+    formatDate: (encounterDatetime: string) => string;
+    formatTimeSaved: (encounterDatetime: string) => string;
+    formatEmergencyReason: (reason?: string) => string;
+  },
+): MedicationTableRow[] {
+  const emergencyReason = entry.emergencyReason?.trim();
+  const reason = entry.isEmergency
+    ? emergencyReason
+      ? formatters.formatEmergencyReason(emergencyReason)
+      : 'Emergency entry'
+    : '';
+  const baseRow = {
+    date: formatters.formatDate(entry.encounterDatetime),
+    timeSaved: formatters.formatTimeSaved(entry.encounterDatetime),
+    lcgTime: entry.time,
+    oxytocinUL: entry.oxytocinUL ?? 'No',
+    oxytocinDrops: entry.oxytocinDrops ?? 'No',
+    ivFluidType: formatMedicationIvFluidTypeForTable(entry),
+    reason,
+    isEmergency: Boolean(entry.isEmergency),
+  };
+
+  const drugs = entry.drugs?.length
+    ? entry.drugs
+    : parseMedicationDrugsFromObs([
+        { concept: { uuid: MEDICATION_FORM_CONCEPTS.medicationName }, value: entry.drugName },
+        { concept: { uuid: MEDICATION_FORM_CONCEPTS.dosage }, value: entry.dosage },
+        {
+          concept: { uuid: PARTOGRAPHY_CONCEPTS['event-description'] },
+          value: entry.route ? `Route: ${entry.route}` : '',
+        },
+      ]);
+
+  if (drugs.length === 0) {
+    return [
+      {
+        id: entry.id,
+        ...baseRow,
+        drug: 'No',
+        dosage: 'No',
+        route: 'No',
+      },
+    ];
+  }
+
+  return drugs.map((line, index) => ({
+    id: `${entry.id}-drug-${index}`,
+    ...baseRow,
+    drug: line.drugName,
+    dosage: line.dosage || 'No',
+    route: line.route || 'No',
+  }));
+}
+
 export async function saveMedicationData(
   patientUuid: string,
   formData: MedicationFormPayload,
@@ -106,7 +287,7 @@ export async function saveMedicationData(
   options?: MedicationSaveOptions,
 ) {
   try {
-    const session = await openmrsFetch(`${restBaseUrl}/session`).then((res) => res.json());
+    const session = await fetchWithTimeout<any>(`${restBaseUrl}/session`);
     const finalProviderUuid = providerUuid || session?.currentProvider?.uuid;
     const finalLocationUuid = locationUuid || session?.sessionLocation?.uuid;
 
@@ -119,13 +300,21 @@ export async function saveMedicationData(
       encounterProviders: [{ provider: finalProviderUuid, encounterRole: ENCOUNTER_ROLE }],
     };
 
-    const response = await openmrsFetch(`${restBaseUrl}/encounter`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(encounterPayload),
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), MEDICATION_REQUEST_TIMEOUT_MS);
 
-    return { success: response.ok, encounter: await response.json() };
+    try {
+      const response = await openmrsFetch(`${restBaseUrl}/encounter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(encounterPayload),
+        signal: controller.signal,
+      });
+
+      return { success: response.ok, encounter: await response.json() };
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   } catch (error) {
     return { success: false, message: (error as Error).message };
   }
@@ -189,23 +378,36 @@ function buildMedicationObservations(formData: MedicationFormPayload, options?: 
   }
 
   if (formData.medicine === 'yes') {
-    observations.push(
-      {
-        concept: MEDICATION_FORM_CONCEPTS.medicationName,
-        value: formData.drug,
-        obsDatetime,
-      },
-      {
-        concept: MEDICATION_FORM_CONCEPTS.dosage,
-        value: formData.dosage,
-        obsDatetime,
-      },
-      {
-        concept: PARTOGRAPHY_CONCEPTS['event-description'],
-        value: `Route: ${formData.route}`,
-        obsDatetime,
-      },
-    );
+    const drugLines =
+      formData.drugLines?.filter((line) => line.drugName.trim()) ??
+      parseMedicationDrugsFromObs([
+        { concept: { uuid: MEDICATION_FORM_CONCEPTS.medicationName }, value: formData.drug },
+        { concept: { uuid: MEDICATION_FORM_CONCEPTS.dosage }, value: formData.dosage },
+        {
+          concept: { uuid: PARTOGRAPHY_CONCEPTS['event-description'] },
+          value: `Route: ${formData.route}`,
+        },
+      ]);
+
+    drugLines.forEach((line) => {
+      observations.push(
+        {
+          concept: MEDICATION_FORM_CONCEPTS.medicationName,
+          value: line.drugName,
+          obsDatetime,
+        },
+        {
+          concept: MEDICATION_FORM_CONCEPTS.dosage,
+          value: line.dosage,
+          obsDatetime,
+        },
+        {
+          concept: PARTOGRAPHY_CONCEPTS['event-description'],
+          value: `Route: ${line.route}`,
+          obsDatetime,
+        },
+      );
+    });
   }
 
   if (options?.emergencyReason && options.emergencyReason.trim()) {
@@ -272,7 +474,13 @@ export function useMedicationData(patientUuid: string) {
       ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
       : null,
     fetcher,
-    { revalidateOnFocus: false, revalidateIfStale: false },
+    {
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      revalidateOnReconnect: false,
+      errorRetryCount: 1,
+      dedupingInterval: 5_000,
+    },
   );
 
   const medicationEntries: MedicationEntry[] = (data?.results || [])
@@ -286,6 +494,8 @@ export function useMedicationData(patientUuid: string) {
 
       if (!oxyObs && !medObs && !ivObs) return null;
 
+      const drugs = parseMedicationDrugsFromObs(obs);
+
       return {
         id: enc.uuid,
         encounterUuid: enc.uuid,
@@ -295,18 +505,12 @@ export function useMedicationData(patientUuid: string) {
         medicine: codedDisplay(medObs?.value),
         ivFluids: codedDisplay(ivObs?.value),
         ivFluidType: ivFluidTypeDisplay(ivFluidTypeObs?.value),
-        // Raw data kept for the Table view
-        oxytocinU_L: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.oxytocinDose)?.value,
+        oxytocinUL: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.oxytocinDose)?.value,
         oxytocinDrops: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.oxytocinDropsPerMinute)?.value,
-        drugName: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.medicationName)?.value,
-        dosage: obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.dosage)?.value,
-        route:
-          parseRouteValue(obs.find((o: any) => o.concept?.uuid === MEDICATION_FORM_CONCEPTS.route)?.value) ||
-          parseRouteValue(
-            obs.find(
-              (o: any) => o.concept?.uuid === PARTOGRAPHY_CONCEPTS['event-description'] && typeof o.value === 'string',
-            )?.value,
-          ),
+        drugs,
+        drugName: joinMedicationDrugLines(drugs, 'drugName'),
+        dosage: joinMedicationDrugLines(drugs, 'dosage'),
+        route: joinMedicationDrugLines(drugs, 'route'),
         isEmergency: ['true', MEDICATION_CODED_VALUES.YES.toLowerCase()].includes(
           String(
             obs.find((o: any) => o.concept?.uuid === LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID)?.value || '',

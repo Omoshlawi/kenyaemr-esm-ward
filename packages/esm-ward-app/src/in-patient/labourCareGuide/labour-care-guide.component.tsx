@@ -5,13 +5,14 @@ import styles from './labour-care-guide.scss';
 import {
   usePatient,
   getPatientName,
+  navigate,
   openmrsFetch,
   restBaseUrl,
   useConfig,
   launchWorkspace2,
   useSession,
 } from '@openmrs/esm-framework';
-import { Button, InlineLoading } from '@carbon/react';
+import { Button, InlineLoading, InlineNotification } from '@carbon/react';
 import useSWR from 'swr';
 import type { WardConfigObject } from '../../config-schema';
 import useCurrentPatientAdmissionEncounter from '../../hooks/useCurrentPatientAdmissionEncounter';
@@ -25,6 +26,13 @@ import SharedDecisionMaking from './graphs/shared-decision-making.component';
 import LabourCareGuideHeader from './graphs/labour-care-guide-header.component';
 import { LabourCareGuideForms } from './forms/labour-care-guide-forms.component';
 import EmergencyEntryModal from './forms/emergency-entry-modal.component';
+import LcgCorrectionAuditBanner from './components/lcg-correction-audit-banner.component';
+import LcgSessionCorrectionWizard from './forms/lcg-session-correction-wizard.component';
+import {
+  buildCorrectionAuditTableRow,
+  resolveLcgCorrectionAuditDisplay,
+} from './resources/lcg-session-correction.resource';
+import { getLcgSessionTransferredAwayMarker, markLcgSessionTransferredAway } from './storage/lcg-local-storage';
 import {
   calculateGravida,
   LCG_SHARED_DECISION_ALERT_TIMER_MINUTES,
@@ -41,10 +49,16 @@ import {
 } from './types';
 import {
   addStepsToHHMM,
+  formatHHMM,
   getSlotIndexForTime,
   resolveStageAwareStopSlots,
   SHARED_DECISION_PLAN_ACTION_SLOT_OPTIONS,
 } from './time-slot-utils';
+import {
+  computeLcgAlertActivationMs,
+  getLcgHourlyCellBoundsForEntry,
+  shouldFireLcgAlertAlarm,
+} from './lcg-alert-lifecycle';
 import { LabourCareGuideSummaryHeader } from './labour-care-guide-header.component';
 import {
   activeFirstStageHours,
@@ -58,6 +72,9 @@ import {
   secondStageHours,
 } from './labour-care-guide.utils';
 import { useLcgData } from './hooks/use-lcg-data';
+import { expandMedicationEntryToTableRows } from './resources/medication.resource';
+import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from './constants/admission-form.constants';
+import { LcgSectionStateProvider } from './context/lcg-section-state.context';
 import { GlobalCdsAlertProvider, useGlobalCdsAlert } from './global-cds-alerts/global-cds-alert-context';
 import GlobalCdsAlertDisplay from './global-cds-alerts/global-cds-alert-display.component';
 import { LCG_CDS_ALERT_HANDLED_QUERY_KEY, LCG_CDS_ALERT_STORAGE_KEY } from './constants/labour-care-guide.constants';
@@ -188,9 +205,35 @@ const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
 };
 
 const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patientUuid, patient }) => {
+  const [lcgSessionResetKey, setLcgSessionResetKey] = React.useState(0);
+
+  return (
+    <LcgSectionStateProvider key={`${patientUuid}-${lcgSessionResetKey}`} patientUuid={patientUuid}>
+      <LabourCareGuideWorkspace
+        patientUuid={patientUuid}
+        patient={patient}
+        lcgSessionResetKey={lcgSessionResetKey}
+        setLcgSessionResetKey={setLcgSessionResetKey}
+      />
+    </LcgSectionStateProvider>
+  );
+};
+
+type LabourCareGuideWorkspaceProps = LabourCareGuideContentProps & {
+  lcgSessionResetKey: number;
+  setLcgSessionResetKey: React.Dispatch<React.SetStateAction<number>>;
+};
+
+const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
+  patientUuid,
+  patient,
+  setLcgSessionResetKey,
+}) => {
   const { t } = useTranslation();
   const config = useConfig();
   const session = useSession();
+  const { admissionEncounter } = useCurrentPatientAdmissionEncounter(patientUuid);
+  const [isCorrectionWizardOpen, setIsCorrectionWizardOpen] = React.useState(false);
   const { broadcastAlert: broadcastAlertToGlobalContext } = useGlobalCdsAlert();
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = React.useState(false);
   const [emergencyReason, setEmergencyReason] = React.useState<string | null>(null);
@@ -205,6 +248,32 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
   const printableCanvasRef = React.useRef<HTMLDivElement | null>(null);
   // Track first detection time of current alert for threshold calculation
   const alertFirstDetectionTimeRef = React.useRef<number | null>(null);
+  const cdsAlertTimersRef = React.useRef<{ activation?: number; expiry?: number }>({});
+  const clearCdsAlertTimers = React.useCallback(() => {
+    if (cdsAlertTimersRef.current.activation !== undefined) {
+      window.clearTimeout(cdsAlertTimersRef.current.activation);
+      cdsAlertTimersRef.current.activation = undefined;
+    }
+    if (cdsAlertTimersRef.current.expiry !== undefined) {
+      window.clearTimeout(cdsAlertTimersRef.current.expiry);
+      cdsAlertTimersRef.current.expiry = undefined;
+    }
+  }, []);
+
+  const sessionTransferredAwayMarker = React.useMemo(
+    () => getLcgSessionTransferredAwayMarker(patientUuid),
+    [patientUuid],
+  );
+  const isSessionTransferredAway = Boolean(sessionTransferredAwayMarker);
+  const sessionResetAfterMs = React.useMemo(() => {
+    if (!sessionTransferredAwayMarker?.transferredAt) {
+      return null;
+    }
+
+    const transferredAtMs = new Date(sessionTransferredAwayMarker.transferredAt).getTime();
+    return Number.isFinite(transferredAtMs) ? transferredAtMs : null;
+  }, [sessionTransferredAwayMarker?.transferredAt]);
+
   const {
     isTimeFormOpen,
     setIsTimeFormOpen,
@@ -245,6 +314,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     mutateMedicationData,
     mutateSupportiveCareData,
     mutateSharedDecisionMakingData,
+    mutateWomanPartographyData,
     mergedMedicationEntries,
     mergedSupportiveCareEntries,
     mergedBabyEntries,
@@ -259,11 +329,102 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     baseTime,
     workflowStopState,
     isWorkflowStopped,
+    isSessionTerminated,
+    sessionTerminationState,
+    correctionAuditRecord,
+    mutateCorrectionAudit,
     sharedDecisionAutoPromptDebugWindow,
     cdsPendingAlert,
     activeSharedDecisionAlerts,
+    acknowledgeSharedDecisionAlertSession,
     cervicalEncounters,
-  } = useLcgData(patientUuid);
+  } = useLcgData(patientUuid, { sessionResetAfterMs });
+
+  const correctionAuditDisplay = React.useMemo(
+    () =>
+      resolveLcgCorrectionAuditDisplay(
+        correctionAuditRecord,
+        sessionTerminationState,
+        getPatientName(patient) || patientUuid,
+        t,
+        { allowTerminationFallback: !isSessionTransferredAway },
+      ),
+    [correctionAuditRecord, isSessionTransferredAway, patient, patientUuid, sessionTerminationState, t],
+  );
+
+  const showReopenSessionControl =
+    !isSessionTransferredAway && (isSessionTerminated || workflowStopState?.label === 'TERMINATED');
+
+  React.useEffect(() => {
+    void mutateCorrectionAudit();
+  }, [mutateCorrectionAudit, patientUuid]);
+
+  React.useEffect(() => {
+    if (!showReopenSessionControl) {
+      return;
+    }
+
+    stopAlertBeep();
+    clearCdsAlertTimers();
+    setActiveCdsToast(null);
+    setActiveAlertKey(null);
+  }, [clearCdsAlertTimers, showReopenSessionControl, stopAlertBeep]);
+
+  const navigateToPatientInPatientChart = React.useCallback((targetPatientUuid: string) => {
+    const spaBase = window.getOpenmrsSpaBase?.() ?? (globalThis.spaBase ? `${globalThis.spaBase}/` : '/openmrs/spa/');
+    const normalizedBase = spaBase.endsWith('/') ? spaBase : `${spaBase}/`;
+    const targetPath = `${normalizedBase}patient/${targetPatientUuid}/chart/in-patient`;
+    navigate({ to: targetPath });
+    window.location.assign(`${window.location.origin}${targetPath}`);
+  }, []);
+
+  const handleCorrectionTransferComplete = React.useCallback(
+    (targetPatientUuid: string) => {
+      markLcgSessionTransferredAway(patientUuid, targetPatientUuid);
+      setLcgSessionResetKey((current) => current + 1);
+      void mutateSharedDecisionMakingData();
+      void mutateLabourTimeSetData();
+      void mutateSupportiveCareData();
+      void mutateBabyData();
+      void mutateMedicationData();
+      void mutateAdmissionDetails();
+      void mutateCorrectionAudit();
+      void mutateWomanPartographyData();
+      setIsCorrectionWizardOpen(false);
+      navigateToPatientInPatientChart(targetPatientUuid);
+    },
+    [
+      mutateAdmissionDetails,
+      mutateBabyData,
+      mutateCorrectionAudit,
+      mutateLabourTimeSetData,
+      mutateMedicationData,
+      mutateSharedDecisionMakingData,
+      mutateSupportiveCareData,
+      mutateWomanPartographyData,
+      navigateToPatientInPatientChart,
+      patientUuid,
+      setLcgSessionResetKey,
+    ],
+  );
+
+  const handleSharedDecisionAlertSessionAcknowledged = React.useCallback(
+    (entry: Parameters<typeof acknowledgeSharedDecisionAlertSession>[0]) => {
+      acknowledgeSharedDecisionAlertSession(entry);
+      clearCdsAlertTimers();
+      lastBroadcastKeyRef.current = null;
+      alertFirstDetectionTimeRef.current = null;
+      setActiveAlertKey(null);
+      setActiveCdsToast(null);
+      stopAlertBeep();
+      try {
+        window.localStorage.removeItem(LCG_CDS_ALERT_STORAGE_KEY);
+      } catch {
+        // Storage can be unavailable in restricted browser contexts.
+      }
+    },
+    [acknowledgeSharedDecisionAlertSession, clearCdsAlertTimers, stopAlertBeep],
+  );
 
   const currentPatientName = React.useMemo(() => {
     if (!patient) {
@@ -280,7 +441,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
   }, [session]);
 
   const isMultipleGestation = React.useMemo(
-    () => admissionRiskFactorCodes.includes('multiple_gestation'),
+    () => admissionRiskFactorCodes.includes(LCG_ADMISSION_RISK_FACTOR_CODE.multipleGestation),
     [admissionRiskFactorCodes],
   );
 
@@ -353,8 +514,10 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     }
   }, [isMultipleGestation, deliveredTwinsSet, activeBabyTwinIndex, totalTwinSections]);
 
-  const effectiveWorkflowStopState = workflowStopState;
+  const effectiveWorkflowStopState = isSessionTransferredAway && !baseTime ? null : workflowStopState;
   const effectiveIsWorkflowStopped = Boolean(effectiveWorkflowStopState);
+
+  const showChartCorrectionAuditBanner = !isSessionTransferredAway && Boolean(correctionAuditDisplay);
 
   const babyEntriesByTwin = React.useMemo(() => {
     const grouped = new Map<number, typeof mergedBabyEntries>();
@@ -399,11 +562,11 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
 
   const labourOnsetDisplay = React.useMemo(() => {
     switch (admissionDetails.labourOnset) {
-      case 'spontaneous':
+      case LCG_LABOUR_ONSET_CODE.spontaneous:
         return t('spontaneous', 'Spontaneous');
-      case 'induction':
+      case LCG_LABOUR_ONSET_CODE.induction:
         return t('induction', 'Induction');
-      case 'pre_labour_csection':
+      case LCG_LABOUR_ONSET_CODE.preLabourCsection:
         return t('preLabourCsection', 'Pre-labour C-section');
       default:
         return admissionDetails.labourOnset;
@@ -463,31 +626,40 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
       durationOfContractions: entry.durationOfContractions ?? '',
       cervicalDilation: entry.cervicalDilation ?? '',
       descentOfHead: entry.descentOfHead ?? '',
-      urgeToPush: entry.urgeToPush ?? '',
+      urgeToPush: entry.urgeToPush === 'yes' ? t('yes', 'Yes') : entry.urgeToPush === 'no' ? t('no', 'No') : '',
       recordedAt: formatEncounterDateTime(entry.encounterDatetime),
     }));
 
-    const medicationRows = mergedMedicationEntries.map((entry) => ({
-      time: entry.time ?? '',
-      oxytocin: entry.oxytocin ?? '',
-      oxytocinUnitsPerLitre: entry.oxytocinU_L ?? '',
-      oxytocinDropsPerMinute: entry.oxytocinDrops ?? '',
-      medicine: entry.medicine ?? '',
-      drugName: entry.drugName ?? '',
-      dosage: entry.dosage ?? '',
-      route: entry.route ?? '',
-      ivFluids: entry.ivFluids ?? '',
-      ivFluidType: entry.ivFluidType ?? '',
-      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
-    }));
+    const medicationRows = mergedMedicationEntries.flatMap((entry) =>
+      expandMedicationEntryToTableRows(entry, {
+        formatDate: (encounterDatetime) => formatEncounterDateTime(encounterDatetime),
+        formatTimeSaved: (encounterDatetime) => formatEncounterDateTime(encounterDatetime),
+        formatEmergencyReason: (reason) => t('emergencyReasonLabel', 'Emergency: {{reason}}', { reason: reason ?? '' }),
+      }).map((row) => ({
+        time: row.lcgTime,
+        oxytocin: entry.oxytocin ?? '',
+        oxytocinUnitsPerLitre: row.oxytocinUL,
+        oxytocinDropsPerMinute: row.oxytocinDrops,
+        medicine: entry.medicine ?? '',
+        drugName: row.drug,
+        dosage: row.dosage,
+        route: row.route,
+        ivFluids: entry.ivFluids ?? '',
+        ivFluidType: row.ivFluidType,
+        recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+      })),
+    );
 
-    const sharedDecisionRows = mergedSharedDecisionMakingEntries.map((entry) => ({
-      time: entry.time ?? '',
-      assessment: entry.assessment ?? '',
-      action: entry.action ?? '',
-      plan: entry.plan ?? '',
-      recordedAt: formatEncounterDateTime(entry.encounterDatetime),
-    }));
+    const sharedDecisionRows = [
+      ...(correctionAuditDisplay ? [buildCorrectionAuditTableRow(correctionAuditDisplay, t)] : []),
+      ...mergedSharedDecisionMakingEntries.map((entry) => ({
+        time: entry.time ?? '',
+        assessment: entry.assessment ?? '',
+        action: entry.action ?? '',
+        plan: entry.plan ?? '',
+        recordedAt: formatEncounterDateTime(entry.encounterDatetime),
+      })),
+    ];
 
     return {
       admissionRows,
@@ -507,6 +679,8 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     mergedLabourProgressEntries,
     mergedMedicationEntries,
     mergedSharedDecisionMakingEntries,
+    correctionAuditDisplay,
+    t,
   ]);
 
   const buildPdfTableSection = React.useCallback(
@@ -795,10 +969,25 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     return currentTime > latestTime ? current : latest;
   }, null);
 
+  const maternityEncounterTimeMs = latestMaternityEncounter
+    ? new Date(latestMaternityEncounter.encounterDatetime).getTime()
+    : null;
+  const transferredAtMs = sessionTransferredAwayMarker?.transferredAt
+    ? new Date(sessionTransferredAwayMarker.transferredAt).getTime()
+    : null;
+  const hasFreshMaternityAfterTransfer =
+    !isSessionTransferredAway ||
+    (Number.isFinite(maternityEncounterTimeMs) &&
+      Number.isFinite(transferredAtMs) &&
+      (maternityEncounterTimeMs as number) > (transferredAtMs as number));
+
   const latestMaternityEncounterObs = Array.isArray(latestMaternityEncounter?.obs) ? latestMaternityEncounter.obs : [];
   const hasMaternityBaselineData =
     latestMaternityEncounterObs.some((o: any) => o?.concept?.uuid === PARITY_CONCEPT_UUID) ||
     latestMaternityEncounterObs.some((o: any) => o?.concept?.uuid === MISCARRIAGE_ABORTIONS_CONCEPT_UUID);
+
+  const maternityReadyForLcg =
+    Boolean(latestMaternityEncounter && hasMaternityBaselineData) && hasFreshMaternityAfterTransfer;
 
   const parityValue = getEncounterObsNumber(latestMaternityEncounter, PARITY_CONCEPT_UUID);
   const miscarriageValue = getEncounterObsNumber(latestMaternityEncounter, MISCARRIAGE_ABORTIONS_CONCEPT_UUID);
@@ -1050,6 +1239,8 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
   ]);
 
   React.useEffect(() => {
+    clearCdsAlertTimers();
+
     if (!cdsPendingAlert || isWorkflowStopped) {
       const hasSamePatientActiveAlert =
         activeCdsToast?.sourcePatientUuid === patientUuid ||
@@ -1075,25 +1266,42 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
 
     const nowMs = Date.now();
     const alertKey = `${patientUuid}-${cdsPendingAlert.triggerTimeMs}-${cdsPendingAlert.summary}`;
+    const { activatesAtMs, expiresAtMs } = cdsPendingAlert;
 
     if (alertFirstDetectionTimeRef.current === null || activeAlertKey !== alertKey) {
       alertFirstDetectionTimeRef.current = nowMs;
       setActiveAlertKey(alertKey);
     }
 
-    const activatesAtMs = cdsPendingAlert.activatesAtMs;
-    const expiresAtMs = cdsPendingAlert.expiresAtMs;
+    const dismissExpiredAlert = () => {
+      clearCdsAlertTimers();
+      setActiveCdsToast(null);
+      setActiveAlertKey(null);
+      alertFirstDetectionTimeRef.current = null;
+      lastBroadcastKeyRef.current = null;
+      stopAlertBeep();
+      setIsSharedDecisionMakingFormOpen(false);
+      setSharedDecisionAutoPromptSummary(null);
+      setSharedDecisionAutoPromptItems([]);
+    };
+
     if (nowMs >= expiresAtMs) {
-      if (lastBroadcastKeyRef.current === alertKey) {
-        setActiveCdsToast(null);
-        setActiveAlertKey(null);
-        alertFirstDetectionTimeRef.current = null;
-        lastBroadcastKeyRef.current = null;
+      if (lastBroadcastKeyRef.current === alertKey || activeCdsToast) {
+        dismissExpiredAlert();
       }
       return;
     }
-    if (nowMs >= activatesAtMs) {
+
+    const broadcastAlert = () => {
+      if (!shouldFireLcgAlertAlarm(Date.now(), activatesAtMs, expiresAtMs, false)) {
+        return;
+      }
+
       if (lastBroadcastKeyRef.current === alertKey) {
+        return;
+      }
+
+      if (activatesAtMs === null) {
         return;
       }
 
@@ -1102,8 +1310,8 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
         sourcePatientUuid: patientUuid,
         sourcePatientName: currentPatientName,
         triggerTimeMs: cdsPendingAlert.triggerTimeMs,
-        expiresAtMs: expiresAtMs,
-        activatesAtMs: activatesAtMs,
+        expiresAtMs,
+        activatesAtMs,
         summary: cdsPendingAlert.summary,
         items: cdsPendingAlert.items,
       };
@@ -1124,18 +1332,29 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
         detectedAtMs: Date.now(),
       });
       startAlertBeep();
+    };
+
+    if (shouldFireLcgAlertAlarm(nowMs, activatesAtMs, expiresAtMs, false)) {
+      broadcastAlert();
+    } else if (activatesAtMs !== null && nowMs < activatesAtMs) {
+      cdsAlertTimersRef.current.activation = window.setTimeout(broadcastAlert, activatesAtMs - nowMs);
     }
+
+    cdsAlertTimersRef.current.expiry = window.setTimeout(dismissExpiredAlert, expiresAtMs - nowMs);
+
+    return clearCdsAlertTimers;
   }, [
-    cdsPendingAlert,
-    currentPatientName,
     activeAlertKey,
     activeCdsToast,
+    broadcastAlertToGlobalContext,
+    cdsPendingAlert,
+    clearCdsAlertTimers,
+    currentPatientName,
     isWorkflowStopped,
     patientUuid,
     sharedDecisionAutoPromptSummary,
     startAlertBeep,
     stopAlertBeep,
-    broadcastAlertToGlobalContext,
     setIsSharedDecisionMakingFormOpen,
     setSharedDecisionAutoPromptSummary,
     setSharedDecisionAutoPromptItems,
@@ -1154,7 +1373,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
         }
 
         const nowMs = Date.now();
-        if (nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) {
+        if (payload.activatesAtMs == null || nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) {
           return;
         }
 
@@ -1209,11 +1428,22 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     }
 
     const triggerTimeMs = Number(triggerTime) || Date.now();
-    const activatesAtMs = triggerTimeMs + LCG_SHARED_DECISION_ALERT_TIMER_MINUTES * 60_000;
-    const expiresAtMs = triggerTimeMs + LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
+    const triggerDate = new Date(triggerTimeMs);
+    const hourlyBounds = baseTime
+      ? getLcgHourlyCellBoundsForEntry(baseTime, {
+          encounterDatetime: triggerDate.toISOString(),
+          time: formatHHMM(triggerDate),
+        })
+      : null;
+    const expiresAtMs = hourlyBounds?.periodEndMs ?? triggerTimeMs + LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
+    const activatesAtMs = computeLcgAlertActivationMs(
+      triggerTimeMs,
+      expiresAtMs,
+      LCG_SHARED_DECISION_ALERT_TIMER_MINUTES,
+    );
     const nowMs = Date.now();
 
-    if (nowMs < activatesAtMs || nowMs >= expiresAtMs) {
+    if (activatesAtMs === null || !shouldFireLcgAlertAlarm(nowMs, activatesAtMs, expiresAtMs, false)) {
       params.set(LCG_CDS_ALERT_HANDLED_QUERY_KEY, '1');
       window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
       lastHandledRouteKeyRef.current = routeKey;
@@ -1238,6 +1468,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
     lastHandledRouteKeyRef.current = routeKey;
   }, [
+    baseTime,
     patientUuid,
     setIsSharedDecisionMakingFormOpen,
     setSharedDecisionAutoPromptItems,
@@ -1286,7 +1517,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
     return <InlineLoading description={t('loading', 'Loading...')} />;
   }
 
-  if (!latestMaternityEncounter || !hasMaternityBaselineData) {
+  if (!maternityReadyForLcg) {
     return (
       <div className={styles.container} data-patient-uuid={patientUuid}>
         <div className={styles.canvas}>
@@ -1310,15 +1541,26 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
   return (
     <div className={styles.container} data-patient-uuid={patientUuid}>
       <div className={styles.canvas} ref={printableCanvasRef}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-          <Button
-            size="sm"
-            kind={isAlertSoundEnabled ? 'secondary' : 'tertiary'}
-            onClick={() => setIsAlertSoundEnabled((current) => !current)}>
-            {isAlertSoundEnabled ? t('alertSoundOn', 'Alert Sound: ON') : t('alertSoundOff', 'Alert Sound: OFF')}
-          </Button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          {showReopenSessionControl ? (
+            <Button size="sm" kind="primary" onClick={() => setIsCorrectionWizardOpen(true)}>
+              {t('reopenLcgSession', 'Reopen / Correct session')}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              kind={isAlertSoundEnabled ? 'secondary' : 'tertiary'}
+              onClick={() => setIsAlertSoundEnabled((current) => !current)}>
+              {isAlertSoundEnabled ? t('alertSoundOn', 'Alert Sound: ON') : t('alertSoundOff', 'Alert Sound: OFF')}
+            </Button>
+          )}
         </div>
+
         <h2 className={styles.title}>{t('whoLabourCareGuide', 'LABOUR CARE GUIDE')}</h2>
+
+        {showChartCorrectionAuditBanner ? (
+          <LcgCorrectionAuditBanner auditRecord={correctionAuditDisplay} variant="chart" />
+        ) : null}
 
         <LabourCareGuideSummaryHeader
           patient={patient}
@@ -1501,6 +1743,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
           activeFirstStageHours={activeFirstStageHours}
           secondStageHours={secondStageHours}
           showViewToggle={showChartControls}
+          correctionAuditDisplay={correctionAuditDisplay}
           onAddClick={
             admissionDetailsFilled && timerSet && !effectiveIsWorkflowStopped
               ? () => {
@@ -1576,6 +1819,7 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
         activeSharedDecisionAlerts={activeSharedDecisionAlerts}
         sharedDecisionAutoPromptDebugWindow={sharedDecisionAutoPromptDebugWindow}
         onSharedDecisionFormInteraction={stopAlertBeep}
+        onSharedDecisionAlertSessionAcknowledged={handleSharedDecisionAlertSessionAcknowledged}
         handleWomanFormSubmit={handleWomanFormSubmit}
         handleLabourProgressFormSubmit={handleLabourProgressFormSubmit}
         mutateLabourTimeSetData={mutateLabourTimeSetData}
@@ -1597,6 +1841,8 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
         activeBabyLockUpperFields={isMultipleGestation && deliveredTwinsSet.has(activeBabyTwinIndex)}
         isMultipleGestation={isMultipleGestation}
         hasTwinOneBirthRecorded={hasTwinOneBirthRecorded}
+        correctionAuditDisplay={correctionAuditDisplay}
+        sessionResetAfterMs={sessionResetAfterMs}
       />
 
       <EmergencyEntryModal
@@ -1609,6 +1855,18 @@ const LabourCareGuideContent: React.FC<LabourCareGuideContentProps> = ({ patient
           openEmergencySectionForm(section);
         }}
       />
+
+      {sessionTerminationState ? (
+        <LcgSessionCorrectionWizard
+          isOpen={isCorrectionWizardOpen}
+          onClose={() => setIsCorrectionWizardOpen(false)}
+          sourcePatientUuid={patientUuid}
+          sourcePatient={patient}
+          termination={sessionTerminationState}
+          admissionLocationUuid={admissionEncounter?.location?.uuid}
+          onTransferComplete={handleCorrectionTransferComplete}
+        />
+      ) : null}
     </div>
   );
 };

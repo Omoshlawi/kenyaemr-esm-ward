@@ -7,6 +7,7 @@ import styles from '../partography-data-form.scss';
 import type { BabyEntry } from '../graphs/baby.component';
 import { saveBabyData } from '../resources/baby.resource';
 import { buildWomanScheduleState } from '../woman-schedule-utils';
+import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
   formatMinutesToHHMM,
   getAllowedEmergencyTimes,
@@ -15,7 +16,9 @@ import {
   parseHHMMToMinutes,
   getPointSlotIndexForTime,
   getPointSlotState,
+  getSlotState,
   getStageAwareSlotIndexForTime,
+  formatHHMM,
 } from '../time-slot-utils';
 import {
   LCG_BABY_FIRST_STAGE_FHR_INTERVAL_MINUTES,
@@ -127,7 +130,7 @@ const BabyForm: React.FC<BabyFormProps> = ({
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
-  const [now, setNow] = React.useState(() => new Date());
+  const now = useLcgFormClock(isOpen);
   const showScheduleDebug = process.env.NODE_ENV !== 'production';
 
   const effectiveLowerFieldsTwinIndex = lowerFieldsTwinIndex ?? twinIndex;
@@ -167,32 +170,8 @@ const BabyForm: React.FC<BabyFormProps> = ({
       clearErrors();
       setSaveError(null);
       setSaveSuccess(false);
-      setNow(new Date());
     }
   }, [isOpen, reset, clearErrors]);
-
-  React.useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    setNow(new Date());
-
-    const msUntilNextMinute = 60_000 - (Date.now() % 60_000);
-    let intervalId: number | undefined;
-
-    const timeoutId = window.setTimeout(() => {
-      setNow(new Date());
-      intervalId = window.setInterval(() => setNow(new Date()), 60_000);
-    }, msUntilNextMinute);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
-    };
-  }, [isOpen]);
 
   const hasUpperEntryData = React.useCallback(
     (entry: BabyEntry) => Boolean(entry.baselineFhr || entry.fhrDeceleration),
@@ -252,80 +231,6 @@ const BabyForm: React.FC<BabyFormProps> = ({
     },
     [baseTime, firstStageSlotCount, secondStageSlotCount, secondStageStartTime, slotCount],
   );
-
-  const occupiedUpperSlotKeys = React.useMemo(() => {
-    const occupiedSlots = new Set<string>();
-    if (!baseTime || slotCount === 0) {
-      return occupiedSlots;
-    }
-
-    for (const entry of existingEntries) {
-      if (!hasUpperEntryData(entry)) {
-        continue;
-      }
-
-      const slotKey = getUpperSlotKey(entry.time);
-      if (slotKey !== null) {
-        occupiedSlots.add(slotKey);
-      }
-    }
-
-    return occupiedSlots;
-  }, [baseTime, existingEntries, getUpperSlotKey, hasUpperEntryData, slotCount]);
-
-  const occupiedLowerSlotIndices = React.useMemo(() => {
-    const occupiedSlots = new Set<number>();
-    if (!baseTime || slotCount === 0) {
-      return occupiedSlots;
-    }
-
-    for (const entry of existingEntries) {
-      if (!hasLowerEntryData(entry)) {
-        continue;
-      }
-
-      if (secondStageStartTime && secondStageSlotCount > 0) {
-        const secondStageSegmentIndex = BABY_SECOND_STAGE_LOWER_SLOT_OPTIONS.findIndex(
-          (option) => getPointSlotIndexForTime(secondStageStartTime, entry.time, secondStageSlotCount, option) !== null,
-        );
-        if (secondStageSegmentIndex !== -1) {
-          const secondStageSlotIndex = getPointSlotIndexForTime(
-            secondStageStartTime,
-            entry.time,
-            secondStageSlotCount,
-            BABY_SECOND_STAGE_LOWER_SLOT_OPTIONS[secondStageSegmentIndex],
-          );
-          if (secondStageSlotIndex !== null) {
-            occupiedSlots.add(firstStageSlotCount + secondStageSlotIndex * 10 + secondStageSegmentIndex);
-            continue;
-          }
-        }
-      }
-
-      const slotIndex = getPointSlotIndexForTime(
-        baseTime,
-        entry.time,
-        firstStageSlotCount || slotCount,
-        BABY_BASE_ROW_SLOT_OPTIONS,
-      );
-      const firstStageIndex = getStageAwareSlotIndexForTime(baseTime, entry.time, firstStageSlotCount || slotCount, 0);
-      if (firstStageIndex !== null && firstStageIndex >= 0 && firstStageIndex < (firstStageSlotCount || slotCount)) {
-        occupiedSlots.add(firstStageIndex);
-      } else if (slotIndex !== null) {
-        occupiedSlots.add(slotIndex);
-      }
-    }
-
-    return occupiedSlots;
-  }, [
-    baseTime,
-    existingEntries,
-    firstStageSlotCount,
-    hasLowerEntryData,
-    secondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
 
   const safeFirstStageSlotCount = firstStageSlotCount || slotCount;
   // Use pre-computed column count (1 guideline hour = 1 grid column, scale-independent)
@@ -424,24 +329,20 @@ const BabyForm: React.FC<BabyFormProps> = ({
   ]);
 
   const firstStageAvailableLowerSlotIndices = React.useMemo(() => {
-    if (!baseTime || firstStageLowerCandidateSlotIndex === null || firstStageCurrentSlotIndex === null) {
+    if (!baseTime || firstStageCurrentSlotIndex === null || safeFirstStageSlotCount <= 0) {
       return [];
     }
 
-    // Lower-row catch-up rule:
-    // - If never filled, open current hour slot.
-    // - If filled before, next due is +1h from last lower fill, and when missed it advances hourly.
-    // This is index-driven (hour columns), not a narrow point-window check.
-    if (firstStageCurrentSlotIndex < firstStageLowerCandidateSlotIndex) {
-      return [];
+    if (getSlotState(baseTime, firstStageCurrentSlotIndex, now) === 'active') {
+      return [firstStageCurrentSlotIndex];
     }
 
-    if (occupiedLowerSlotIndices.has(firstStageLowerCandidateSlotIndex)) {
+    if (firstStageLowerCandidateSlotIndex === null || firstStageCurrentSlotIndex < firstStageLowerCandidateSlotIndex) {
       return [];
     }
 
     return [firstStageLowerCandidateSlotIndex];
-  }, [baseTime, firstStageCurrentSlotIndex, firstStageLowerCandidateSlotIndex, occupiedLowerSlotIndices]);
+  }, [baseTime, firstStageCurrentSlotIndex, firstStageLowerCandidateSlotIndex, now, safeFirstStageSlotCount]);
 
   const availableUpperSlotKeys = React.useMemo(() => {
     if (!baseTime || slotCount === 0) {
@@ -454,10 +355,7 @@ const BabyForm: React.FC<BabyFormProps> = ({
       Array.from({ length: secondStageSlotCount }, (_, slotIndex) => slotIndex).forEach((slotIndex) => {
         BABY_SECOND_STAGE_UPPER_SLOT_OPTIONS.forEach((option, segmentIndex) => {
           const slotKey = `second-stage-${segmentIndex}-${slotIndex}`;
-          if (
-            !occupiedUpperSlotKeys.has(slotKey) &&
-            getPointSlotState(secondStageStartTime, slotIndex, now, option) === 'active'
-          ) {
+          if (getPointSlotState(secondStageStartTime, slotIndex, now, option) === 'active') {
             availableSlots.push(slotKey);
           }
         });
@@ -470,32 +368,18 @@ const BabyForm: React.FC<BabyFormProps> = ({
 
     Array.from({ length: firstStageSlotCount || slotCount }, (_, slotIndex) => slotIndex).forEach((slotIndex) => {
       const primaryKey = `primary-${slotIndex}`;
-      if (
-        !occupiedUpperSlotKeys.has(primaryKey) &&
-        getPointSlotState(baseTime, slotIndex, now, BABY_PRIMARY_FHR_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, BABY_PRIMARY_FHR_SLOT_OPTIONS) === 'active') {
         availableSlots.push(primaryKey);
       }
 
       const secondaryKey = `secondary-${slotIndex}`;
-      if (
-        !occupiedUpperSlotKeys.has(secondaryKey) &&
-        getPointSlotState(baseTime, slotIndex, now, BABY_HALF_GRID_SLOT_OPTIONS) === 'active'
-      ) {
+      if (getPointSlotState(baseTime, slotIndex, now, BABY_HALF_GRID_SLOT_OPTIONS) === 'active') {
         availableSlots.push(secondaryKey);
       }
     });
 
     return availableSlots;
-  }, [
-    baseTime,
-    firstStageSlotCount,
-    now,
-    occupiedUpperSlotKeys,
-    secondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
+  }, [baseTime, firstStageSlotCount, now, secondStageSlotCount, secondStageStartTime, slotCount]);
 
   const availableLowerSlotIndices = React.useMemo(() => {
     if (!baseTime || slotCount === 0) {
@@ -508,25 +392,12 @@ const BabyForm: React.FC<BabyFormProps> = ({
           BABY_SECOND_STAGE_LOWER_SLOT_OPTIONS.map((option, segmentIndex) => ({ slotIndex, segmentIndex, option })),
         )
         .filter(({ slotIndex, segmentIndex, option }) => {
-          const occupiedKey = firstStageSlotCount + slotIndex * 10 + segmentIndex;
-          return (
-            !occupiedLowerSlotIndices.has(occupiedKey) &&
-            getPointSlotState(secondStageStartTime, slotIndex, now, option) === 'active'
-          );
+          return getPointSlotState(secondStageStartTime, slotIndex, now, option) === 'active';
         });
     }
 
     return firstStageAvailableLowerSlotIndices;
-  }, [
-    baseTime,
-    firstStageSlotCount,
-    firstStageAvailableLowerSlotIndices,
-    now,
-    occupiedLowerSlotIndices,
-    secondStageSlotCount,
-    secondStageStartTime,
-    slotCount,
-  ]);
+  }, [baseTime, firstStageAvailableLowerSlotIndices, now, secondStageSlotCount, secondStageStartTime, slotCount]);
 
   const upperAllowedTimes = React.useMemo(() => {
     if (isEmergencyMode) {
@@ -645,10 +516,18 @@ const BabyForm: React.FC<BabyFormProps> = ({
     return lowerAllowedTimes[0];
   }, [lowerAllowedTimes]);
 
-  const allowedTimes = React.useMemo(
+  const slotAllowedTimes = React.useMemo(
     () => Array.from(new Set([...lowerAllowedTimes, ...upperAllowedTimes])).sort(),
     [lowerAllowedTimes, upperAllowedTimes],
   );
+
+  const displayAllowedTimes = React.useMemo(() => {
+    if (slotAllowedTimes.length > 0) {
+      return slotAllowedTimes;
+    }
+    const nowHHMM = formatHHMM(now);
+    return nowHHMM ? [nowHHMM] : [];
+  }, [now, slotAllowedTimes]);
 
   const selectedTime = watch('time');
 
@@ -668,9 +547,31 @@ const BabyForm: React.FC<BabyFormProps> = ({
     return lowerAllowedTimes.length > 0;
   }, [lowerAllowedTimes, selectedTime]);
 
-  const isInputLocked = !isEmergencyMode && Boolean(baseTime) && allowedTimes.length === 0;
-  const upperFieldsDisabled = isInputLocked || !selectedAllowsUpper || lockUpperFields;
-  const lowerFieldsDisabled = isInputLocked || !selectedAllowsLower;
+  const isActiveFirstStageGridSlotOpen = React.useMemo(() => {
+    if (!baseTime || firstStageCurrentSlotIndex === null || safeFirstStageSlotCount <= 0) {
+      return false;
+    }
+    if (secondStageStartTime && secondStageSlotCount > 0) {
+      return false;
+    }
+    return getSlotState(baseTime, firstStageCurrentSlotIndex, now) === 'active';
+  }, [baseTime, firstStageCurrentSlotIndex, now, safeFirstStageSlotCount, secondStageSlotCount, secondStageStartTime]);
+
+  const isSelectedTimeInActiveFirstStageGridSlot = React.useMemo(() => {
+    if (!isActiveFirstStageGridSlotOpen || !selectedTime || !baseTime) {
+      return false;
+    }
+    const slotIndex = getStageAwareSlotIndexForTime(baseTime, selectedTime, safeFirstStageSlotCount, 0);
+    return slotIndex === firstStageCurrentSlotIndex;
+  }, [baseTime, firstStageCurrentSlotIndex, isActiveFirstStageGridSlotOpen, safeFirstStageSlotCount, selectedTime]);
+
+  const canEditUpper = isEmergencyMode || selectedAllowsUpper || isActiveFirstStageGridSlotOpen;
+  const canEditLower = isEmergencyMode || selectedAllowsLower || isActiveFirstStageGridSlotOpen;
+
+  const isInputLocked =
+    !isEmergencyMode && Boolean(baseTime) && slotAllowedTimes.length === 0 && !isActiveFirstStageGridSlotOpen;
+  const upperFieldsDisabled = !canEditUpper || lockUpperFields;
+  const lowerFieldsDisabled = !canEditLower;
 
   React.useEffect(() => {
     if (selectedAllowsUpper && !selectedAllowsLower) {
@@ -703,8 +604,8 @@ const BabyForm: React.FC<BabyFormProps> = ({
       return;
     }
 
-    const isUpperTime = upperAllowedTimes.includes(data.time);
-    const isLowerTime = lowerAllowedTimes.includes(data.time);
+    const isUpperTime = upperAllowedTimes.includes(data.time) || isSelectedTimeInActiveFirstStageGridSlot;
+    const isLowerTime = lowerAllowedTimes.includes(data.time) || isSelectedTimeInActiveFirstStageGridSlot;
     const hasUpperInput = Boolean(data.baselineFhr || data.fhrDeceleration);
     const hasLowerInput =
       showLowerFields && Boolean(data.amnioticFluid || data.fetalPosition || data.caput || data.moulding);
@@ -963,30 +864,6 @@ const BabyForm: React.FC<BabyFormProps> = ({
       <Grid className={styles.formGrid}>
         <Column lg={12} md={4} sm={2}>
           <div className={styles.formField}>
-            {baseTime && allowedTimes.length === 0 ? (
-              <InlineNotification
-                kind="warning"
-                title={t('noBabySlotsOpen', 'No baby slot is open')}
-                subtitle={t(
-                  'babyLockedMessage',
-                  'All current baby cells are locked or already filled. Wait for the next allowed time window.',
-                )}
-                hideCloseButton
-              />
-            ) : null}
-            {baseTime && showScheduleDebug ? (
-              <InlineNotification
-                kind="info"
-                title={t('babyLowerScheduleDebug', 'Baby lower schedule debug')}
-                subtitle={t(
-                  'babyLowerScheduleDebugDetails',
-                  `Last lower entry: ${latestFirstStageLowerEntryTime ?? '-'} | Next due (+1h): ${
-                    nextLowerDueTime ?? '-'
-                  } | Current catch-up open: ${currentLowerCatchUpOpenTime ?? '-'}`,
-                )}
-                hideCloseButton
-              />
-            ) : null}
             <Controller
               name="time"
               control={control}
@@ -999,11 +876,10 @@ const BabyForm: React.FC<BabyFormProps> = ({
                     value={field.value}
                     onChange={field.onChange}
                     existingTimeEntries={existingTimeEntries}
-                    allowedTimes={allowedTimes}
-                    currentTime={`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
-                      2,
-                      '0',
-                    )}`}
+                    allowedTimes={displayAllowedTimes}
+                    disablePastTimes={!isEmergencyMode}
+                    currentTime={formatHHMM(now)}
+                    disabled={!baseTime}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}
                   />

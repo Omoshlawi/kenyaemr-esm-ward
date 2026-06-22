@@ -29,13 +29,15 @@ export const isSupportiveAlertValue = (rowKey: SupportiveAlertKey, rawValue: str
     return false;
   }
 
+  const isNoValue = value === 'N' || value === 'NO' || value.includes('1066');
+
   switch (rowKey) {
     case 'posture':
-      return value === 'SP';
+      return value === 'SP' || value.includes('SUPINE');
     case 'companion':
     case 'painRelief':
     case 'oralFluid':
-      return value === 'N';
+      return isNoValue;
     default:
       return false;
   }
@@ -190,9 +192,16 @@ export const isBabyAlertValue = (rowKey: BabyAlertKey, rawValue: string) => {
       return Number.isFinite(numericValue) && (numericValue < 110 || numericValue >= 160);
     }
     case 'fhrDeceleration':
-      return value === 'L';
+      return value === 'L' || value.includes('LATE');
     case 'amnioticFluid':
-      return value === 'M+++' || value === 'B';
+      return (
+        value === 'B' ||
+        value === 'M' ||
+        value === 'M+' ||
+        value === 'M++' ||
+        value === 'M+++' ||
+        value.startsWith('M+')
+      );
     case 'fetalPosition':
       return value === 'P' || value === 'T';
     case 'caput':
@@ -463,4 +472,88 @@ export const getCervixStallTokenGuidance = (t: TFunction, token: string): string
       'Cervical dilation stall: perform a full three-P assessment (powers, passenger, passage). If contractions are inadequate consider amniotomy/oxytocin; if adequate but no progress, evaluate for CPD and prepare for operative delivery.',
     );
   return t('cervixStallTokenGuidancePlaceholder', 'Labour progress alert: review and act.');
+};
+
+// ─── Shared Decision Making assessment prefill ───────────────────────────────
+
+export type SharedDecisionAlertItem = {
+  id?: string;
+  section: string;
+  code: string;
+  guidance: string;
+  timestampCreatedMs?: number;
+};
+
+export type SharedDecisionAssessmentLine = {
+  label: string;
+  comment: string;
+};
+
+export const formatAlertItemAsAssessmentLabel = (item: SharedDecisionAlertItem): string => {
+  const code = String(item.code ?? '').trim();
+  if (!code) {
+    return '';
+  }
+
+  const parenMatch = code.match(/^(.+?)\s+\((.+)\)$/);
+  if (parenMatch) {
+    return `${parenMatch[2].trim()} ${parenMatch[1].trim()}`;
+  }
+
+  const guidancePrefix = item.guidance.match(/^([^:\n]+):/);
+  if (guidancePrefix?.[1]) {
+    return guidancePrefix[1].trim();
+  }
+
+  return code;
+};
+
+export const buildAssessmentPrefillFromAlerts = (items: SharedDecisionAlertItem[]): string => {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+
+  for (const item of items) {
+    if (!item?.code) {
+      continue;
+    }
+
+    const label = formatAlertItemAsAssessmentLabel(item);
+    const dedupeKey = label.toLowerCase();
+    if (!label || seen.has(dedupeKey)) {
+      continue;
+    }
+
+    seen.add(dedupeKey);
+    lines.push(`${label}: `);
+  }
+
+  return lines.join('\n');
+};
+
+export const parseAssessmentValue = (value: string): SharedDecisionAssessmentLine[] => {
+  if (!value.trim()) {
+    return [];
+  }
+
+  return value
+    .split('\n')
+    .map((line) => {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex === -1) {
+        return { label: line.trim(), comment: '' };
+      }
+
+      return {
+        label: line.slice(0, colonIndex).trim(),
+        comment: line.slice(colonIndex + 1).replace(/^\s/, ''),
+      };
+    })
+    .filter((line) => line.label);
+};
+
+export const serializeAssessmentLines = (lines: SharedDecisionAssessmentLine[]): string => {
+  return lines
+    .map(({ label, comment }) => (label ? `${label}: ${comment}` : ''))
+    .filter(Boolean)
+    .join('\n');
 };

@@ -103,6 +103,11 @@ export async function saveMembraneAmnioticFluidData(
   }
 }
 import { openmrsFetch, restBaseUrl, toOmrsIsoString, useConfig } from '@openmrs/esm-framework';
+import {
+  appendPartographyEntry,
+  readPartographyEntries,
+  type PartographyLocalEntry,
+} from './storage/lcg-local-storage';
 import useSWR from 'swr';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -323,13 +328,14 @@ export function usePartographyData(patientUuid: string, graphType: string) {
   );
 
   const finalData = encounters.length > 0 ? encounters : localDataFallback.data || [];
+  const localMutate = localDataFallback.mutate;
 
   const memoizedMutate = useCallback(async () => {
     await mutate();
-    if (localDataFallback.mutate) {
-      await localDataFallback.mutate();
+    if (localMutate) {
+      await localMutate();
     }
-  }, [mutate, localDataFallback]);
+  }, [mutate, localMutate]);
 
   return {
     data: finalData,
@@ -341,10 +347,9 @@ export function usePartographyData(patientUuid: string, graphType: string) {
 
 function loadPartographyData(patientUuid: string, graphType: string): PartographyEncounter[] {
   try {
-    const storageKey = generateStorageKey(patientUuid, graphType);
-    const localData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const localData = readPartographyEntries(patientUuid, graphType);
 
-    const localEncounters = localData.map((item) => ({
+    const localEncounters = localData.map((item: PartographyLocalEntry) => ({
       uuid: item.id,
       encounterDatetime: item.timestamp,
       encounterType: { uuid: 'localStorage', display: 'Partography (Local Storage)' },
@@ -370,6 +375,7 @@ function loadPartographyData(patientUuid: string, graphType: string): Partograph
       (a, b) => new Date(b.encounterDatetime).getTime() - new Date(a.encounterDatetime).getTime(),
     );
   } catch (e) {
+    console.warn('[LCG partography] Failed to load local fallback data.', graphType, e);
     return [];
   }
 }
@@ -594,28 +600,10 @@ async function saveToLocalStorage(
   formData: any,
   encounterUuid?: string,
 ): Promise<void> {
-  const entryId = encounterUuid || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const timestamp = toOmrsIsoString(new Date());
-
-  const dataEntry = {
-    id: entryId,
-    timestamp,
-    graphType,
-    data: formData,
-    encounterUuid,
-  };
-
-  const storageKey = generateStorageKey(patientUuid, graphType);
-  const existingData = JSON.parse(localStorage.getItem(storageKey) || '[]');
-
-  existingData.push(dataEntry);
-
-  const storageConfig = getStorageConfig();
-  if (existingData.length > storageConfig.maxLocalEntries) {
-    existingData.splice(0, existingData.length - storageConfig.maxLocalEntries);
+  const result = await appendPartographyEntry(patientUuid, graphType, formData, encounterUuid);
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to persist partography data locally');
   }
-
-  localStorage.setItem(storageKey, JSON.stringify(existingData));
 }
 
 function buildObservations(graphType: string, formData: any): any[] {

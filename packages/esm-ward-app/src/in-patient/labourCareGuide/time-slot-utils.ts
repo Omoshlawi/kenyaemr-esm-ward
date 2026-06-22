@@ -22,11 +22,29 @@ const LCG_GRID_SLOT_INTERVAL_MINUTES = LCG_TIME_INCREMENT_MINUTES;
 
 export type LcgSlotState = 'pending' | 'active' | 'locked';
 
+export type LcgGridSlotOptions = {
+  slotIntervalMinutes?: number;
+  earlyAllowanceMinutes?: number;
+  lateAllowanceMinutes?: number;
+};
+
 export type LcgPointSlotOptions = {
   slotIntervalMinutes?: number;
   offsetMinutes?: number;
   earlyAllowanceMinutes?: number;
   lateAllowanceMinutes?: number;
+};
+
+export type LcgSlotBounds = {
+  slotStart: number;
+  slotEnd: number;
+};
+
+export type LcgSlotSubmissionValidation = {
+  valid: boolean;
+  slotIndex: number | null;
+  slotState: LcgSlotState | null;
+  errorCode?: 'OUT_OF_RANGE' | 'SLOT_LOCKED' | 'SLOT_PENDING';
 };
 
 export const BABY_BASE_ROW_SLOT_OPTIONS: Required<LcgPointSlotOptions> = {
@@ -84,6 +102,12 @@ export const SHARED_DECISION_ASSESSMENT_SLOT_OPTIONS: Required<LcgPointSlotOptio
 };
 
 const normalizeMinutes = (minutes: number) => ((minutes % MINUTES_IN_DAY) + MINUTES_IN_DAY) % MINUTES_IN_DAY;
+
+const resolveGridSlotOptions = (options?: LcgGridSlotOptions) => ({
+  slotIntervalMinutes: options?.slotIntervalMinutes ?? LCG_GRID_SLOT_INTERVAL_MINUTES,
+  earlyAllowanceMinutes: options?.earlyAllowanceMinutes ?? SUPPORTIVE_CARE_TIME_SLOT_EARLY_ALLOWANCE_MINUTES,
+  lateAllowanceMinutes: options?.lateAllowanceMinutes ?? SUPPORTIVE_CARE_TIME_SLOT_LATE_ALLOWANCE_MINUTES,
+});
 
 const resolvePointSlotOptions = (options?: LcgPointSlotOptions): Required<LcgPointSlotOptions> => ({
   slotIntervalMinutes: options?.slotIntervalMinutes ?? LCG_GRID_SLOT_INTERVAL_MINUTES,
@@ -185,15 +209,27 @@ export const addStepsToHHMM = (hhmm: string, stepIndex: number): string | null =
   return formatMinutesToHHMM(baseMinutes + stepIndex * LCG_GRID_SLOT_INTERVAL_MINUTES);
 };
 
-export const getSlotOffsets = (slotIndex: number) => {
-  const slotStart = slotIndex * LCG_GRID_SLOT_INTERVAL_MINUTES;
-  const slotEnd = slotStart + LCG_GRID_SLOT_INTERVAL_MINUTES;
+export const getGridSlotBounds = (slotIndex: number, options?: LcgGridSlotOptions): LcgSlotBounds => {
+  const { slotIntervalMinutes } = resolveGridSlotOptions(options);
+  const slotStart = slotIndex * slotIntervalMinutes;
+  return { slotStart, slotEnd: slotStart + slotIntervalMinutes };
+};
+
+export const getPointSlotBounds = (slotIndex: number, options?: LcgPointSlotOptions): LcgSlotBounds => {
+  const resolvedOptions = resolvePointSlotOptions(options);
+  const slotStart = resolvedOptions.offsetMinutes + slotIndex * resolvedOptions.slotIntervalMinutes;
+  return { slotStart, slotEnd: slotStart + resolvedOptions.slotIntervalMinutes };
+};
+
+export const getSlotOffsets = (slotIndex: number, options?: LcgGridSlotOptions) => {
+  const { slotIntervalMinutes, earlyAllowanceMinutes, lateAllowanceMinutes } = resolveGridSlotOptions(options);
+  const { slotStart, slotEnd } = getGridSlotBounds(slotIndex, options);
 
   return {
     slotStart,
     slotEnd,
-    opensAt: slotStart - SUPPORTIVE_CARE_TIME_SLOT_EARLY_ALLOWANCE_MINUTES,
-    closesAt: slotEnd + SUPPORTIVE_CARE_TIME_SLOT_LATE_ALLOWANCE_MINUTES,
+    opensAt: slotStart - earlyAllowanceMinutes,
+    closesAt: slotEnd + lateAllowanceMinutes,
   };
 };
 
@@ -218,13 +254,18 @@ export const getCurrentRelativeMinutes = (baseTime: string, now: Date) => {
   return toBaseRelativeMinutes(baseMinutes, now.getHours() * 60 + now.getMinutes());
 };
 
-export const getSlotState = (baseTime: string, slotIndex: number, now: Date): LcgSlotState | null => {
+export const getSlotState = (
+  baseTime: string,
+  slotIndex: number,
+  now: Date,
+  options?: LcgGridSlotOptions,
+): LcgSlotState | null => {
   const currentRelativeMinutes = getCurrentRelativeMinutes(baseTime, now);
   if (currentRelativeMinutes === null) {
     return null;
   }
 
-  const { opensAt, closesAt } = getSlotOffsets(slotIndex);
+  const { opensAt, closesAt } = getSlotOffsets(slotIndex, options);
   if (currentRelativeMinutes < opensAt) {
     return 'pending';
   }
@@ -255,28 +296,30 @@ export const getPointSlotState = (
   return 'active';
 };
 
-export const getSlotIndexForTime = (baseTime: string, time: string, slotCount: number): number | null => {
+export const getSlotIndexForTime = (
+  baseTime: string,
+  time: string,
+  slotCount: number,
+  options?: LcgGridSlotOptions,
+): number | null => {
+  const { earlyAllowanceMinutes, slotIntervalMinutes } = resolveGridSlotOptions(options);
   const baseMinutes = parseHHMMToMinutes(baseTime);
   const targetMinutes = parseHHMMToMinutes(time);
   if (baseMinutes === null || targetMinutes === null) {
     return null;
   }
 
-  const relativeMinutes = toBaseRelativeMinutes(
-    baseMinutes,
-    targetMinutes,
-    SUPPORTIVE_CARE_TIME_SLOT_EARLY_ALLOWANCE_MINUTES,
-  );
+  const relativeMinutes = toBaseRelativeMinutes(baseMinutes, targetMinutes, earlyAllowanceMinutes);
 
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
-    const { slotStart, slotEnd } = getSlotOffsets(slotIndex);
+    const { slotStart, slotEnd } = getGridSlotBounds(slotIndex, options);
     if (relativeMinutes >= slotStart && relativeMinutes < slotEnd) {
       return slotIndex;
     }
   }
 
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
-    const { opensAt, closesAt } = getSlotOffsets(slotIndex);
+    const { opensAt, closesAt } = getSlotOffsets(slotIndex, options);
     if (relativeMinutes >= opensAt && relativeMinutes < closesAt) {
       return slotIndex;
     }
@@ -531,7 +574,13 @@ export const getAllowedEmergencyTimes = (now: Date): string[] => {
   return allowedTimes;
 };
 
-export const getAllowedTimesForSlots = (baseTime: string, activeIndices: number[], _now: Date) => {
+export const getAllowedTimesForSlots = (
+  baseTime: string,
+  activeIndices: number[],
+  _now: Date,
+  options?: LcgGridSlotOptions,
+) => {
+  const { slotIntervalMinutes, earlyAllowanceMinutes, lateAllowanceMinutes } = resolveGridSlotOptions(options);
   const baseMinutes = parseHHMMToMinutes(baseTime);
 
   if (baseMinutes === null) {
@@ -540,30 +589,27 @@ export const getAllowedTimesForSlots = (baseTime: string, activeIndices: number[
 
   const nowRelativeMinutes = getCurrentRelativeMinutes(baseTime, _now);
   const allowedTimes = new Set<string>();
-  const useExactSlotTimeOnly =
-    (SUPPORTIVE_CARE_TIME_SLOT_EARLY_ALLOWANCE_MINUTES as number) === 0 &&
-    (SUPPORTIVE_CARE_TIME_SLOT_LATE_ALLOWANCE_MINUTES as number) === 0;
+  const useExactSlotTimeOnly = earlyAllowanceMinutes === 0 && lateAllowanceMinutes === 0;
 
   activeIndices.forEach((idx) => {
-    const slotTargetMinutes = baseMinutes + idx * LCG_GRID_SLOT_INTERVAL_MINUTES;
+    const slotTargetMinutes = baseMinutes + idx * slotIntervalMinutes;
 
     if (useExactSlotTimeOnly) {
-      // With zero allowances, still open the slot's full natural duration (not just 1 minute).
-      for (let minute = slotTargetMinutes; minute < slotTargetMinutes + LCG_GRID_SLOT_INTERVAL_MINUTES; minute += 1) {
+      for (let minute = slotTargetMinutes; minute < slotTargetMinutes + slotIntervalMinutes; minute += 1) {
         allowedTimes.add(formatMinutesToHHMM(minute));
       }
       return;
     }
 
-    const slotRelativeMinutes = idx * LCG_GRID_SLOT_INTERVAL_MINUTES;
+    const slotRelativeMinutes = idx * slotIntervalMinutes;
     const isCurrentOrPastActiveSlot = nowRelativeMinutes !== null && slotRelativeMinutes <= nowRelativeMinutes;
 
     const rangeStart = isCurrentOrPastActiveSlot
-      ? Math.max(slotTargetMinutes - SUPPORTIVE_CARE_TIME_SLOT_EARLY_ALLOWANCE_MINUTES, baseMinutes)
+      ? Math.max(slotTargetMinutes - earlyAllowanceMinutes, baseMinutes)
       : slotTargetMinutes;
     const rangeEnd = isCurrentOrPastActiveSlot
-      ? slotTargetMinutes + LCG_GRID_SLOT_INTERVAL_MINUTES - 1 + SUPPORTIVE_CARE_TIME_SLOT_LATE_ALLOWANCE_MINUTES
-      : slotTargetMinutes + SUPPORTIVE_CARE_TIME_SLOT_LATE_ALLOWANCE_MINUTES;
+      ? slotTargetMinutes + slotIntervalMinutes - 1 + lateAllowanceMinutes
+      : slotTargetMinutes + lateAllowanceMinutes;
 
     for (let minute = rangeStart; minute <= rangeEnd; minute += 1) {
       allowedTimes.add(formatMinutesToHHMM(minute));
@@ -640,4 +686,112 @@ export const getAllowedPointTimesForSlots = (
       toBaseRelativeMinutes(baseMinutes, rightMinutes, allowedNegativeMinutes)
     );
   });
+};
+
+/** Rejects submissions whose timestamp maps to a slot that has already closed. */
+export const validateGridSlotSubmission = (
+  baseTime: string,
+  submissionTime: string,
+  now: Date,
+  slotCount: number,
+  options?: LcgGridSlotOptions,
+): LcgSlotSubmissionValidation => {
+  const slotIndex = getSlotIndexForTime(baseTime, submissionTime, slotCount, options);
+  if (slotIndex === null) {
+    return { valid: false, slotIndex: null, slotState: null, errorCode: 'OUT_OF_RANGE' };
+  }
+
+  const slotState = getSlotState(baseTime, slotIndex, now, options);
+  if (slotState === 'locked') {
+    return { valid: false, slotIndex, slotState, errorCode: 'SLOT_LOCKED' };
+  }
+  if (slotState === 'pending') {
+    return { valid: false, slotIndex, slotState, errorCode: 'SLOT_PENDING' };
+  }
+
+  return { valid: true, slotIndex, slotState };
+};
+
+/** Rejects point-slot submissions whose timestamp maps to a slot that has already closed. */
+export const validatePointSlotSubmission = (
+  baseTime: string,
+  submissionTime: string,
+  now: Date,
+  slotCount: number,
+  options?: LcgPointSlotOptions,
+): LcgSlotSubmissionValidation => {
+  const slotIndex = getPointSlotIndexForTime(baseTime, submissionTime, slotCount, options);
+  if (slotIndex === null) {
+    return { valid: false, slotIndex: null, slotState: null, errorCode: 'OUT_OF_RANGE' };
+  }
+
+  const slotState = getPointSlotState(baseTime, slotIndex, now, options);
+  if (slotState === 'locked') {
+    return { valid: false, slotIndex, slotState, errorCode: 'SLOT_LOCKED' };
+  }
+  if (slotState === 'pending') {
+    return { valid: false, slotIndex, slotState, errorCode: 'SLOT_PENDING' };
+  }
+
+  return { valid: true, slotIndex, slotState };
+};
+
+/** Validates grid-slot submissions across first/second stage boundaries. */
+export const validateStageAwareGridSlotSubmission = (
+  baseTime: string,
+  submissionTime: string,
+  now: Date,
+  firstStageSlotCount: number,
+  secondStageSlotCount: number,
+  secondStageStartTime?: string,
+  options?: LcgGridSlotOptions,
+): LcgSlotSubmissionValidation => {
+  const stageAwareIndex = getStageAwareSlotIndexForTime(
+    baseTime,
+    submissionTime,
+    firstStageSlotCount,
+    secondStageSlotCount,
+    secondStageStartTime,
+  );
+
+  if (stageAwareIndex === null) {
+    return { valid: false, slotIndex: null, slotState: null, errorCode: 'OUT_OF_RANGE' };
+  }
+
+  const isSecondStage =
+    Boolean(secondStageStartTime) && secondStageSlotCount > 0 && stageAwareIndex >= firstStageSlotCount;
+
+  if (isSecondStage) {
+    return validateGridSlotSubmission(secondStageStartTime!, submissionTime, now, secondStageSlotCount, options);
+  }
+
+  return validateGridSlotSubmission(baseTime, submissionTime, now, firstStageSlotCount, options);
+};
+
+export const getEntrySortTimestamp = (entry: { encounterDatetime?: string; time?: string }) => {
+  const encounterMs = entry.encounterDatetime ? new Date(entry.encounterDatetime).getTime() : Number.NaN;
+  if (Number.isFinite(encounterMs)) {
+    return encounterMs;
+  }
+
+  const timeMinutes = parseHHMMToMinutes(entry.time ?? '');
+  return timeMinutes ?? 0;
+};
+
+/** Groups entries by slot key; the last entry in chronological order wins. */
+export const pickLatestEntryPerSlot = <T extends { encounterDatetime?: string; time?: string }>(
+  entries: T[],
+  getSlotKey: (entry: T) => string | number | null,
+): Map<string | number, T> => {
+  const mapped = new Map<string | number, T>();
+  const sorted = [...entries].sort((left, right) => getEntrySortTimestamp(left) - getEntrySortTimestamp(right));
+
+  for (const entry of sorted) {
+    const slotKey = getSlotKey(entry);
+    if (slotKey !== null) {
+      mapped.set(slotKey, entry);
+    }
+  }
+
+  return mapped;
 };

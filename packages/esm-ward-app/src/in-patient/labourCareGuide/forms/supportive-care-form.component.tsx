@@ -5,12 +5,14 @@ import { Modal, Grid, Column, Select, SelectItem, InlineNotification } from '@ca
 import { SupportiveCareTimePickerDropdown } from './form-scoped-time-pickers.component';
 import styles from '../partography-data-form.scss';
 import { saveSupportiveCareData, SUPPORTIVE_CARE_OPTIONS } from '../resources/supportive-care.resource';
+import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
   getAllowedEmergencyTimes,
   getSlotIndexForTime,
   getSlotState,
   getAllowedTimesForSlots,
   getStageAwareSlotIndexForTime,
+  formatHHMM,
 } from '../time-slot-utils';
 
 export type SupportiveCareFormData = {
@@ -61,7 +63,7 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
-  const [now, setNow] = React.useState(() => new Date());
+  const now = useLcgFormClock(isOpen);
 
   const {
     control,
@@ -78,13 +80,6 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
   const selectedTime = watch('time');
 
   React.useEffect(() => {
-    if (!isOpen) return;
-    setNow(new Date());
-    const intervalId = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(intervalId);
-  }, [isOpen]);
-
-  React.useEffect(() => {
     if (isOpen) {
       reset({ time: '', companion: '', painRelief: '', oralFluid: '', posture: '' });
       clearErrors();
@@ -92,23 +87,6 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
       setSaveSuccess(false);
     }
   }, [isOpen, reset, clearErrors]);
-
-  const occupiedSlotIndices = React.useMemo(() => {
-    const occupied = new Set<number>();
-    if (!baseTime || slotCount === 0) return occupied;
-    existingTimeEntries.forEach((entry) => {
-      const idx =
-        getStageAwareSlotIndexForTime(
-          baseTime,
-          entry.time,
-          firstStageSlotCount || slotCount,
-          secondStageSlotCount,
-          secondStageStartTime,
-        ) ?? getSlotIndexForTime(baseTime, entry.time, slotCount);
-      if (idx !== null) occupied.add(idx);
-    });
-    return occupied;
-  }, [baseTime, existingTimeEntries, firstStageSlotCount, secondStageSlotCount, secondStageStartTime, slotCount]);
 
   const availableSlotIndices = React.useMemo(() => {
     if (!baseTime || slotCount === 0) return [];
@@ -124,19 +102,18 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
 
       if (currentSlotIndex !== null && currentSlotIndex >= firstStageSlotCount) {
         const relativeSecondStageIndex = currentSlotIndex - firstStageSlotCount;
-        return occupiedSlotIndices.has(currentSlotIndex) ? [] : [relativeSecondStageIndex];
+        return getSlotState(secondStageStartTime, relativeSecondStageIndex, now) === 'active'
+          ? [relativeSecondStageIndex]
+          : [];
       }
     }
 
-    return Array.from({ length: slotCount }, (_, i) => i).filter((idx) => {
-      const isOccupied = occupiedSlotIndices.has(idx);
-      if (isOccupied) return false;
+    return Array.from({ length: slotCount }, (_, i) => i).filter(
+      (idx) => getSlotState(baseTime, idx, now) === 'active',
+    );
+  }, [baseTime, firstStageSlotCount, now, secondStageSlotCount, secondStageStartTime, slotCount]);
 
-      return getSlotState(baseTime, idx, now) === 'active';
-    });
-  }, [baseTime, firstStageSlotCount, now, occupiedSlotIndices, secondStageSlotCount, secondStageStartTime, slotCount]);
-
-  const allowedTimes = React.useMemo(() => {
+  const slotAllowedTimes = React.useMemo(() => {
     if (isEmergencyMode) {
       return getAllowedEmergencyTimes(now);
     }
@@ -152,10 +129,6 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
 
       if (currentSlotIndex !== null && currentSlotIndex >= firstStageSlotCount) {
         const relativeSecondStageIndex = currentSlotIndex - firstStageSlotCount;
-        if (occupiedSlotIndices.has(currentSlotIndex)) {
-          return [];
-        }
-
         return getAllowedTimesForSlots(secondStageStartTime, [relativeSecondStageIndex], now);
       }
     }
@@ -170,35 +143,20 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
     firstStageSlotCount,
     isEmergencyMode,
     now,
-    occupiedSlotIndices,
     secondStageSlotCount,
     secondStageStartTime,
   ]);
 
-  const isBaseLocked = !isEmergencyMode && (!baseTime || allowedTimes.length === 0);
+  const displayAllowedTimes = React.useMemo(() => {
+    const nowHHMM = formatHHMM(now);
+    if (slotAllowedTimes.length > 0) {
+      return slotAllowedTimes;
+    }
+    return nowHHMM ? [nowHHMM] : [];
+  }, [now, slotAllowedTimes]);
+
+  const isBaseLocked = !isEmergencyMode && (!baseTime || slotAllowedTimes.length === 0);
   const areFieldsEnabled = !isBaseLocked && !!selectedTime;
-
-  const selectedSlotIsOccupied = React.useMemo(() => {
-    if (!isEmergencyMode || !selectedTime || !baseTime) return false;
-    const idx =
-      getStageAwareSlotIndexForTime(
-        baseTime,
-        selectedTime,
-        firstStageSlotCount || slotCount,
-        secondStageSlotCount,
-        secondStageStartTime,
-      ) ?? getSlotIndexForTime(baseTime, selectedTime, slotCount);
-    return idx !== null && occupiedSlotIndices.has(idx);
-  }, [
-    baseTime,
-    firstStageSlotCount,
-    isEmergencyMode,
-    occupiedSlotIndices,
-    secondStageSlotCount,
-    secondStageStartTime,
-    selectedTime,
-    slotCount,
-  ]);
 
   const handleFormSubmit = async (data: SupportiveCareFormData) => {
     clearErrors();
@@ -218,7 +176,6 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
     if (
       !isEmergencyMode &&
       (stageAwareSlotIndex === null ||
-        occupiedSlotIndices.has(stageAwareSlotIndex) ||
         getSlotState(
           secondStageStartTime && secondStageSlotCount > 0 && stageAwareSlotIndex >= firstStageSlotCount
             ? secondStageStartTime!
@@ -252,6 +209,15 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
       if (!patient?.uuid) throw new Error('Patient UUID missing');
       const result = await saveSupportiveCareData(patient.uuid, data, t, undefined, undefined, {
         emergencyReason: isEmergencyMode ? emergencyReason : undefined,
+        lcgValidation: baseTime
+          ? {
+              baseTime,
+              slotCount,
+              firstStageSlotCount,
+              secondStageSlotCount,
+              secondStageStartTime,
+            }
+          : undefined,
       });
 
       if (!result.success) {
@@ -294,15 +260,6 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
         />
       )}
 
-      {isBaseLocked && baseTime && (
-        <InlineNotification
-          kind="warning"
-          title={t('formLocked', 'Entry Window Closed')}
-          subtitle={t('lockedMsg', 'No slots available. Data can only be entered at the exact slot time.')}
-          hideCloseButton
-        />
-      )}
-
       {isEmergencyMode ? (
         <InlineNotification
           kind="warning"
@@ -315,18 +272,6 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
           hideCloseButton
         />
       ) : null}
-
-      {selectedSlotIsOccupied && (
-        <InlineNotification
-          kind="warning"
-          title={t('slotOccupied', 'Time slot already has data')}
-          subtitle={t(
-            'slotOccupiedMsg',
-            'This time slot already contains an entry. The emergency override will record data alongside the existing entry.',
-          )}
-          hideCloseButton
-        />
-      )}
 
       <Grid className={styles.formGrid}>
         <Column lg={12} md={4} sm={2}>
@@ -341,12 +286,10 @@ const SupportiveCareForm: React.FC<SupportiveCareFormProps> = ({
                     id="supportive-time-picker"
                     value={field.value}
                     onChange={field.onChange}
-                    allowedTimes={allowedTimes}
-                    currentTime={`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
-                      2,
-                      '0',
-                    )}`}
-                    disabled={isBaseLocked}
+                    allowedTimes={displayAllowedTimes}
+                    disablePastTimes={!isEmergencyMode}
+                    currentTime={formatHHMM(now)}
+                    disabled={!baseTime}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}
                     labelText=""

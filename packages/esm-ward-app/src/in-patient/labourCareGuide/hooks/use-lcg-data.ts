@@ -12,10 +12,13 @@ import {
   useSharedDecisionMakingData,
   type SharedDecisionMakingEntry,
 } from '../resources/shared-decision-making.resource';
+import { buildSessionTerminationState, useLcgCorrectionAudit } from '../resources/lcg-session-correction.resource';
 import { createPartographyEncounter, usePartographyData } from '../partography.resource';
 import type { WomanLocalEntry } from '../graphs/woman.component';
 import type { LabourProgressEntry } from '../graphs/labour-progress.component';
 import type { LabourProgressFormData } from '../forms/labour-progress-form.component';
+import { useLcgAllSectionEntries } from '../context/lcg-section-state.context';
+import { useLcgDebouncedValue } from './use-lcg-debounced-value';
 import {
   acetoneLabelToConceptValue,
   LCG_CERVIX_FIRST_STAGE_LAG_HOURS_BY_DILATION,
@@ -32,13 +35,28 @@ import {
   activeFirstStageHours,
   getEncounterObsValue,
   getEncounterRecordedTime,
+  getLabourContractionObsFromEncounter,
+  isEncounterAfterSessionReset,
   parseCervicalDilationValue,
   parseDescentOfHeadValue,
   parseUrgeToPushValue,
   resolveBirthActionLabel,
+  resolveAlertCreatedTimeMs,
+  resolveEntryTimeMs,
   resolveStopActionLabel,
   secondStageHours,
 } from '../labour-care-guide.utils';
+import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from '../constants/admission-form.constants';
+import {
+  buildLcgAlertId,
+  computeLcgAlertActivationMs,
+  getLastAcknowledgedMsForPeriod,
+  getLcgHourlyCellBoundsForEntry,
+  isLcgAlertObservationActive,
+  isLcgAlertWithinHourlyCell,
+  isLcgMicroSessionPromptRetired,
+  shouldFireLcgAlertAlarm,
+} from '../lcg-alert-lifecycle';
 import {
   getBabyAlertTokenGuidance,
   getBabyAlertTokens,
@@ -49,6 +67,7 @@ import {
   getSupportiveAlertTokens,
   getWomanAlertTokenGuidance,
   getWomanAlertTokens,
+  type SharedDecisionAlertItem,
   type WomanAlertEntryLike,
 } from '../alert-rules';
 
@@ -72,20 +91,22 @@ const formatAcetoneForAlert = (raw?: string): string => {
   return '';
 };
 
-type SharedDecisionPromptItem = { section: string; code: string; guidance: string };
+type SharedDecisionPromptItem = SharedDecisionAlertItem;
 
 type CdsPendingAlertPayload = {
   triggerTimeMs: number;
-  activatesAtMs: number;
+  activatesAtMs: number | null;
   expiresAtMs: number;
+  periodStartMs: number;
   summary: string;
   items: SharedDecisionPromptItem[];
 };
 
 type SharedDecisionPromptCandidate = {
   triggerTimeMs: number;
-  activatesAtMs: number;
+  activatesAtMs: number | null;
   expiresAtMs: number;
+  periodStartMs: number;
   summaryParts: string[];
   items: SharedDecisionPromptItem[];
 };
@@ -109,38 +130,18 @@ const buildSharedDecisionMergeKey = (entry: SharedDecisionMakingEntry) =>
     entry.plan?.trim() ?? ''
   }|${normalizeSharedDecisionMakingAction(entry.action)}`;
 
-const resolveEntryTimeMs = (entry: { encounterDatetime?: string; time?: string }) => {
-  const encounterDate = new Date(entry.encounterDatetime ?? Date.now());
-  const resolvedTime = entry.time?.trim();
+const getSharedDecisionEntryTimesMs = (entries: SharedDecisionMakingEntry[]) =>
+  entries
+    .filter(hasSharedDecisionContent)
+    .map((entry) => resolveAlertCreatedTimeMs(entry))
+    .filter((entryTimeMs): entryTimeMs is number => entryTimeMs !== null);
 
-  if (!resolvedTime) {
-    const fallbackTime = encounterDate.getTime();
-    return Number.isFinite(fallbackTime) ? fallbackTime : null;
-  }
-
-  const [hours, minutes] = resolvedTime.split(':').map(Number);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
-    return null;
-  }
-
-  const entryDate = new Date(encounterDate);
-  entryDate.setHours(hours, minutes, 0, 0);
-  const entryTimeMs = entryDate.getTime();
-
-  return Number.isFinite(entryTimeMs) ? entryTimeMs : null;
+type UseLcgDataOptions = {
+  sessionResetAfterMs?: number | null;
 };
 
-const getEntryPeriodStartMs = (entry: { encounterDatetime?: string; time?: string }) => {
-  const entryTimeMs = resolveEntryTimeMs(entry);
-  if (entryTimeMs === null) {
-    return null;
-  }
-
-  const periodMs = LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
-  return Math.floor(entryTimeMs / periodMs) * periodMs;
-};
-
-export function useLcgData(patientUuid: string) {
+export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {}) {
+  const sessionResetAfterMs = options.sessionResetAfterMs ?? null;
   const { t } = useTranslation();
 
   const [isTimeFormOpen, setIsTimeFormOpen] = React.useState(false);
@@ -156,16 +157,24 @@ export function useLcgData(patientUuid: string) {
     [],
   );
   const [lastAutoPromptKey, setLastAutoPromptKey] = React.useState<string | null>(null);
+  const alertSessionAcknowledgedAtMsRef = React.useRef<Map<number, number>>(new Map());
+  const [alertSessionVersion, setAlertSessionVersion] = React.useState(0);
   const [isAdmissionDetailsFormOpen, setIsAdmissionDetailsFormOpen] = React.useState(false);
   const [labourProgressRefreshToken, setLabourProgressRefreshToken] = React.useState(0);
-  const [localSupportiveCareEntries, setLocalSupportiveCareEntries] = React.useState<SupportiveCareEntry[]>([]);
-  const [localMedicationEntries, setLocalMedicationEntries] = React.useState<MedicationEntry[]>([]);
-  const [localBabyEntries, setLocalBabyEntries] = React.useState<BabyEntry[]>([]);
-  const [localLabourProgressEntries, setLocalLabourProgressEntries] = React.useState<LabourProgressEntry[]>([]);
-  const [localWomanEntries, setLocalWomanEntries] = React.useState<WomanLocalEntry[]>([]);
-  const [localSharedDecisionMakingEntries, setLocalSharedDecisionMakingEntries] = React.useState<
-    SharedDecisionMakingEntry[]
-  >([]);
+  const {
+    localSupportiveCareEntries,
+    setLocalSupportiveCareEntries,
+    localMedicationEntries,
+    setLocalMedicationEntries,
+    localBabyEntries,
+    setLocalBabyEntries,
+    localLabourProgressEntries,
+    setLocalLabourProgressEntries,
+    localWomanEntries,
+    setLocalWomanEntries,
+    localSharedDecisionMakingEntries,
+    setLocalSharedDecisionMakingEntries,
+  } = useLcgAllSectionEntries();
   const [admissionDetails, setAdmissionDetails] = React.useState<AdmissionDetailsState>({
     labourOnset: '',
     activeLabourDiagnosisDate: '',
@@ -179,44 +188,177 @@ export function useLcgData(patientUuid: string) {
 
   const { admissionData, mutate: mutateAdmissionDetails } = useAdmissionDetails(patientUuid);
   const admissionRiskFactorCodes = React.useMemo(() => admissionData?.riskFactors ?? [], [admissionData]);
-  const { labourTimeSetData, mutate: mutateLabourTimeSetData } = useLabourTimeSetData(patientUuid, true);
-  const { babyEntries, mutate: mutateBabyData } = useBabyData(patientUuid, true);
-  const { medicationEntries, mutate: mutateMedicationData } = useMedicationData(patientUuid);
-  const { supportiveCareEntries, mutate: mutateSupportiveCareData } = useSupportiveCareData(patientUuid, true);
-  const { entries: sharedDecisionMakingEntries, mutate: mutateSharedDecisionMakingData } = useSharedDecisionMakingData(
+  const { labourTimeSetData: rawLabourTimeSetData, mutate: mutateLabourTimeSetData } = useLabourTimeSetData(
     patientUuid,
     true,
   );
-  const { data: womanPulseBpEncounters = [] } = usePartographyData(patientUuid, 'pulse-bp-combined');
-  const { data: womanTemperatureEncounters = [] } = usePartographyData(patientUuid, 'temperature');
-  const { data: womanUrineEncounters = [] } = usePartographyData(patientUuid, 'urine-analysis');
-  const { data: labourContractionEncounters = [] } = usePartographyData(patientUuid, 'uterine-contractions');
-  const { data: cervicalEncounters = [] } = usePartographyData(patientUuid, 'cervical-dilation');
-  const { data: labourDescentEncounters = [] } = usePartographyData(patientUuid, 'descent-of-head');
+  const labourTimeSetData = React.useMemo(
+    () =>
+      rawLabourTimeSetData.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawLabourTimeSetData, sessionResetAfterMs],
+  );
+  const { babyEntries: rawBabyEntries, mutate: mutateBabyData } = useBabyData(patientUuid, true);
+  const babyEntries = React.useMemo(
+    () => rawBabyEntries.filter((entry) => isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs)),
+    [rawBabyEntries, sessionResetAfterMs],
+  );
+  const { medicationEntries: rawMedicationEntries, mutate: mutateMedicationData } = useMedicationData(patientUuid);
+  const medicationEntries = React.useMemo(
+    () =>
+      rawMedicationEntries.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawMedicationEntries, sessionResetAfterMs],
+  );
+  const { supportiveCareEntries: rawSupportiveCareEntries, mutate: mutateSupportiveCareData } = useSupportiveCareData(
+    patientUuid,
+    true,
+  );
+  const supportiveCareEntries = React.useMemo(
+    () =>
+      rawSupportiveCareEntries.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawSupportiveCareEntries, sessionResetAfterMs],
+  );
+  const { entries: rawSharedDecisionMakingEntries, mutate: mutateSharedDecisionMakingData } =
+    useSharedDecisionMakingData(patientUuid, true);
+  const sharedDecisionMakingEntries = React.useMemo(
+    () =>
+      rawSharedDecisionMakingEntries.filter((entry) =>
+        isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawSharedDecisionMakingEntries, sessionResetAfterMs],
+  );
+  const { auditRecord: correctionAuditRecord, mutate: mutateCorrectionAudit } = useLcgCorrectionAudit(patientUuid);
+  const { data: rawWomanPulseBpEncounters = [], mutate: mutateWomanPartographyData } = usePartographyData(
+    patientUuid,
+    'pulse-bp-combined',
+  );
+  const womanPulseBpEncounters = React.useMemo(
+    () =>
+      rawWomanPulseBpEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawWomanPulseBpEncounters, sessionResetAfterMs],
+  );
+  const { data: rawWomanTemperatureEncounters = [] } = usePartographyData(patientUuid, 'temperature');
+  const womanTemperatureEncounters = React.useMemo(
+    () =>
+      rawWomanTemperatureEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawWomanTemperatureEncounters, sessionResetAfterMs],
+  );
+  const { data: rawWomanUrineEncounters = [] } = usePartographyData(patientUuid, 'urine-analysis');
+  const womanUrineEncounters = React.useMemo(
+    () =>
+      rawWomanUrineEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawWomanUrineEncounters, sessionResetAfterMs],
+  );
+  const { data: rawLabourContractionEncounters = [] } = usePartographyData(patientUuid, 'uterine-contractions');
+  const labourContractionEncounters = React.useMemo(
+    () =>
+      rawLabourContractionEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawLabourContractionEncounters, sessionResetAfterMs],
+  );
+  const { data: rawCervicalEncounters = [] } = usePartographyData(patientUuid, 'cervical-dilation');
+  const cervicalEncounters = React.useMemo(
+    () =>
+      rawCervicalEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawCervicalEncounters, sessionResetAfterMs],
+  );
+  const { data: rawLabourDescentEncounters = [] } = usePartographyData(patientUuid, 'descent-of-head');
+  const labourDescentEncounters = React.useMemo(
+    () =>
+      rawLabourDescentEncounters.filter((encounter: any) =>
+        isEncounterAfterSessionReset(encounter?.encounterDatetime, sessionResetAfterMs),
+      ),
+    [rawLabourDescentEncounters, sessionResetAfterMs],
+  );
+
+  const activeLocalMedicationEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localMedicationEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localMedicationEntries,
+    [localMedicationEntries, sessionResetAfterMs],
+  );
+  const activeLocalSupportiveCareEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localSupportiveCareEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localSupportiveCareEntries,
+    [localSupportiveCareEntries, sessionResetAfterMs],
+  );
+  const activeLocalBabyEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localBabyEntries.filter((entry) => isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs))
+        : localBabyEntries,
+    [localBabyEntries, sessionResetAfterMs],
+  );
+  const activeLocalSharedDecisionMakingEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localSharedDecisionMakingEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localSharedDecisionMakingEntries,
+    [localSharedDecisionMakingEntries, sessionResetAfterMs],
+  );
+  const activeLocalLabourProgressEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localLabourProgressEntries.filter((entry) =>
+            isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs),
+          )
+        : localLabourProgressEntries,
+    [localLabourProgressEntries, sessionResetAfterMs],
+  );
+  const activeLocalWomanEntries = React.useMemo(
+    () =>
+      sessionResetAfterMs
+        ? localWomanEntries.filter((entry) => isEncounterAfterSessionReset(entry.recordedAt, sessionResetAfterMs))
+        : localWomanEntries,
+    [localWomanEntries, sessionResetAfterMs],
+  );
 
   const mergedMedicationEntries = React.useMemo(() => {
     const merged = new Map<string, MedicationEntry>();
-    for (const entry of [...medicationEntries, ...localMedicationEntries]) {
+    for (const entry of [...medicationEntries, ...activeLocalMedicationEntries]) {
       merged.set(entry.id, entry);
     }
     return Array.from(merged.values()).sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [medicationEntries, localMedicationEntries]);
+  }, [medicationEntries, activeLocalMedicationEntries]);
 
   const mergedSupportiveCareEntries = React.useMemo(() => {
     const merged = new Map<string, SupportiveCareEntry>();
-    for (const entry of [...supportiveCareEntries, ...localSupportiveCareEntries]) {
+    for (const entry of [...supportiveCareEntries, ...activeLocalSupportiveCareEntries]) {
       merged.set(entry.id, entry);
     }
     return Array.from(merged.values()).sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [supportiveCareEntries, localSupportiveCareEntries]);
+  }, [supportiveCareEntries, activeLocalSupportiveCareEntries]);
 
   const mergedBabyEntries = React.useMemo(() => {
     const merged = new Map<string, BabyEntry>();
-    const orderedEntries = [...babyEntries, ...localBabyEntries].sort(
+    const orderedEntries = [...babyEntries, ...activeLocalBabyEntries].sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
 
@@ -246,14 +388,14 @@ export function useLcgData(patientUuid: string) {
     return Array.from(merged.values()).sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [babyEntries, localBabyEntries]);
+  }, [babyEntries, activeLocalBabyEntries]);
 
   const mergedSharedDecisionMakingEntries = React.useMemo(() => {
     const normalizedApiEntries = sharedDecisionMakingEntries.map((entry) => ({
       ...entry,
       action: normalizeSharedDecisionMakingAction(entry.action),
     }));
-    const normalizedLocalEntries = localSharedDecisionMakingEntries.map((entry) => ({
+    const normalizedLocalEntries = activeLocalSharedDecisionMakingEntries.map((entry) => ({
       ...entry,
       action: normalizeSharedDecisionMakingAction(entry.action),
     }));
@@ -271,7 +413,7 @@ export function useLcgData(patientUuid: string) {
     return [...normalizedApiEntries, ...unsyncedLocalEntries].sort(
       (a, b) => new Date(a.encounterDatetime).getTime() - new Date(b.encounterDatetime).getTime(),
     );
-  }, [sharedDecisionMakingEntries, localSharedDecisionMakingEntries]);
+  }, [sharedDecisionMakingEntries, activeLocalSharedDecisionMakingEntries]);
 
   const mergedLabourProgressEntries = React.useMemo(() => {
     const apiEntries = [...labourContractionEncounters, ...cervicalEncounters, ...labourDescentEncounters]
@@ -294,11 +436,7 @@ export function useLcgData(patientUuid: string) {
         }
 
         const time = getEncounterRecordedTime(encounter);
-        const contractionsPer10Mins = getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['contraction-count']);
-        const durationOfContractions = getEncounterObsValue(
-          encounter,
-          PARTOGRAPHY_CONCEPTS['uterine-contraction-duration'],
-        );
+        const { contractionsPer10Mins, durationOfContractions } = getLabourContractionObsFromEncounter(encounter);
         const cervicalDilation = parseCervicalDilationValue(
           getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['cervical-dilation']),
         );
@@ -333,7 +471,7 @@ export function useLcgData(patientUuid: string) {
       })
       .filter(Boolean) as LabourProgressEntry[];
 
-    const orderedEntries = [...apiEntries, ...localLabourProgressEntries].sort(
+    const orderedEntries = [...apiEntries, ...activeLocalLabourProgressEntries].sort(
       (left, right) =>
         new Date(left.encounterDatetime ?? 0).getTime() - new Date(right.encounterDatetime ?? 0).getTime(),
     );
@@ -363,7 +501,7 @@ export function useLcgData(patientUuid: string) {
       (left, right) =>
         new Date(left.encounterDatetime ?? 0).getTime() - new Date(right.encounterDatetime ?? 0).getTime(),
     );
-  }, [cervicalEncounters, labourContractionEncounters, labourDescentEncounters, localLabourProgressEntries]);
+  }, [cervicalEncounters, labourContractionEncounters, labourDescentEncounters, activeLocalLabourProgressEntries]);
 
   // Flat list of woman observations for alert-rule evaluation.
   // Each element represents one encounter or local entry; the addPromptItem
@@ -401,7 +539,7 @@ export function useLcgData(patientUuid: string) {
       }
     }
 
-    for (const entry of localWomanEntries) {
+    for (const entry of activeLocalWomanEntries) {
       const protein = formatProteinForAlert(entry.protein);
       const acetone = formatAcetoneForAlert(entry.acetone);
       const urine = [protein, acetone].filter(Boolean).join('/') || undefined;
@@ -417,7 +555,13 @@ export function useLcgData(patientUuid: string) {
     }
 
     return entries;
-  }, [womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters, localWomanEntries]);
+  }, [womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters, activeLocalWomanEntries]);
+
+  const debouncedMergedSupportiveCareEntries = useLcgDebouncedValue(mergedSupportiveCareEntries, 300);
+  const debouncedMergedBabyEntries = useLcgDebouncedValue(mergedBabyEntries, 300);
+  const debouncedMergedLabourProgressEntries = useLcgDebouncedValue(mergedLabourProgressEntries, 300);
+  const debouncedMergedSharedDecisionMakingEntries = useLcgDebouncedValue(mergedSharedDecisionMakingEntries, 300);
+  const debouncedMergedWomanAlertEntries = useLcgDebouncedValue(mergedWomanAlertEntries, 300);
 
   const womanFormExistingTimeEntries = React.useMemo(() => {
     const apiEntries = [...womanPulseBpEncounters, ...womanTemperatureEncounters, ...womanUrineEncounters]
@@ -427,7 +571,7 @@ export function useLcgData(patientUuid: string) {
       }))
       .filter((entry) => Boolean(entry.time));
 
-    const localTimeEntries = localWomanEntries.map((entry) => ({
+    const localTimeEntries = activeLocalWomanEntries.map((entry) => ({
       time: entry.time,
       encounterDatetime: entry.recordedAt,
     }));
@@ -449,7 +593,7 @@ export function useLcgData(patientUuid: string) {
         hour: index + 1,
         time: entry.time,
       }));
-  }, [localWomanEntries, womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters]);
+  }, [activeLocalWomanEntries, womanPulseBpEncounters, womanTemperatureEncounters, womanUrineEncounters]);
 
   const handleWomanFormSubmit = React.useCallback(
     async (
@@ -532,8 +676,10 @@ export function useLcgData(patientUuid: string) {
       if (failedResult) {
         throw new Error(failedResult.message);
       }
+
+      await mutateWomanPartographyData();
     },
-    [patientUuid],
+    [mutateWomanPartographyData, patientUuid],
   );
 
   const handleLabourProgressFormSubmit = React.useCallback(
@@ -556,29 +702,47 @@ export function useLcgData(patientUuid: string) {
       }
 
       const timestamp = new Date().toISOString();
-      setLocalLabourProgressEntries((prev) => [
-        ...prev,
-        {
-          id: `labour-progress-local-${timestamp}`,
-          encounterDatetime: timestamp,
-          time: formData.time,
-          contractionsPer10Mins: formData.contractionsPer10Mins || undefined,
-          durationOfContractions: formData.durationOfContractions || undefined,
-          ...(formData.cervicalDilation !== '' && formData.cervicalDilation !== undefined
-            ? { cervicalDilation: Number(formData.cervicalDilation) }
-            : {}),
-          ...(formData.descentOfHead !== '' && formData.descentOfHead !== undefined
-            ? { descentOfHead: Number(formData.descentOfHead) }
-            : {}),
-          ...(formData.urgeToPush ? { urgeToPush: formData.urgeToPush } : {}),
-          isEmergency: Boolean(options?.emergencyReason?.trim()),
-          emergencyReason: options?.emergencyReason?.trim() || undefined,
-        },
-      ]);
+      const nextEntry: LabourProgressEntry = {
+        id: `labour-progress-local-${timestamp}`,
+        encounterDatetime: timestamp,
+        time: formData.time,
+        contractionsPer10Mins: formData.contractionsPer10Mins || undefined,
+        durationOfContractions: formData.durationOfContractions || undefined,
+        ...(formData.cervicalDilation !== '' && formData.cervicalDilation !== undefined
+          ? { cervicalDilation: Number(formData.cervicalDilation) }
+          : {}),
+        ...(formData.descentOfHead !== '' && formData.descentOfHead !== undefined
+          ? { descentOfHead: Number(formData.descentOfHead) }
+          : {}),
+        ...(formData.urgeToPush ? { urgeToPush: formData.urgeToPush } : {}),
+        isEmergency: Boolean(options?.emergencyReason?.trim()),
+        emergencyReason: options?.emergencyReason?.trim() || undefined,
+      };
+
+      setLocalLabourProgressEntries((prev) => {
+        const existingIndex = prev.findIndex((entry) => entry.time === formData.time);
+        if (existingIndex === -1) {
+          return [...prev, nextEntry];
+        }
+
+        const existingEntry = prev[existingIndex];
+        const updatedEntries = [...prev];
+        updatedEntries[existingIndex] = {
+          ...existingEntry,
+          ...nextEntry,
+          id: existingEntry.id ?? nextEntry.id,
+          contractionsPer10Mins: nextEntry.contractionsPer10Mins || existingEntry.contractionsPer10Mins,
+          durationOfContractions: nextEntry.durationOfContractions || existingEntry.durationOfContractions,
+          cervicalDilation: nextEntry.cervicalDilation ?? existingEntry.cervicalDilation,
+          descentOfHead: nextEntry.descentOfHead ?? existingEntry.descentOfHead,
+          urgeToPush: nextEntry.urgeToPush || existingEntry.urgeToPush,
+        };
+        return updatedEntries;
+      });
 
       setLabourProgressRefreshToken((value) => value + 1);
     },
-    [patientUuid, t],
+    [patientUuid, setLocalLabourProgressEntries, t],
   );
 
   const [nowMinutes, setNowMinutes] = React.useState(() => {
@@ -614,6 +778,39 @@ export function useLcgData(patientUuid: string) {
 
     return earliest.time;
   }, [labourTimeSetData]);
+
+  const getSessionLastAcknowledgedMs = React.useCallback(
+    (periodStartMs: number, periodEndMs: number) => {
+      void alertSessionVersion;
+
+      return getLastAcknowledgedMsForPeriod(
+        periodStartMs,
+        periodEndMs,
+        getSharedDecisionEntryTimesMs(mergedSharedDecisionMakingEntries),
+        alertSessionAcknowledgedAtMsRef.current.get(periodStartMs) ?? 0,
+      );
+    },
+    [alertSessionVersion, mergedSharedDecisionMakingEntries],
+  );
+
+  const acknowledgeSharedDecisionAlertSession = React.useCallback(
+    (entry: SharedDecisionMakingEntry) => {
+      const entryTimeMs = resolveAlertCreatedTimeMs(entry);
+      const cellBounds = getLcgHourlyCellBoundsForEntry(baseTime, entry);
+      if (entryTimeMs === null || cellBounds === null) {
+        return;
+      }
+
+      const { periodStartMs } = cellBounds;
+      const previousAck = alertSessionAcknowledgedAtMsRef.current.get(periodStartMs) ?? 0;
+      alertSessionAcknowledgedAtMsRef.current.set(periodStartMs, Math.max(previousAck, entryTimeMs));
+      setLastAutoPromptKey(null);
+      setSharedDecisionAutoPromptSummary(null);
+      setSharedDecisionAutoPromptItems([]);
+      setAlertSessionVersion((value) => value + 1);
+    },
+    [baseTime],
+  );
 
   const workflowStopState = React.useMemo(() => {
     if (!baseTime) {
@@ -685,128 +882,121 @@ export function useLcgData(patientUuid: string) {
 
   const isWorkflowStopped = Boolean(workflowStopState);
 
+  const sessionTerminationState = React.useMemo(
+    () => buildSessionTerminationState(mergedSharedDecisionMakingEntries),
+    [mergedSharedDecisionMakingEntries],
+  );
+
+  const isSessionTerminated = Boolean(sessionTerminationState);
+  const isClinicalWorkflowStopped = isWorkflowStopped && !isSessionTerminated;
+
   const pendingSharedDecisionPrompt = React.useMemo(() => {
+    if (!baseTime) {
+      return null;
+    }
+
     const nowMs = Date.now();
-    const promptPeriodMs = LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
     const promptsByPeriod = new Map<number, SharedDecisionPromptCandidate>();
 
-    // entryTimeMs: the actual wall-clock time the entry was recorded.
-    // activatesAtMs is anchored on the EARLIEST entry in each period so the
-    // 30-minute (scaled) countdown starts from when data was actually entered,
-    // not from the period boundary. This prevents the alert from firing
-    // immediately when data is submitted late within a period.
     const addPromptItem = (
       entryTimeMs: number,
       periodStartMs: number,
+      periodEndMs: number,
       section: string,
       token: string,
       guidance: string,
     ) => {
+      const lastAcknowledgedMs = getSessionLastAcknowledgedMs(periodStartMs, periodEndMs);
+      if (!isLcgAlertObservationActive(entryTimeMs, periodStartMs, periodEndMs, lastAcknowledgedMs, nowMs)) {
+        return;
+      }
+
+      const activatesAtMs = computeLcgAlertActivationMs(
+        entryTimeMs,
+        periodEndMs,
+        LCG_SHARED_DECISION_ALERT_TIMER_MINUTES,
+      );
+
       if (!promptsByPeriod.has(periodStartMs)) {
         promptsByPeriod.set(periodStartMs, {
           triggerTimeMs: entryTimeMs,
-          activatesAtMs: entryTimeMs + LCG_SHARED_DECISION_ALERT_TIMER_MINUTES * 60_000,
-          expiresAtMs: periodStartMs + promptPeriodMs,
+          activatesAtMs,
+          expiresAtMs: periodEndMs,
+          periodStartMs,
           summaryParts: [],
           items: [],
         });
       } else {
         const existing = promptsByPeriod.get(periodStartMs)!;
-        if (entryTimeMs < existing.triggerTimeMs) {
+        if (entryTimeMs > existing.triggerTimeMs) {
           existing.triggerTimeMs = entryTimeMs;
-          existing.activatesAtMs = entryTimeMs + LCG_SHARED_DECISION_ALERT_TIMER_MINUTES * 60_000;
+          existing.activatesAtMs = activatesAtMs;
         }
       }
 
       const prompt = promptsByPeriod.get(periodStartMs)!;
-      const isDuplicate = prompt.items.some((item) => item.section === section && item.code === token);
+      const alertId = buildLcgAlertId(periodStartMs, section, token, entryTimeMs);
+      const isDuplicate = prompt.items.some((item) => item.id === alertId);
       if (!isDuplicate) {
-        prompt.items.push({ section, code: token, guidance });
+        prompt.items.push({
+          id: alertId,
+          section,
+          code: token,
+          guidance,
+          timestampCreatedMs: entryTimeMs,
+        });
+      }
+    };
+
+    const addEntryAlerts = (
+      entry: { encounterDatetime?: string; time?: string },
+      tokens: string[],
+      section: string,
+      guidanceForToken: (token: string) => string,
+    ) => {
+      if (tokens.length === 0) {
+        return;
+      }
+
+      const entryTimeMs = resolveAlertCreatedTimeMs(entry);
+      const cellBounds = getLcgHourlyCellBoundsForEntry(baseTime, entry);
+      if (entryTimeMs === null || cellBounds === null) {
+        return;
+      }
+
+      const { periodStartMs, periodEndMs } = cellBounds;
+      for (const token of tokens) {
+        addPromptItem(entryTimeMs, periodStartMs, periodEndMs, section, token, guidanceForToken(token));
       }
     };
 
     for (const entry of mergedSupportiveCareEntries) {
-      const alerts = getSupportiveAlertTokens(entry);
-      if (alerts.length === 0) {
-        continue;
-      }
-
-      const entryTimeMs = resolveEntryTimeMs(entry);
-      const periodStartMs = getEntryPeriodStartMs(entry);
-      if (entryTimeMs === null || periodStartMs === null) {
-        continue;
-      }
-
-      for (const token of alerts) {
-        addPromptItem(entryTimeMs, periodStartMs, 'Supportive Care', token, getSupportiveAlertTokenGuidance(t, token));
-      }
+      addEntryAlerts(entry, getSupportiveAlertTokens(entry), 'Supportive Care', (token) =>
+        getSupportiveAlertTokenGuidance(t, token),
+      );
     }
 
     for (const entry of mergedBabyEntries) {
-      const alerts = getBabyAlertTokens(entry);
-      if (alerts.length === 0) {
-        continue;
-      }
-
-      const entryTimeMs = resolveEntryTimeMs(entry);
-      const periodStartMs = getEntryPeriodStartMs(entry);
-      if (entryTimeMs === null || periodStartMs === null) {
-        continue;
-      }
-
-      for (const token of alerts) {
-        addPromptItem(entryTimeMs, periodStartMs, 'Baby', token, getBabyAlertTokenGuidance(t, token));
-      }
+      addEntryAlerts(entry, getBabyAlertTokens(entry), 'Baby', (token) => getBabyAlertTokenGuidance(t, token));
     }
 
-    // Woman vital-sign alerts
-    for (const entry of mergedWomanAlertEntries) {
-      const alerts = getWomanAlertTokens(entry);
-      if (alerts.length === 0) {
-        continue;
-      }
-
-      const entryTimeMs = resolveEntryTimeMs(entry);
-      const periodStartMs = getEntryPeriodStartMs(entry);
-      if (entryTimeMs === null || periodStartMs === null) {
-        continue;
-      }
-
-      for (const token of alerts) {
-        addPromptItem(entryTimeMs, periodStartMs, 'Woman', token, getWomanAlertTokenGuidance(t, token));
-      }
+    for (const entry of debouncedMergedWomanAlertEntries) {
+      addEntryAlerts(entry, getWomanAlertTokens(entry), 'Woman', (token) => getWomanAlertTokenGuidance(t, token));
     }
 
-    // Contraction alerts (contractions/10min and duration)
-    for (const entry of mergedLabourProgressEntries) {
-      const alerts = getContractionAlertTokens(entry);
-      if (alerts.length === 0) {
-        continue;
-      }
-
-      const entryTimeMs = resolveEntryTimeMs(entry);
-      const periodStartMs = getEntryPeriodStartMs(entry);
-      if (entryTimeMs === null || periodStartMs === null) {
-        continue;
-      }
-
-      for (const token of alerts) {
-        addPromptItem(entryTimeMs, periodStartMs, 'Contraction', token, getContractionAlertTokenGuidance(t, token));
-      }
+    for (const entry of debouncedMergedLabourProgressEntries) {
+      addEntryAlerts(entry, getContractionAlertTokens(entry), 'Labour Progress', (token) =>
+        getContractionAlertTokenGuidance(t, token),
+      );
     }
 
-    // Cervical dilation stall alerts:
-    // For each dilation level, find the first time it was recorded and compare
-    // with each subsequent entry still at the same level. If the elapsed time
-    // since the first reading >= the WHO stall threshold, raise an alert.
     {
-      const dilationEntries = mergedLabourProgressEntries
+      const dilationEntries = debouncedMergedLabourProgressEntries
         .filter((e): e is typeof e & { cervicalDilation: number } => e.cervicalDilation != null)
         .map((e) => ({ entry: e, timeMs: resolveEntryTimeMs(e) }))
         .filter((e): e is { entry: typeof e.entry; timeMs: number } => e.timeMs !== null)
         .sort((a, b) => a.timeMs - b.timeMs);
 
-      // Track the earliest time each dilation level was first reached
       const firstEntryTimeByDilation = new Map<number, number>();
       for (const { entry, timeMs } of dilationEntries) {
         if (!firstEntryTimeByDilation.has(entry.cervicalDilation)) {
@@ -823,7 +1013,7 @@ export function useLcgData(patientUuid: string) {
 
         const firstTimeMs = firstEntryTimeByDilation.get(dilation)!;
         if (timeMs === firstTimeMs) {
-          continue; // Skip the first occurrence — there is nothing to compare yet
+          continue;
         }
 
         const elapsedMs = timeMs - firstTimeMs;
@@ -832,13 +1022,8 @@ export function useLcgData(patientUuid: string) {
           continue;
         }
 
-        const periodStartMs = getEntryPeriodStartMs(entry);
-        if (periodStartMs === null) {
-          continue;
-        }
-
         const token = `${dilation}cm (No progress ≥${stallThresholdHours}h)`;
-        addPromptItem(timeMs, periodStartMs, 'Labour Progress', token, getCervixStallTokenGuidance(t, token));
+        addEntryAlerts(entry, [token], 'Labour Progress', () => getCervixStallTokenGuidance(t, token));
       }
     }
 
@@ -858,18 +1043,14 @@ export function useLcgData(patientUuid: string) {
 
     const unhandledPrompts = Array.from(promptsByPeriod.values())
       .filter((prompt) => {
-        if (nowMs >= prompt.expiresAtMs) {
-          return false;
-        }
-
-        return !mergedSharedDecisionMakingEntries.some((entry) => {
-          if (!hasSharedDecisionContent(entry)) {
-            return false;
-          }
-
-          const entryTimeMs = resolveEntryTimeMs(entry);
-          return entryTimeMs !== null && entryTimeMs >= prompt.triggerTimeMs && entryTimeMs < prompt.expiresAtMs;
-        });
+        const lastAcknowledgedMs = getSessionLastAcknowledgedMs(prompt.periodStartMs, prompt.expiresAtMs);
+        return !isLcgMicroSessionPromptRetired(
+          prompt.triggerTimeMs,
+          prompt.periodStartMs,
+          prompt.expiresAtMs,
+          lastAcknowledgedMs,
+          nowMs,
+        );
       })
       .sort((a, b) => b.triggerTimeMs - a.triggerTimeMs);
 
@@ -882,15 +1063,17 @@ export function useLcgData(patientUuid: string) {
       triggerTimeMs: prompt.triggerTimeMs,
       activatesAtMs: prompt.activatesAtMs,
       expiresAtMs: prompt.expiresAtMs,
+      periodStartMs: prompt.periodStartMs,
       summary: prompt.summaryParts.join('   '),
       items: prompt.items,
     };
   }, [
+    baseTime,
+    getSessionLastAcknowledgedMs,
     mergedSupportiveCareEntries,
     mergedBabyEntries,
-    mergedWomanAlertEntries,
-    mergedLabourProgressEntries,
-    mergedSharedDecisionMakingEntries,
+    debouncedMergedWomanAlertEntries,
+    debouncedMergedLabourProgressEntries,
     t,
   ]);
 
@@ -901,23 +1084,23 @@ export function useLcgData(patientUuid: string) {
         ? admissionData.riskFactors
             .map((risk) => {
               switch (risk) {
-                case 'chronic_hypertension':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.chronicHypertension:
                   return t('chronicHypertension', 'Chronic hypertension');
-                case 'pre_eclampsia':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.preEclampsia:
                   return t('preEclampsia', 'Pre-eclampsia');
-                case 'advanced_age':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.advancedAge:
                   return t('advancedAge', "Woman's advanced age");
-                case 'adolescent_pregnancy':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy:
                   return t('adolescentPregnancy', 'Adolescent pregnancy');
-                case 'preterm_labour':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.pretermLabour:
                   return t('pretermLabour', 'Preterm labour');
-                case 'multiple_gestation':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.multipleGestation:
                   return t('multipleGestation', 'Multiple gestation');
-                case 'colonization':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.colonization:
                   return t('colonization', 'Colonization');
-                case 'other':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.other:
                   return otherRiskFactorText ? `${t('other', 'Other')}: ${otherRiskFactorText}` : t('other', 'Other');
-                case 'none':
+                case LCG_ADMISSION_RISK_FACTOR_CODE.none:
                   return t('none', 'None');
                 default:
                   return risk;
@@ -971,70 +1154,97 @@ export function useLcgData(patientUuid: string) {
       triggerTimeMs: pendingSharedDecisionPrompt.triggerTimeMs,
       activatesAtMs: pendingSharedDecisionPrompt.activatesAtMs,
       expiresAtMs: pendingSharedDecisionPrompt.expiresAtMs,
+      periodStartMs: pendingSharedDecisionPrompt.periodStartMs,
       summary: pendingSharedDecisionPrompt.summary,
       items: pendingSharedDecisionPrompt.items,
     };
   }, [pendingSharedDecisionPrompt]);
 
   const activeSharedDecisionAlerts = React.useMemo<SharedDecisionPromptItem[]>(() => {
-    if (isWorkflowStopped) {
+    if (isWorkflowStopped || !baseTime) {
       return [];
     }
 
-    const nowMs = nowMinutes * 60_000;
-    const alertLifetimeMs = LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES * 60_000;
+    const nowMs = Date.now();
 
     const dedupedAlerts = new Map<string, SharedDecisionPromptItem & { observedAtMs: number }>();
-    const addAlert = (section: string, code: string, guidance: string, observedAtMs: number | null) => {
+    const addAlert = (
+      section: string,
+      code: string,
+      guidance: string,
+      observedAtMs: number | null,
+      entry: { encounterDatetime?: string; time?: string },
+    ) => {
       const normalizedCode = String(code ?? '').trim();
       if (!section || !normalizedCode || observedAtMs === null) {
         return;
       }
 
-      if (nowMs >= observedAtMs + alertLifetimeMs) {
+      const cellBounds = getLcgHourlyCellBoundsForEntry(baseTime, entry);
+      if (cellBounds === null) {
         return;
       }
 
-      const key = `${section}|${normalizedCode}`;
-      const existing = dedupedAlerts.get(key);
-      if (!existing || observedAtMs > existing.observedAtMs) {
-        dedupedAlerts.set(key, { section, code: normalizedCode, guidance, observedAtMs });
+      const lastAcknowledgedMs = getSessionLastAcknowledgedMs(cellBounds.periodStartMs, cellBounds.periodEndMs);
+      if (
+        !isLcgAlertObservationActive(
+          observedAtMs,
+          cellBounds.periodStartMs,
+          cellBounds.periodEndMs,
+          lastAcknowledgedMs,
+          nowMs,
+        )
+      ) {
+        return;
+      }
+
+      const alertId = buildLcgAlertId(cellBounds.periodStartMs, section, normalizedCode, observedAtMs);
+      const existing = dedupedAlerts.get(alertId);
+      if (!existing) {
+        dedupedAlerts.set(alertId, {
+          id: alertId,
+          section,
+          code: normalizedCode,
+          guidance,
+          timestampCreatedMs: observedAtMs,
+          observedAtMs,
+        });
       }
     };
 
     for (const entry of mergedSupportiveCareEntries) {
       const alerts = getSupportiveAlertTokens(entry);
-      const observedAtMs = resolveEntryTimeMs(entry);
+      const observedAtMs = resolveAlertCreatedTimeMs(entry);
       for (const token of alerts) {
-        addAlert('Supportive Care', token, getSupportiveAlertTokenGuidance(t, token), observedAtMs);
+        addAlert('Supportive Care', token, getSupportiveAlertTokenGuidance(t, token), observedAtMs, entry);
       }
     }
 
     for (const entry of mergedBabyEntries) {
       const alerts = getBabyAlertTokens(entry);
-      const observedAtMs = resolveEntryTimeMs(entry);
+      const observedAtMs = resolveAlertCreatedTimeMs(entry);
       for (const token of alerts) {
-        addAlert('Baby', token, getBabyAlertTokenGuidance(t, token), observedAtMs);
+        addAlert('Baby', token, getBabyAlertTokenGuidance(t, token), observedAtMs, entry);
       }
     }
 
-    for (const entry of mergedWomanAlertEntries) {
+    for (const entry of debouncedMergedWomanAlertEntries) {
       const alerts = getWomanAlertTokens(entry);
-      const observedAtMs = resolveEntryTimeMs(entry);
+      const observedAtMs = resolveAlertCreatedTimeMs(entry);
       for (const token of alerts) {
-        addAlert('Woman', token, getWomanAlertTokenGuidance(t, token), observedAtMs);
+        addAlert('Woman', token, getWomanAlertTokenGuidance(t, token), observedAtMs, entry);
       }
     }
 
-    for (const entry of mergedLabourProgressEntries) {
+    for (const entry of debouncedMergedLabourProgressEntries) {
       const alerts = getContractionAlertTokens(entry);
-      const observedAtMs = resolveEntryTimeMs(entry);
+      const observedAtMs = resolveAlertCreatedTimeMs(entry);
       for (const token of alerts) {
-        addAlert('Contraction', token, getContractionAlertTokenGuidance(t, token), observedAtMs);
+        addAlert('Labour Progress', token, getContractionAlertTokenGuidance(t, token), observedAtMs, entry);
       }
     }
 
-    const dilationEntries = mergedLabourProgressEntries
+    const dilationEntries = debouncedMergedLabourProgressEntries
       .filter((e): e is typeof e & { cervicalDilation: number } => e.cervicalDilation != null)
       .map((e) => ({ entry: e, timeMs: resolveEntryTimeMs(e) }))
       .filter((e): e is { entry: typeof e.entry; timeMs: number } => e.timeMs !== null)
@@ -1066,19 +1276,20 @@ export function useLcgData(patientUuid: string) {
       }
 
       const token = `${dilation}cm (No progress ≥${stallThresholdHours}h)`;
-      addAlert('Labour Progress', token, getCervixStallTokenGuidance(t, token), timeMs);
+      addAlert('Labour Progress', token, getCervixStallTokenGuidance(t, token), timeMs, entry);
     }
 
     return Array.from(dedupedAlerts.values())
       .map(({ observedAtMs: _observedAtMs, ...alert }) => alert)
       .sort((left, right) => left.section.localeCompare(right.section) || left.code.localeCompare(right.code));
   }, [
+    baseTime,
+    getSessionLastAcknowledgedMs,
     isWorkflowStopped,
     mergedSupportiveCareEntries,
     mergedBabyEntries,
-    mergedWomanAlertEntries,
-    mergedLabourProgressEntries,
-    nowMinutes,
+    debouncedMergedWomanAlertEntries,
+    debouncedMergedLabourProgressEntries,
     t,
   ]);
 
@@ -1088,25 +1299,51 @@ export function useLcgData(patientUuid: string) {
     }
 
     const nowMs = Date.now();
-    const elapsedMs = nowMs - pendingSharedDecisionPrompt.triggerTimeMs;
-    const elapsedMinutes = elapsedMs / 60_000;
     const promptKey = `${pendingSharedDecisionPrompt.triggerTimeMs}-${pendingSharedDecisionPrompt.summary}`;
+    const lastAcknowledgedMs = getSessionLastAcknowledgedMs(
+      pendingSharedDecisionPrompt.periodStartMs,
+      pendingSharedDecisionPrompt.expiresAtMs,
+    );
+    const isRetired = isLcgMicroSessionPromptRetired(
+      pendingSharedDecisionPrompt.triggerTimeMs,
+      pendingSharedDecisionPrompt.periodStartMs,
+      pendingSharedDecisionPrompt.expiresAtMs,
+      lastAcknowledgedMs,
+      nowMs,
+    );
 
-    if (nowMs >= pendingSharedDecisionPrompt.expiresAtMs) {
+    if (
+      isRetired ||
+      !shouldFireLcgAlertAlarm(
+        nowMs,
+        pendingSharedDecisionPrompt.activatesAtMs,
+        pendingSharedDecisionPrompt.expiresAtMs,
+        isRetired,
+      )
+    ) {
       return;
     }
 
-    if (
-      elapsedMinutes >= LCG_SHARED_DECISION_ALERT_TIMER_MINUTES &&
-      elapsedMinutes < LCG_SHARED_DECISION_PROMPT_HOUR_MINUTES &&
-      promptKey !== lastAutoPromptKey
-    ) {
+    if (promptKey !== lastAutoPromptKey) {
       setSharedDecisionAutoPromptSummary(pendingSharedDecisionPrompt.summary);
       setSharedDecisionAutoPromptItems(pendingSharedDecisionPrompt.items);
       setIsSharedDecisionMakingFormOpen(true);
       setLastAutoPromptKey(promptKey);
     }
-  }, [isSharedDecisionMakingFormOpen, isWorkflowStopped, lastAutoPromptKey, nowMinutes, pendingSharedDecisionPrompt]);
+  }, [
+    getSessionLastAcknowledgedMs,
+    isSharedDecisionMakingFormOpen,
+    isWorkflowStopped,
+    lastAutoPromptKey,
+    nowMinutes,
+    pendingSharedDecisionPrompt,
+  ]);
+
+  React.useEffect(() => {
+    if (!pendingSharedDecisionPrompt) {
+      setLastAutoPromptKey(null);
+    }
+  }, [pendingSharedDecisionPrompt]);
 
   React.useEffect(() => {
     if (!pendingSharedDecisionPrompt) {
@@ -1170,6 +1407,7 @@ export function useLcgData(patientUuid: string) {
     mutateMedicationData,
     mutateSupportiveCareData,
     mutateSharedDecisionMakingData,
+    mutateWomanPartographyData,
     mergedMedicationEntries,
     mergedSupportiveCareEntries,
     mergedBabyEntries,
@@ -1184,9 +1422,15 @@ export function useLcgData(patientUuid: string) {
     baseTime,
     workflowStopState,
     isWorkflowStopped,
+    isSessionTerminated,
+    isClinicalWorkflowStopped,
+    sessionTerminationState,
+    correctionAuditRecord,
+    mutateCorrectionAudit,
     sharedDecisionAutoPromptDebugWindow,
     cdsPendingAlert,
     activeSharedDecisionAlerts,
+    acknowledgeSharedDecisionAlertSession,
     cervicalEncounters,
   };
 }

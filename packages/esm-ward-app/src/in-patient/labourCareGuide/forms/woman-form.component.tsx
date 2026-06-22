@@ -9,12 +9,14 @@ import {
   LCG_WOMAN_SECOND_STAGE_INTERVAL_MINUTES,
   LCG_TIME_INCREMENT_MINUTES,
 } from '../types';
+import { useLcgFormClock } from '../hooks/use-lcg-form-clock';
 import {
   getAllowedEmergencyTimes,
   getAllowedPointTimesForSlots,
   getAllowedTimesForSlots,
   formatHHMM,
   getForwardMinutesDelta,
+  getSlotState,
   getStageAwareSlotIndexForTime,
   parseHHMMToMinutes,
 } from '../time-slot-utils';
@@ -87,7 +89,7 @@ const WomanForm: React.FC<WomanFormProps> = ({
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
-  const [now, setNow] = React.useState(() => new Date());
+  const now = useLcgFormClock(isOpen);
 
   const { control, handleSubmit, reset, setError, clearErrors, watch } = useForm<WomanFormData>({
     defaultValues: {
@@ -104,7 +106,7 @@ const WomanForm: React.FC<WomanFormProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       reset({
-        time: '',
+        time: formatHHMM(new Date()),
         pulse: '',
         systolicBp: '',
         diastolicBp: '',
@@ -117,19 +119,6 @@ const WomanForm: React.FC<WomanFormProps> = ({
       setSaveSuccess(false);
     }
   }, [isOpen, reset, clearErrors]);
-
-  React.useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    setNow(new Date());
-    const intervalId = window.setInterval(() => setNow(new Date()), 60_000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [isOpen]);
 
   const selectedTime = watch('time');
 
@@ -172,11 +161,11 @@ const WomanForm: React.FC<WomanFormProps> = ({
   );
 
   const womanCurrentSlotIndex = React.useMemo(() => {
-    if (!baseTime || firstStageSlotCount <= 0 || isSecondStageActive) {
+    if (!baseTime || firstStageSlotCount <= 0) {
       return null;
     }
     return getStageAwareSlotIndexForTime(baseTime, nowHHMM, firstStageSlotCount, 0);
-  }, [baseTime, firstStageSlotCount, isSecondStageActive, nowHHMM]);
+  }, [baseTime, firstStageSlotCount, nowHHMM]);
 
   const womanCandidateSlotIndex = React.useMemo(() => {
     if (womanCurrentSlotIndex === null || firstStageSlotCount <= 0) {
@@ -194,77 +183,65 @@ const WomanForm: React.FC<WomanFormProps> = ({
     return candidate;
   }, [firstStageSlotCount, womanCurrentSlotIndex, womanFilledSlotIndices, womanIntervalSlots]);
 
-  const womanOccupiedSlotIndices = React.useMemo(
-    () => new Set<number>(womanFilledSlotIndices),
-    [womanFilledSlotIndices],
-  );
-
   const availableWomanFirstStageSlotIndices = React.useMemo(() => {
-    if (!baseTime || womanCandidateSlotIndex === null || womanCurrentSlotIndex === null) {
+    if (!baseTime || womanCurrentSlotIndex === null || firstStageSlotCount <= 0) {
       return [] as number[];
     }
-    if (womanCurrentSlotIndex < womanCandidateSlotIndex) {
+
+    // Multi-entry: keep the currently active slot open even after a prior submission in the same window.
+    if (getSlotState(baseTime, womanCurrentSlotIndex, now) === 'active') {
+      return [womanCurrentSlotIndex];
+    }
+
+    if (womanCandidateSlotIndex === null || womanCurrentSlotIndex < womanCandidateSlotIndex) {
       return [] as number[];
     }
-    if (womanOccupiedSlotIndices.has(womanCandidateSlotIndex)) {
-      return [] as number[];
-    }
+
     return [womanCandidateSlotIndex];
-  }, [baseTime, womanCandidateSlotIndex, womanCurrentSlotIndex, womanOccupiedSlotIndices]);
+  }, [baseTime, firstStageSlotCount, now, womanCandidateSlotIndex, womanCurrentSlotIndex]);
 
-  const womanSecondStageOccupiedSlots = React.useMemo(() => {
-    if (!isSecondStageActive || !secondStageStartTime) {
-      return new Set<number>();
-    }
-    const occupied = new Set<number>();
-    existingTimeEntries.forEach((entry) => {
-      if (!entry.time) return;
-      const elapsed = getForwardMinutesDelta(secondStageStartTime, entry.time);
-      if (elapsed === null || elapsed < 0) return;
-      occupied.add(Math.floor(elapsed / LCG_WOMAN_SECOND_STAGE_INTERVAL_MINUTES));
-    });
-    return occupied;
-  }, [existingTimeEntries, isSecondStageActive, secondStageStartTime]);
-
-  const allowedTimes = React.useMemo(() => {
+  const slotAllowedTimes = React.useMemo(() => {
     if (isEmergencyMode) {
       return getAllowedEmergencyTimes(now);
     }
 
+    const times = new Set<string>();
+
+    if (baseTime && availableWomanFirstStageSlotIndices.length > 0) {
+      getAllowedTimesForSlots(baseTime, availableWomanFirstStageSlotIndices, now).forEach((time) => times.add(time));
+    }
+
     if (isSecondStageActive && secondStageStartTime) {
       const elapsed = getForwardMinutesDelta(secondStageStartTime, nowHHMM);
-      if (elapsed === null || elapsed < 0) {
-        return [];
+      if (elapsed !== null && elapsed >= 0) {
+        const slotIdx = Math.floor(elapsed / LCG_WOMAN_SECOND_STAGE_INTERVAL_MINUTES);
+
+        getAllowedPointTimesForSlots(secondStageStartTime, [slotIdx], WOMAN_SECOND_STAGE_SLOT_OPTIONS, now).forEach(
+          (time) => times.add(time),
+        );
       }
-
-      const slotIdx = Math.floor(elapsed / LCG_WOMAN_SECOND_STAGE_INTERVAL_MINUTES);
-
-      if (womanSecondStageOccupiedSlots.has(slotIdx)) {
-        return [];
-      }
-
-      return getAllowedPointTimesForSlots(secondStageStartTime, [slotIdx], WOMAN_SECOND_STAGE_SLOT_OPTIONS, now);
     }
 
-    if (!baseTime || availableWomanFirstStageSlotIndices.length === 0) {
-      return [];
-    }
-
-    return getAllowedTimesForSlots(baseTime, availableWomanFirstStageSlotIndices, now);
+    return Array.from(times).sort();
   }, [
     availableWomanFirstStageSlotIndices,
     baseTime,
-    isSecondStageActive,
-    nowHHMM,
-    now,
-    secondStageStartTime,
-    womanSecondStageOccupiedSlots,
     isEmergencyMode,
+    isSecondStageActive,
+    now,
+    nowHHMM,
+    secondStageStartTime,
   ]);
 
-  const isWindowLocked = !isEmergencyMode && Boolean(baseTime) && allowedTimes.length === 0;
-  const isTimeSelectable = !isWindowLocked;
-  const areFieldsEnabled = isTimeSelectable && Boolean(selectedTime);
+  const displayAllowedTimes = React.useMemo(() => {
+    if (slotAllowedTimes.length > 0) {
+      return slotAllowedTimes;
+    }
+    return nowHHMM ? [nowHHMM] : [];
+  }, [nowHHMM, slotAllowedTimes]);
+
+  const areFieldsEnabled =
+    (isEmergencyMode || slotAllowedTimes.length > 0 || displayAllowedTimes.length > 0) && Boolean(selectedTime);
 
   const handleFormSubmit = async (data: WomanFormData) => {
     clearErrors();
@@ -276,7 +253,13 @@ const WomanForm: React.FC<WomanFormProps> = ({
       return;
     }
 
-    if (!isEmergencyMode && baseTime && slotCount > 0 && !allowedTimes.includes(data.time)) {
+    if (
+      !isEmergencyMode &&
+      baseTime &&
+      slotCount > 0 &&
+      !slotAllowedTimes.includes(data.time) &&
+      !displayAllowedTimes.includes(data.time)
+    ) {
       setError('time', {
         type: 'manual',
         message: t('timeNotAllowed', 'Select a valid time slot'),
@@ -386,21 +369,12 @@ const WomanForm: React.FC<WomanFormProps> = ({
       onRequestClose={handleClose}
       modalHeading={t('womanWellBeingData', 'Woman Well Being Data')}
       primaryButtonText={isSaving ? t('saving', 'Saving...') : t('save', 'Save')}
-      primaryButtonDisabled={isSaving || isWindowLocked || !selectedTime}
+      primaryButtonDisabled={isSaving || !areFieldsEnabled}
       secondaryButtonText={t('cancel', 'Cancel')}
       onRequestSubmit={handleSubmit(handleFormSubmit)}
       onSecondarySubmit={handleClose}
       className={styles.cervixModal}
       size="md">
-      {isWindowLocked && baseTime && (
-        <InlineNotification
-          kind="warning"
-          title={t('formLocked', 'Entry Window Closed')}
-          subtitle={t('womanWindowLocked', 'No active WOMAN time slot is currently available.')}
-          hideCloseButton
-        />
-      )}
-
       {saveSuccess && (
         <InlineNotification
           kind="success"
@@ -446,13 +420,11 @@ const WomanForm: React.FC<WomanFormProps> = ({
                     labelText=""
                     value={field.value}
                     onChange={field.onChange}
-                    disabled={!isTimeSelectable}
+                    disabled={!baseTime}
                     existingTimeEntries={existingTimeEntries}
-                    allowedTimes={baseTime ? allowedTimes : undefined}
-                    currentTime={`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(
-                      2,
-                      '0',
-                    )}`}
+                    allowedTimes={baseTime ? displayAllowedTimes : undefined}
+                    disablePastTimes={!isEmergencyMode}
+                    currentTime={nowHHMM}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}
                   />

@@ -35,7 +35,7 @@ export const GlobalCdsAlertProvider: React.FC<{ children: React.ReactNode }> = (
       const payload = JSON.parse(stored) as GlobalCdsAlertPayload;
       if (!payload || payload.type !== 'lcg-cds-critical') return null;
       const nowMs = Date.now();
-      if (nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) return null;
+      if (payload.activatesAtMs == null || nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) return null;
       return payload;
     } catch {
       return null;
@@ -189,7 +189,7 @@ export const GlobalCdsAlertProvider: React.FC<{ children: React.ReactNode }> = (
         }
 
         const nowMs = Date.now();
-        if (nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) {
+        if (payload.activatesAtMs == null || nowMs < payload.activatesAtMs || nowMs >= payload.expiresAtMs) {
           return;
         }
         const alertKey = `${payload.sourcePatientUuid}-${payload.triggerTimeMs}-${payload.summary}`;

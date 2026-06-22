@@ -31,6 +31,7 @@ import {
 import { buildWomanScheduleState } from '../woman-schedule-utils';
 import { getWomanAlertGuidance, isWomanAlertValue, type WomanAlertKey } from '../alert-rules';
 import { SectionToolbar } from '../components/section-toolbar.component';
+import { getEncounterRecordedTime } from '../labour-care-guide.utils';
 
 interface WomanProps {
   patientUuid: string;
@@ -75,19 +76,6 @@ const womanRows = [
   { parameter: 'Temperature °C', alert: '<35.0, ≥37.5' },
   { parameter: 'Urine', alert: '<P++, < A++' },
 ];
-
-const formatEncounterTime = (encounterDatetime?: string) => {
-  if (!encounterDatetime) {
-    return '';
-  }
-
-  const encounterDate = new Date(encounterDatetime);
-  if (Number.isNaN(encounterDate.getTime())) {
-    return '';
-  }
-
-  return encounterDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-};
 
 const MINUTES_IN_DAY = 24 * 60;
 
@@ -144,36 +132,12 @@ const isEmergencyEncounter = (encounter: any) =>
 const getEmergencyReason = (encounter: any) =>
   String(getEncounterObsValue(encounter, LCG_EMERGENCY_REASON_CONCEPT_UUID) || '');
 
-const getEncounterRecordedTime = (encounter: any) => {
-  const explicitTimeObs = encounter?.obs?.find(
-    (obs: any) =>
-      (obs.concept?.uuid === '160632AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' ||
-        obs.concept?.uuid === PARTOGRAPHY_CONCEPTS['pulse-time-slot'] ||
-        obs.concept?.uuid === PARTOGRAPHY_CONCEPTS['time-slot']) &&
-      typeof obs.value === 'string' &&
-      (obs.value.startsWith('Time:') || /^\d{1,2}:\d{2}$/.test(obs.value)),
-  );
-
-  if (explicitTimeObs?.value) {
-    const match = String(explicitTimeObs.value).match(/Time:\s*(.+)/);
-    if (match) {
-      return match[1].trim();
-    }
-
-    if (/^\d{1,2}:\d{2}$/.test(String(explicitTimeObs.value).trim())) {
-      return String(explicitTimeObs.value).trim();
-    }
-  }
-
-  return formatEncounterTime(encounter?.encounterDatetime);
-};
-
 const formatProteinToken = (raw?: string) => {
   const value = (raw ?? '').trim().toUpperCase();
   if (!value) {
     return '';
   }
-  if (value.includes('2001195') || value === 'ND') {
+  if (value.includes('1118') || value.includes('NOT DONE') || value === 'ND') {
     return 'ND';
   }
   if (value.includes('1364') || value.includes('THREE PLUS') || value.includes('+++')) {
@@ -196,7 +160,7 @@ const formatAcetoneToken = (raw?: string) => {
   if (!value) {
     return '';
   }
-  if (value.includes('2001195') || value === 'ND') {
+  if (value.includes('1118') || value.includes('NOT DONE') || value === 'ND') {
     return 'ND';
   }
   if (value.includes('1364') || value.includes('THREE PLUS') || value.includes('+++')) {
