@@ -137,6 +137,23 @@ export const maternalWardView = getAsyncLifecycle(
   options,
 );
 
+export const wardPatientsAwaitingAdmissionTable = getAsyncLifecycle(
+  () => import('./ward-patients/awaiting-admission-patients'),
+  options,
+);
+
+export const wardPatientsAdmittedTable = getAsyncLifecycle(() => import('./ward-patients/admitted-patients'), options);
+
+export const wardPatientsDischargeInTable = getAsyncLifecycle(
+  () => import('./ward-patients/discharge-in-patients'),
+  options,
+);
+
+export const wardPatientsDischargedTable = getAsyncLifecycle(
+  () => import('./ward-patients/discharge-patients'),
+  options,
+);
+
 export const wardPatientWorkspaceBanner = getAsyncLifecycle(
   () => import('./ward-workspace/patient-banner/patient-banner.component'),
   options,

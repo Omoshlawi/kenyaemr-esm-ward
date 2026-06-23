@@ -394,6 +394,7 @@
   "noEncounters": "No encounters found",
   "noEncounterTypeFound": "No encounter type found for graph: {{graphType}}",
   "noExaminations": "No Examinations",
+  "noExtensionForWardPatientsTab": "No component configured for this ward patients tab",
   "noFindings": "No findings recorded",
   "noFluidData": "No fluid records found",
   "noInstructions": "No instructions",

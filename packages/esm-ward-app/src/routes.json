@@ -87,6 +87,26 @@
       "slot": "maternal-ward"
     },
     {
+      "name": "ward-patients-awaiting-admission",
+      "component": "wardPatientsAwaitingAdmissionTable",
+      "slot": "ward-patients-awaiting-admission-slot"
+    },
+    {
+      "name": "ward-patients-admitted",
+      "component": "wardPatientsAdmittedTable",
+      "slot": "ward-patients-admitted-slot"
+    },
+    {
+      "name": "ward-patients-discharge-in",
+      "component": "wardPatientsDischargeInTable",
+      "slot": "ward-patients-discharge-in-slot"
+    },
+    {
+      "name": "ward-patients-discharged",
+      "component": "wardPatientsDischargedTable",
+      "slot": "ward-patients-discharged-slot"
+    },
+    {
       "component": "patientDischargeDocumentPreview",
       "name": "patient-discharge-document-preview-modal"
     },

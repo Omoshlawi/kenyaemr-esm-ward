@@ -1,10 +1,27 @@
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
+import { ExtensionSlot, useAssignedExtensions } from '@openmrs/esm-framework';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import AdmittedPatients from './admitted-patients';
-import AwaitingAdmissionPatients from './awaiting-admission-patients';
-import DischargeInPatients from './discharge-in-patients';
-import DischargePatients from './discharge-patients';
+import { EmptyState } from './table-state-components';
+import {
+  WARD_PATIENTS_ADMITTED_SLOT,
+  WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
+  WARD_PATIENTS_DISCHARGE_IN_SLOT,
+  WARD_PATIENTS_DISCHARGED_SLOT,
+} from './ward-patients-slots';
+
+const WardPatientsTabPanel: React.FC<{ slotName: string }> = ({ slotName }) => {
+  const { t } = useTranslation();
+  const assignedExtensions = useAssignedExtensions(slotName);
+
+  if (!assignedExtensions.length) {
+    return (
+      <EmptyState message={t('noExtensionForWardPatientsTab', 'No component configured for this ward patients tab')} />
+    );
+  }
+
+  return <ExtensionSlot name={slotName} />;
+};
 
 const WardPatientsTable = () => {
   const { t } = useTranslation();
@@ -19,16 +36,16 @@ const WardPatientsTable = () => {
       </TabList>
       <TabPanels>
         <TabPanel>
-          <AwaitingAdmissionPatients />
+          <WardPatientsTabPanel slotName={WARD_PATIENTS_AWAITING_ADMISSION_SLOT} />
         </TabPanel>
         <TabPanel>
-          <AdmittedPatients />
+          <WardPatientsTabPanel slotName={WARD_PATIENTS_ADMITTED_SLOT} />
         </TabPanel>
         <TabPanel>
-          <DischargeInPatients />
+          <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGE_IN_SLOT} />
         </TabPanel>
         <TabPanel>
-          <DischargePatients />
+          <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGED_SLOT} />
         </TabPanel>
       </TabPanels>
     </Tabs>

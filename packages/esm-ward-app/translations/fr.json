@@ -400,6 +400,7 @@
   "noEncounters": "Aucune consultation trouvée",
   "noEncounterTypeFound": "No encounter type found for graph: {{graphType}}",
   "noExaminations": "Aucun examen",
+  "noExtensionForWardPatientsTab": "No component configured for this ward patients tab",
   "noFindings": "Aucun résultat enregistré",
   "noFluidData": "No fluid records found",
   "noInstructions": "Aucune instruction",
