@@ -7,3 +7,4 @@ export { default as LabourProgressForm } from './labour-progress-form.component'
 export { default as MedicationForm } from './medication-form.component';
 export { default as SharedDecisionMakingForm } from './shared-decision-making-form.component';
 export { default as AdmissionDetailsForm } from './admission-details-form.component';
+export { default as SummaryOfLabourForm } from './summary-of-labour-form.component';
