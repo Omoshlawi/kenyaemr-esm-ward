@@ -28,6 +28,18 @@ import { LabourCareGuideForms } from './forms/labour-care-guide-forms.component'
 import EmergencyEntryModal from './forms/emergency-entry-modal.component';
 import LcgCorrectionAuditBanner from './components/lcg-correction-audit-banner.component';
 import LcgSessionCorrectionWizard from './forms/lcg-session-correction-wizard.component';
+import SummaryOfLabourSection from './components/summary-of-labour-section.component';
+import { buildSummaryOfLabourPrefill, getBabyFieldVisibility } from './summary-of-labour-prefill.utils';
+import { formatSummaryCodedLabel } from './resources/summary-of-labour.resource';
+import {
+  BABY_CONDITION_VALUES,
+  CODED_NO,
+  DEFORMITY_YES,
+  DELIVERY_MODE_VALUES,
+  PLACENTA_COMPLETE_VALUES,
+  SEX_VALUES,
+  UTEROTONIC_GIVEN_VALUES,
+} from './constants/summary-of-labour.constants';
 import {
   buildCorrectionAuditTableRow,
   resolveLcgCorrectionAuditDisplay,
@@ -297,6 +309,11 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
     setSharedDecisionAutoPromptItems,
     isAdmissionDetailsFormOpen,
     setIsAdmissionDetailsFormOpen,
+    isSummaryOfLabourFormOpen,
+    setIsSummaryOfLabourFormOpen,
+    summaryEntry,
+    summaryFilled,
+    mutateSummaryOfLabour,
     labourProgressRefreshToken,
     setLocalSupportiveCareEntries,
     setLocalMedicationEntries,
@@ -517,6 +534,48 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
   const effectiveWorkflowStopState = isSessionTransferredAway && !baseTime ? null : workflowStopState;
   const effectiveIsWorkflowStopped = Boolean(effectiveWorkflowStopState);
 
+  const showSummaryOfLabourSection =
+    effectiveIsWorkflowStopped &&
+    !isSessionTerminated &&
+    !isSessionTransferredAway &&
+    (effectiveWorkflowStopState?.label === 'BIRTH' || effectiveWorkflowStopState?.label === 'DEAD');
+
+  const summaryOfLabourPrefill = React.useMemo(
+    () =>
+      buildSummaryOfLabourPrefill({
+        baseTime,
+        workflowStopLabel:
+          effectiveWorkflowStopState?.label === 'BIRTH' ||
+          effectiveWorkflowStopState?.label === 'DEAD' ||
+          effectiveWorkflowStopState?.label === 'TERMINATED'
+            ? effectiveWorkflowStopState.label
+            : null,
+        workflowStopTime: effectiveWorkflowStopState?.time,
+        workflowStopEncounterDatetime: effectiveWorkflowStopState?.encounterDatetime,
+        sharedDecisionEntries: mergedSharedDecisionMakingEntries,
+        admissionRiskFactorCodes,
+        providerDisplayName: providerName,
+        medicationEntries: mergedMedicationEntries,
+        savedDeliverySummary: summaryEntry,
+      }),
+    [
+      admissionRiskFactorCodes,
+      baseTime,
+      effectiveWorkflowStopState?.encounterDatetime,
+      effectiveWorkflowStopState?.label,
+      effectiveWorkflowStopState?.time,
+      mergedMedicationEntries,
+      mergedSharedDecisionMakingEntries,
+      providerName,
+      summaryEntry,
+    ],
+  );
+
+  const summaryDisplayData = React.useMemo(
+    () => (summaryFilled && summaryEntry ? summaryEntry : summaryOfLabourPrefill),
+    [summaryFilled, summaryEntry, summaryOfLabourPrefill],
+  );
+
   const showChartCorrectionAuditBanner = !isSessionTransferredAway && Boolean(correctionAuditDisplay);
 
   const babyEntriesByTwin = React.useMemo(() => {
@@ -661,6 +720,267 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
       })),
     ];
 
+    const deliveryModeOptions = [
+      { value: DELIVERY_MODE_VALUES.spontaneousVaginal, label: 'Spontaneous vaginal delivery(SVD)' },
+      { value: DELIVERY_MODE_VALUES.caesareanSection, label: 'Cesarean section(CS)' },
+      { value: DELIVERY_MODE_VALUES.breech, label: 'Breech delivery' },
+      { value: DELIVERY_MODE_VALUES.assistedVaginal, label: 'Assisted vaginal delivery(AVD)' },
+    ];
+    const babyConditionOptions = [
+      { value: BABY_CONDITION_VALUES.liveBirth, label: 'Live birth' },
+      { value: BABY_CONDITION_VALUES.freshStillBirth, label: 'Fresh still birth' },
+      { value: BABY_CONDITION_VALUES.maceratedStillBirth, label: 'Macerated still birth' },
+    ];
+    const sexOptions = [
+      { value: SEX_VALUES.male, label: 'Male' },
+      { value: SEX_VALUES.female, label: 'Female' },
+    ];
+
+    const isTwinSummary = summaryDisplayData.babies.length > 1;
+    const placentaCompleteOptions = [
+      { value: PLACENTA_COMPLETE_VALUES.yes, label: 'Yes' },
+      { value: PLACENTA_COMPLETE_VALUES.no, label: 'No' },
+      { value: PLACENTA_COMPLETE_VALUES.babyBornBeforeArrival, label: 'Baby born before arrival' },
+    ];
+
+    const summaryOfLabourRows = showSummaryOfLabourSection
+      ? [
+          ...summaryDisplayData.babies.flatMap((baby, index) => {
+            const fieldVisibility = getBabyFieldVisibility(baby.condition);
+            const deformityOptions = [
+              { value: DEFORMITY_YES, label: 'Yes' },
+              { value: CODED_NO, label: 'No' },
+            ];
+            const deliveryMode = isTwinSummary ? baby.deliveryMode : summaryDisplayData.deliveryMode;
+            const durationOfLabourHours = isTwinSummary
+              ? baby.durationOfLabourHours
+              : summaryDisplayData.durationOfLabourHours;
+            const deliveryDateTime = isTwinSummary ? baby.deliveryDateTime : summaryDisplayData.deliveryDateTime;
+            const deliveryConductedBy = isTwinSummary
+              ? baby.deliveryConductedBy
+              : summaryDisplayData.deliveryConductedBy;
+
+            return [
+              {
+                section: index === 0 ? t('summaryOfLabour', 'Summary of Labour') : '',
+                field: isTwinSummary
+                  ? t('deliveryDetailsForBaby', 'Delivery details — Baby {{index}}', { index: index + 1 })
+                  : index === 0
+                    ? t('modeOfDelivery', 'Mode of delivery')
+                    : t('babyWithIndex', 'Baby {{index}}', { index: index + 1 }),
+                value: isTwinSummary
+                  ? formatSummaryCodedLabel(deliveryMode, deliveryModeOptions)
+                  : index === 0
+                    ? formatSummaryCodedLabel(deliveryMode, deliveryModeOptions)
+                    : formatSummaryCodedLabel(baby.condition, babyConditionOptions),
+                recordedAt:
+                  index === 0 && summaryFilled && summaryEntry
+                    ? formatEncounterDateTime(summaryEntry.encounterDatetime)
+                    : '',
+              },
+              ...(isTwinSummary || index === 0
+                ? [
+                    {
+                      section: '',
+                      field: t('durationOfLabourHours', 'Duration of labour (hrs)'),
+                      value: String(durationOfLabourHours ?? ''),
+                      recordedAt: '',
+                    },
+                    {
+                      section: '',
+                      field: t('dateAndTimeOfDelivery', 'Date and time of delivery'),
+                      value: deliveryDateTime ? formatEncounterDateTime(deliveryDateTime) : '',
+                      recordedAt: '',
+                    },
+                    ...(isTwinSummary
+                      ? [
+                          {
+                            section: '',
+                            field: t('deliveryConductedBy', 'Delivery conducted by'),
+                            value: String(deliveryConductedBy ?? ''),
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('placentaComplete', 'Placenta complete'),
+                            value: formatSummaryCodedLabel(baby.placentaComplete, placentaCompleteOptions),
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('placentaExpelledDateTime', 'Date and time placenta expelled'),
+                            value: baby.placentaExpelledDateTime
+                              ? formatEncounterDateTime(baby.placentaExpelledDateTime)
+                              : '',
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('placentaWeightG', 'Placenta weight (g)'),
+                            value: String(baby.placentaWeightG ?? ''),
+                            recordedAt: '',
+                          },
+                        ]
+                      : []),
+                    ...(!isTwinSummary && index === 0
+                      ? [
+                          {
+                            section: '',
+                            field: t('deliveryConductedBy', 'Delivery conducted by'),
+                            value: String(deliveryConductedBy ?? ''),
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('placentaComplete', 'Placenta complete'),
+                            value: formatSummaryCodedLabel(
+                              summaryDisplayData.placentaComplete,
+                              placentaCompleteOptions,
+                            ),
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('placentaExpelledDateTime', 'Date and time placenta expelled'),
+                            value: summaryDisplayData.placentaExpelledDateTime
+                              ? formatEncounterDateTime(summaryDisplayData.placentaExpelledDateTime)
+                              : '',
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('placentaWeightG', 'Placenta weight (g)'),
+                            value: String(summaryDisplayData.placentaWeightG ?? ''),
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('uterotonicGiven', 'Uterotonic given'),
+                            value: formatSummaryCodedLabel(summaryDisplayData.uterotonicGiven, [
+                              { value: UTEROTONIC_GIVEN_VALUES.none, label: 'None' },
+                              { value: UTEROTONIC_GIVEN_VALUES.oxytocin, label: 'Oxytocin' },
+                              { value: UTEROTONIC_GIVEN_VALUES.carbetocin, label: 'Carbetocin' },
+                              { value: UTEROTONIC_GIVEN_VALUES.other, label: 'Other' },
+                            ]),
+                            recordedAt: '',
+                          },
+                          {
+                            section: '',
+                            field: t('bloodLossMl', 'Blood loss (ml)'),
+                            value: String(summaryDisplayData.bloodLossMl ?? ''),
+                            recordedAt: '',
+                          },
+                        ]
+                      : []),
+                  ]
+                : []),
+              ...(!isTwinSummary && index > 0
+                ? []
+                : isTwinSummary
+                  ? [
+                      {
+                        section: '',
+                        field: t('conditionOfBaby', 'Condition of baby'),
+                        value: formatSummaryCodedLabel(baby.condition, babyConditionOptions),
+                        recordedAt: '',
+                      },
+                    ]
+                  : index === 0
+                    ? [
+                        {
+                          section: '',
+                          field: t('conditionOfBaby', 'Condition of baby'),
+                          value: formatSummaryCodedLabel(baby.condition, babyConditionOptions),
+                          recordedAt: '',
+                        },
+                      ]
+                    : []),
+              ...(fieldVisibility.sex
+                ? [
+                    {
+                      section: '',
+                      field: t('sex', 'Sex'),
+                      value: formatSummaryCodedLabel(baby.sex, sexOptions),
+                      recordedAt: '',
+                    },
+                  ]
+                : []),
+              ...(fieldVisibility.birthWeightKg
+                ? [
+                    {
+                      section: '',
+                      field: t('birthWeightKg', 'Birth weight (kg)'),
+                      value: String(baby.birthWeightKg ?? ''),
+                      recordedAt: '',
+                    },
+                  ]
+                : []),
+              ...(fieldVisibility.birthLengthCm
+                ? [
+                    {
+                      section: '',
+                      field: t('birthLengthCm', 'Birth length (cm)'),
+                      value: String(baby.birthLengthCm ?? ''),
+                      recordedAt: '',
+                    },
+                  ]
+                : []),
+              ...(fieldVisibility.headCircumferenceCm
+                ? [
+                    {
+                      section: '',
+                      field: t('headCircumferenceCm', 'Head circumference (cm)'),
+                      value: String(baby.headCircumferenceCm ?? ''),
+                      recordedAt: '',
+                    },
+                  ]
+                : []),
+              ...(fieldVisibility.apgarScores
+                ? [
+                    {
+                      section: '',
+                      field: t('apgarScore', 'Apgar score'),
+                      value: `1: ${baby.apgar1Min}, 5: ${baby.apgar5Min}, 10: ${baby.apgar10Min}`,
+                      recordedAt: '',
+                    },
+                  ]
+                : []),
+              ...(fieldVisibility.birthWithDeformity
+                ? [
+                    {
+                      section: '',
+                      field: t('birthWithDeformity', 'Birth with deformity'),
+                      value: formatSummaryCodedLabel(baby.birthWithDeformity, deformityOptions),
+                      recordedAt: '',
+                    },
+                  ]
+                : []),
+            ];
+          }),
+          ...(isTwinSummary
+            ? [
+                {
+                  section: '',
+                  field: t('uterotonicGiven', 'Uterotonic given'),
+                  value: formatSummaryCodedLabel(summaryDisplayData.uterotonicGiven, [
+                    { value: UTEROTONIC_GIVEN_VALUES.none, label: 'None' },
+                    { value: UTEROTONIC_GIVEN_VALUES.oxytocin, label: 'Oxytocin' },
+                    { value: UTEROTONIC_GIVEN_VALUES.carbetocin, label: 'Carbetocin' },
+                    { value: UTEROTONIC_GIVEN_VALUES.other, label: 'Other' },
+                  ]),
+                  recordedAt: '',
+                },
+                {
+                  section: '',
+                  field: t('bloodLossMl', 'Blood loss (ml)'),
+                  value: String(summaryDisplayData.bloodLossMl ?? ''),
+                  recordedAt: '',
+                },
+              ]
+            : []),
+        ]
+      : [];
+
     return {
       admissionRows,
       supportiveCareRows,
@@ -669,6 +989,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
       labourProgressRows,
       medicationRows,
       sharedDecisionRows,
+      summaryOfLabourRows,
     };
   }, [
     admissionDetails,
@@ -680,6 +1001,10 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
     mergedMedicationEntries,
     mergedSharedDecisionMakingEntries,
     correctionAuditDisplay,
+    showSummaryOfLabourSection,
+    summaryDisplayData,
+    summaryEntry,
+    summaryFilled,
     t,
   ]);
 
@@ -809,6 +1134,20 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
         ],
         exportSectionRows.sharedDecisionRows,
       ),
+      ...(exportSectionRows.summaryOfLabourRows.length
+        ? [
+            buildPdfTableSection(
+              t('summaryOfLabour', 'Summary of Labour'),
+              [
+                { key: 'section', label: t('section', 'Section'), width: '18%' },
+                { key: 'field', label: t('field', 'Field'), width: '32%' },
+                { key: 'value', label: t('value', 'Value'), width: '32%' },
+                { key: 'recordedAt', label: t('recordedAt', 'Recorded At'), width: '18%' },
+              ],
+              exportSectionRows.summaryOfLabourRows,
+            ),
+          ]
+        : []),
     ].join('');
 
     const firstPageUiHtml = source.outerHTML.replaceAll('>BABY<', '><');
@@ -1759,6 +2098,14 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
           stopSlotIndex={stageAwareWorkflowStopState?.slotIndex}
         />
 
+        {showSummaryOfLabourSection ? (
+          <SummaryOfLabourSection
+            displayData={summaryDisplayData}
+            summaryFilled={summaryFilled}
+            onAddClick={() => setIsSummaryOfLabourFormOpen(true)}
+          />
+        ) : null}
+
         {showChartControls ? (
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.75rem' }}>
             <button type="button" className={styles.addButton} data-export-hide="true" onClick={downloadPdf}>
@@ -1798,6 +2145,9 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
         setIsSharedDecisionMakingFormOpen={setIsSharedDecisionMakingFormOpen}
         isAdmissionDetailsFormOpen={isAdmissionDetailsFormOpen}
         setIsAdmissionDetailsFormOpen={setIsAdmissionDetailsFormOpen}
+        isSummaryOfLabourFormOpen={isSummaryOfLabourFormOpen}
+        setIsSummaryOfLabourFormOpen={setIsSummaryOfLabourFormOpen}
+        summaryOfLabourPrefill={summaryOfLabourPrefill}
         baseTime={baseTime}
         firstStageTransition={firstStageTransition}
         mergedSupportiveCareEntries={mergedSupportiveCareEntries}
@@ -1828,6 +2178,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
         mutateMedicationData={mutateMedicationData}
         mutateSharedDecisionMakingData={mutateSharedDecisionMakingData}
         mutateAdmissionDetails={mutateAdmissionDetails}
+        mutateSummaryOfLabour={mutateSummaryOfLabour}
         emergencyReason={emergencyReason}
         emergencySection={emergencySection}
         clearEmergencyContext={() => {

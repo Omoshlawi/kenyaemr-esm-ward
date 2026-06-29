@@ -1,5 +1,5 @@
 import React from 'react';
-import { InlineNotification, Modal, RadioButton, RadioButtonGroup, Search, Stack, TextArea } from '@carbon/react';
+import { InlineNotification, Modal, Search, Stack, TextArea } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
 import { getPatientName } from '@openmrs/esm-framework';
 import styles from '../labour-care-guide.scss';
@@ -19,6 +19,22 @@ type LcgSessionCorrectionWizardProps = {
   termination: LcgSessionTerminationState;
   admissionLocationUuid?: string;
   onTransferComplete?: (targetPatientUuid: string) => void;
+};
+
+const formatPatientGender = (gender?: string) => {
+  if (!gender) {
+    return null;
+  }
+
+  const normalized = gender.toLowerCase();
+  if (normalized === 'f' || normalized.startsWith('female')) {
+    return 'Female';
+  }
+  if (normalized === 'm' || normalized.startsWith('male')) {
+    return 'Male';
+  }
+
+  return gender;
 };
 
 const LcgSessionCorrectionWizard: React.FC<LcgSessionCorrectionWizardProps> = ({
@@ -128,85 +144,116 @@ const LcgSessionCorrectionWizard: React.FC<LcgSessionCorrectionWizardProps> = ({
       onRequestClose={onClose}
       onRequestSubmit={handleTransfer}
       onSecondarySubmit={onClose}
-      size="md">
-      <Stack gap={5}>
-        <InlineNotification
-          kind="warning"
-          hideCloseButton
-          lowContrast
-          title={t('lcgSessionTerminatedBanner', 'Session terminated')}
-          subtitle={`${t('lcgTerminationReasonLabel', 'Reason')}: ${terminationSummary} • ${t('lcgTerminationTimeLabel', 'Time')}: ${terminatedAtDisplay}`}
-        />
-
-        {errorMessage ? (
-          <InlineNotification kind="error" title={t('error', 'Error')} subtitle={errorMessage} hideCloseButton />
-        ) : null}
-
-        {successMessage ? (
+      className={styles.correctionWizardModal}
+      size="lg">
+      <div className={styles.correctionWizardModalBody}>
+        <Stack gap={5}>
           <InlineNotification
-            kind="success"
-            title={t('success', 'Success')}
-            subtitle={successMessage}
-            hideCloseButton
-          />
-        ) : null}
-
-        <p className={styles.correctionWizardHelp}>
-          {t(
-            'lcgCorrectionWizardHelp',
-            'Select the admitted patient who should receive this labour session. Clinical data will move to that chart and this chart will be cleared.',
-          )}
-        </p>
-
-        <Search
-          id="lcg-correction-patient-search"
-          labelText={t('searchPatients', 'Search patients')}
-          placeholder={t('searchByNameOrId', 'Search by name or OpenMRS ID')}
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          size="md"
-        />
-
-        {isLoading ? <p>{t('loading', 'Loading...')}</p> : null}
-
-        {!isLoading && filteredPatients.length === 0 ? (
-          <InlineNotification
-            kind="info"
+            kind="warning"
             hideCloseButton
             lowContrast
-            title={t('lcgCorrectionNoPatients', 'No eligible admitted patients found')}
-            subtitle={t(
-              'lcgCorrectionNoPatientsDetail',
-              'Only female patients older than 9 years admitted to this ward are listed.',
-            )}
+            title={t('lcgSessionTerminatedBanner', 'Session terminated')}
+            subtitle={`${t('lcgTerminationReasonLabel', 'Reason')}: ${terminationSummary} • ${t('lcgTerminationTimeLabel', 'Time')}: ${terminatedAtDisplay}`}
           />
-        ) : (
-          <RadioButtonGroup
-            legendText={t('selectCorrectPatient', 'Select correct patient')}
-            name="lcg-correction-target-patient"
-            valueSelected={selectedPatientUuid}
-            onChange={(value) => setSelectedPatientUuid(String(value))}>
-            {filteredPatients.map((patient) => (
-              <RadioButton
-                key={patient.uuid}
-                id={`lcg-correction-patient-${patient.uuid}`}
-                labelText={`${patient.displayName}${patient.identifier ? ` (${patient.identifier})` : ''}${
-                  patient.age ? ` • ${patient.age}` : ''
-                }`}
-                value={patient.uuid}
-              />
-            ))}
-          </RadioButtonGroup>
-        )}
 
-        <TextArea
-          id="lcg-correction-transfer-notes"
-          labelText={t('transferNotesOptional', 'Transfer notes (optional)')}
-          value={transferNotes}
-          onChange={(event) => setTransferNotes(event.target.value)}
-          rows={3}
-        />
-      </Stack>
+          {errorMessage ? (
+            <InlineNotification kind="error" title={t('error', 'Error')} subtitle={errorMessage} hideCloseButton />
+          ) : null}
+
+          {successMessage ? (
+            <InlineNotification
+              kind="success"
+              title={t('success', 'Success')}
+              subtitle={successMessage}
+              hideCloseButton
+            />
+          ) : null}
+
+          <p className={styles.correctionWizardHelp}>
+            {t(
+              'lcgCorrectionWizardHelp',
+              'Select the admitted patient who should receive this labour session. Clinical data will move to that chart and this chart will be cleared.',
+            )}
+          </p>
+
+          <Search
+            id="lcg-correction-patient-search"
+            labelText={t('searchPatients', 'Search patients')}
+            placeholder={t('searchByNameOrId', 'Search by name or OpenMRS ID')}
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            size="md"
+          />
+
+          {isLoading ? <p>{t('loading', 'Loading...')}</p> : null}
+
+          {!isLoading && filteredPatients.length === 0 ? (
+            <InlineNotification
+              kind="info"
+              hideCloseButton
+              lowContrast
+              title={t('lcgCorrectionNoPatients', 'No eligible admitted patients found')}
+              subtitle={t(
+                'lcgCorrectionNoPatientsDetail',
+                'Only female patients older than 9 years admitted to this ward are listed.',
+              )}
+            />
+          ) : !isLoading ? (
+            <fieldset className={styles.correctionPatientFieldset}>
+              <legend className={styles.correctionPatientLegend}>
+                {t('selectCorrectPatient', 'Select correct patient')}
+                <span className={styles.correctionPatientCount}>
+                  {t('lcgCorrectionPatientCount', '{{count}} patients', { count: filteredPatients.length })}
+                </span>
+              </legend>
+              <div className={styles.correctionPatientList}>
+                {filteredPatients.map((patient) => {
+                  const metaParts = [
+                    patient.identifier ? `${t('openMrsId', 'ID')}: ${patient.identifier}` : null,
+                    formatPatientGender(patient.gender),
+                    patient.age !== undefined && patient.age !== null && patient.age !== ''
+                      ? t('patientAgeYears', '{{age}} yrs', { age: patient.age })
+                      : null,
+                  ].filter(Boolean);
+
+                  return (
+                    <label
+                      key={patient.uuid}
+                      className={`${styles.correctionPatientOption}${
+                        selectedPatientUuid === patient.uuid ? ` ${styles.correctionPatientOptionSelected}` : ''
+                      }`}
+                      htmlFor={`lcg-correction-patient-${patient.uuid}`}>
+                      <input
+                        type="radio"
+                        id={`lcg-correction-patient-${patient.uuid}`}
+                        name="lcg-correction-target-patient"
+                        value={patient.uuid}
+                        checked={selectedPatientUuid === patient.uuid}
+                        onChange={() => setSelectedPatientUuid(patient.uuid)}
+                        className={styles.correctionPatientRadio}
+                      />
+                      <div className={styles.correctionPatientDetails}>
+                        <span className={styles.correctionPatientName}>{patient.displayName}</span>
+                        {metaParts.length ? (
+                          <span className={styles.correctionPatientMeta}>{metaParts.join(' • ')}</span>
+                        ) : null}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
+
+          <TextArea
+            id="lcg-correction-transfer-notes"
+            labelText={t('transferNotesOptional', 'Transfer notes (optional)')}
+            value={transferNotes}
+            onChange={(event) => setTransferNotes(event.target.value)}
+            rows={3}
+          />
+        </Stack>
+      </div>
     </Modal>
   );
 };

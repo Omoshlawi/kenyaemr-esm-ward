@@ -11,6 +11,7 @@ import {
   MedicationForm,
   SharedDecisionMakingForm,
   AdmissionDetailsForm,
+  SummaryOfLabourForm,
 } from './index';
 import type { SupportiveCareFormProps } from './supportive-care-form.component';
 import type { BabyEntry } from '../graphs/baby.component';
@@ -28,6 +29,7 @@ import { LCG_ADMISSION_RISK_FACTOR_CODE } from '../constants/admission-form.cons
 import { activeFirstStageHours, secondStageHours } from '../labour-care-guide.utils';
 import type { SharedDecisionAlertItem } from '../alert-rules';
 import type { LcgCorrectionAuditRecord } from '../resources/lcg-session-correction.resource';
+import type { SummaryOfLabourFormData } from '../resources/summary-of-labour.resource';
 
 type AdmissionDetailsState = {
   labourOnset: string;
@@ -64,6 +66,9 @@ export type LabourCareGuideFormsProps = {
   setIsSharedDecisionMakingFormOpen: (value: boolean) => void;
   isAdmissionDetailsFormOpen: boolean;
   setIsAdmissionDetailsFormOpen: (value: boolean) => void;
+  isSummaryOfLabourFormOpen: boolean;
+  setIsSummaryOfLabourFormOpen: (value: boolean) => void;
+  summaryOfLabourPrefill: SummaryOfLabourFormData;
 
   // shared time / stage data
   baseTime: string | null | undefined;
@@ -124,6 +129,7 @@ export type LabourCareGuideFormsProps = {
   mutateMedicationData: () => void;
   mutateSharedDecisionMakingData: () => void;
   mutateAdmissionDetails: () => void;
+  mutateSummaryOfLabour: () => void;
 
   // emergency override context
   emergencyReason: string | null;
@@ -161,6 +167,9 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   setIsSharedDecisionMakingFormOpen,
   isAdmissionDetailsFormOpen,
   setIsAdmissionDetailsFormOpen,
+  isSummaryOfLabourFormOpen,
+  setIsSummaryOfLabourFormOpen,
+  summaryOfLabourPrefill,
   baseTime,
   firstStageTransition,
   mergedSupportiveCareEntries,
@@ -191,6 +200,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   mutateMedicationData,
   mutateSharedDecisionMakingData,
   mutateAdmissionDetails,
+  mutateSummaryOfLabour,
   emergencyReason,
   emergencySection,
   clearEmergencyContext,
@@ -202,6 +212,14 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   correctionAuditDisplay = null,
   sessionResetAfterMs = null,
 }) => {
+  const summaryFormInitialValuesRef = React.useRef(summaryOfLabourPrefill);
+  const summaryFormWasOpenRef = React.useRef(false);
+
+  if (isSummaryOfLabourFormOpen && !summaryFormWasOpenRef.current) {
+    summaryFormInitialValuesRef.current = summaryOfLabourPrefill;
+  }
+  summaryFormWasOpenRef.current = isSummaryOfLabourFormOpen;
+
   const { t } = useTranslation();
 
   const supportiveCodeToDisplay = React.useMemo<Record<string, string>>(
@@ -610,6 +628,27 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
           correctionAuditDisplay={correctionAuditDisplay}
           isEmergencyMode={emergencySection === 'shared-decision-making' && Boolean(emergencyReason)}
           emergencyReason={emergencySection === 'shared-decision-making' ? (emergencyReason ?? undefined) : undefined}
+        />
+      ) : null}
+
+      {isSummaryOfLabourFormOpen ? (
+        <SummaryOfLabourForm
+          isOpen={isSummaryOfLabourFormOpen}
+          onClose={() => setIsSummaryOfLabourFormOpen(false)}
+          onSubmit={() => undefined}
+          onDataSaved={() => {
+            mutateSummaryOfLabour();
+            setIsSummaryOfLabourFormOpen(false);
+          }}
+          initialValues={summaryFormInitialValuesRef.current}
+          isTwin={isMultipleGestation}
+          patient={
+            patient
+              ? {
+                  uuid: (patient as any).id,
+                }
+              : undefined
+          }
         />
       ) : null}
 

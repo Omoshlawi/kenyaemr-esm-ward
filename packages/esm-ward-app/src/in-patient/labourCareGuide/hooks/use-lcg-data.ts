@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAdmissionDetails } from '../resources/admission-details.resource';
+import { useSummaryOfLabourData } from '../resources/summary-of-labour.resource';
 import { useBabyData } from '../resources/baby.resource';
 import type { BabyEntry } from '../graphs/baby.component';
 import { useLabourTimeSetData } from '../resources/labour-time-set-select-setup.resource';
@@ -160,6 +161,7 @@ export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {})
   const alertSessionAcknowledgedAtMsRef = React.useRef<Map<number, number>>(new Map());
   const [alertSessionVersion, setAlertSessionVersion] = React.useState(0);
   const [isAdmissionDetailsFormOpen, setIsAdmissionDetailsFormOpen] = React.useState(false);
+  const [isSummaryOfLabourFormOpen, setIsSummaryOfLabourFormOpen] = React.useState(false);
   const [labourProgressRefreshToken, setLabourProgressRefreshToken] = React.useState(0);
   const {
     localSupportiveCareEntries,
@@ -199,6 +201,22 @@ export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {})
       ),
     [rawLabourTimeSetData, sessionResetAfterMs],
   );
+  const summarySessionStartMs = React.useMemo(() => {
+    if (sessionResetAfterMs) {
+      return sessionResetAfterMs;
+    }
+    const firstLabourTimeEntry = labourTimeSetData[0];
+    if (!firstLabourTimeEntry?.encounterDatetime) {
+      return null;
+    }
+    const parsed = new Date(firstLabourTimeEntry.encounterDatetime).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [labourTimeSetData, sessionResetAfterMs]);
+  const {
+    summaryEntry,
+    summaryFilled,
+    mutate: mutateSummaryOfLabour,
+  } = useSummaryOfLabourData(patientUuid, summarySessionStartMs);
   const { babyEntries: rawBabyEntries, mutate: mutateBabyData } = useBabyData(patientUuid, true);
   const babyEntries = React.useMemo(
     () => rawBabyEntries.filter((entry) => isEncounterAfterSessionReset(entry.encounterDatetime, sessionResetAfterMs)),
@@ -833,6 +851,7 @@ export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {})
         action: entry.action,
         label: stopLabel,
         time: entryTime,
+        encounterDatetime: entry.encounterDatetime,
         slotIndex: 0,
       };
     }
@@ -1385,6 +1404,11 @@ export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {})
     setSharedDecisionAutoPromptItems,
     isAdmissionDetailsFormOpen,
     setIsAdmissionDetailsFormOpen,
+    isSummaryOfLabourFormOpen,
+    setIsSummaryOfLabourFormOpen,
+    summaryEntry,
+    summaryFilled,
+    mutateSummaryOfLabour,
     labourProgressRefreshToken,
     localSupportiveCareEntries,
     setLocalSupportiveCareEntries,
