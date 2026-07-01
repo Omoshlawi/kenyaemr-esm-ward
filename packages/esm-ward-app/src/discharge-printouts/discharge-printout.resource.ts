@@ -9,7 +9,7 @@ import {
   type Visit,
 } from '@openmrs/esm-framework';
 import { type Order } from '@openmrs/esm-patient-common-lib';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { type WardConfigObject } from '../config-schema';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
@@ -22,37 +22,109 @@ const labConceptRepresentation =
 
 export const usePatientDiagnosis = (encounterUuid: string) => {
   const customRepresentation =
-    'custom:(uuid,display,visit:(uuid,encounters:(uuid,diagnoses:(uuid,display,certainty,diagnosis:(coded:(uuid,display))))))';
+    'custom:(uuid,display,visit:(uuid,encounters:(uuid,encounterType:(uuid,display),diagnoses:(uuid,display,certainty,diagnosis:(coded:(uuid,display))))))';
   const url = `${restBaseUrl}/encounter/${encounterUuid}?v=${customRepresentation}`;
-
+  const { doctorsNoteEncounterType, ipdDischargeEncounterTypeUuid, clinicalConsultationEncounterType } =
+    useConfig<WardConfigObject>();
   const { data, error, isLoading } = useSWR<FetchResponse<{ visit: Visit }>>(url, openmrsFetch);
-
-  const diagnoses = useMemo(() => {
+  const allDiagnoses = useMemo(() => {
     return (
       data?.data?.visit?.encounters?.flatMap(
         (encounter) =>
-          encounter.diagnoses.map((diagnosis) => ({
-            id: diagnosis.diagnosis.coded.uuid,
+          encounter?.diagnoses?.map((diagnosis) => ({
+            id: diagnosis.diagnosis?.coded?.uuid,
             text: diagnosis.display,
             certainty: diagnosis.certainty,
           })) || [],
       ) || []
     );
   }, [data]);
-  const display = useMemo(() => {
-    if (diagnoses?.length)
-      return diagnoses
-        .map((d) => d.text)
-        .join(', ')
-        ?.toLowerCase();
-    return null;
-  }, [diagnoses]);
+
+  const dischargeDiagnoses = useMemo(() => {
+    return (
+      data?.data?.visit?.encounters
+        ?.filter((enc) => enc.encounterType?.uuid === ipdDischargeEncounterTypeUuid)
+        ?.flatMap(
+          (encounter) =>
+            encounter.diagnoses?.map((diagnosis) => ({
+              id: diagnosis.diagnosis?.coded?.uuid,
+              text: diagnosis.display,
+              certainty: diagnosis.certainty,
+            })) || [],
+        ) || []
+    );
+  }, [data, ipdDischargeEncounterTypeUuid]);
+  const doctorsNoteDiagnosis = useMemo(() => {
+    return (
+      data?.data?.visit?.encounters
+        ?.filter((enc) => enc.encounterType?.uuid === doctorsNoteEncounterType)
+        ?.flatMap(
+          (encounter) =>
+            encounter.diagnoses?.map((diagnosis) => ({
+              id: diagnosis.diagnosis?.coded?.uuid,
+              text: diagnosis.display,
+              certainty: diagnosis.certainty,
+            })) || [],
+        ) || []
+    );
+  }, [data, doctorsNoteEncounterType]);
+  const consultationDiagnosis = useMemo(() => {
+    return (
+      data?.data?.visit?.encounters
+        ?.filter((enc) => enc.encounterType?.uuid === clinicalConsultationEncounterType)
+        ?.flatMap(
+          (encounter) =>
+            encounter.diagnoses?.map((diagnosis) => ({
+              id: diagnosis.diagnosis?.coded?.uuid,
+              text: diagnosis.display,
+              certainty: diagnosis.certainty,
+            })) || [],
+        ) || []
+    );
+  }, [data, clinicalConsultationEncounterType]);
+
+  const getDignosisDisplay = useCallback(
+    (
+      diagnoses: {
+        id: string | undefined;
+        text: string | undefined;
+        certainty: string | undefined;
+      }[],
+    ) => {
+      if (diagnoses?.length)
+        return diagnoses
+          .map((d) => d.text)
+          .join(', ')
+          ?.toLowerCase();
+      return null;
+    },
+    [],
+  );
+  const display = useMemo(() => getDignosisDisplay(allDiagnoses), [allDiagnoses, getDignosisDisplay]);
+  const dischargeDiagnosesDisplay = useMemo(
+    () => getDignosisDisplay(dischargeDiagnoses),
+    [dischargeDiagnoses, getDignosisDisplay],
+  );
+  const doctorsNoteDiagnosesDisplay = useMemo(
+    () => getDignosisDisplay(doctorsNoteDiagnosis),
+    [doctorsNoteDiagnosis, getDignosisDisplay],
+  );
+  const consultationDiagnosesDisplay = useMemo(
+    () => getDignosisDisplay(consultationDiagnosis),
+    [consultationDiagnosis, getDignosisDisplay],
+  );
 
   return {
     error,
     isLoading,
-    diagnoses: (diagnoses ?? []) as Array<{ id: string; text: string; certainty: string }>,
+    diagnoses: (allDiagnoses ?? []) as Array<{ id: string; text: string; certainty: string }>,
     display,
+    dischargeDiagnoses: (dischargeDiagnoses ?? []) as Array<{ id: string; text: string; certainty: string }>,
+    dischargeDiagnosesDisplay,
+    doctorsNoteDiagnosis: (doctorsNoteDiagnosis ?? []) as Array<{ id: string; text: string; certainty: string }>,
+    doctorsNoteDiagnosesDisplay,
+    consultationDiagnosis: (consultationDiagnosis ?? []) as Array<{ id: string; text: string; certainty: string }>,
+    consultationDiagnosesDisplay,
   };
 };
 
@@ -89,26 +161,22 @@ export function usePatientOrders(dischargeEncounterUuId: string) {
     return encounters;
   }, [encounter, doctorsNoteEncounterType]);
 
-  const { drugorder, testorder } = useMemo<{ drugorder: Array<Order>; testorder: Array<Order> }>(
-    () =>
-      orderEncounters.reduce(
-        (prev, curr) => {
-          if (curr.orders?.length) {
-            prev['drugorder'].push(...curr.orders.filter((order) => order.type === 'drugorder'));
-            prev['testorder'].push(...curr.orders.filter((order) => order.type === 'testorder'));
-          }
-          return prev;
-        },
-        { drugorder: [], testorder: [] },
-      ),
-    [orderEncounters],
-  );
-
   const complaints = useMemo(() => {
     const obs = getComplaintsObs(doctorsNoteEncounters, concepts.complaint, concepts.chiefComplaint);
     if (obs.length) return obs.map((o) => getObservationDisplayValue(o.value, null)).join(', ');
     return null;
   }, [doctorsNoteEncounters, concepts]);
+
+  const physicalExaminations = useMemo(() => {
+    const obs = doctorsNoteEncounters.reduce<Array<Obs>>((prev, cur) => {
+      if (cur.obs?.length) {
+        const obs = cur.obs.filter((o) => o.concept.uuid === concepts.physicalExamination);
+        prev.push(...obs);
+      }
+      return prev;
+    }, []);
+    return obs?.map((ob) => getObservationDisplayValue(ob.value, null)?.toLowerCase());
+  }, [doctorsNoteEncounters, concepts.physicalExamination]);
 
   const drugReactions = useMemo(() => {
     const obs = getDrugReactions(clinicalConsultationEncounters, concepts.drugReaction, concepts.reactingDrug);
@@ -127,17 +195,6 @@ export function usePatientOrders(dischargeEncounterUuId: string) {
     return encounters;
   }, [encounter, ipdDischargeEncounterTypeUuid]);
 
-  const physicalExaminations = useMemo(() => {
-    const obs = doctorsNoteEncounters.reduce<Array<Obs>>((prev, cur) => {
-      if (cur.obs?.length) {
-        const obs = cur.obs.filter((o) => o.concept.uuid === concepts.physicalExamination);
-        prev.push(...obs);
-      }
-      return prev;
-    }, []);
-    return obs?.map((ob) => getObservationDisplayValue(ob.value, null)?.toLowerCase());
-  }, [doctorsNoteEncounters, concepts.physicalExamination]);
-
   const dischargeinstructions = useMemo(() => {
     const instructionObsValue = ipdDischargeEncounter?.obs?.find(
       (o) => o.concept.uuid === concepts.dischargeInstruction,
@@ -148,8 +205,6 @@ export function usePatientOrders(dischargeEncounterUuId: string) {
   return {
     isLoading,
     error,
-    drugOrders: drugorder,
-    testOrders: testorder,
     orderEncounters,
     clinicalConsultationEncounters,
     complaints,

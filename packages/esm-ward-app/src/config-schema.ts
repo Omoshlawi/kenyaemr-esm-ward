@@ -652,6 +652,7 @@ export const configSchema: ConfigSchema = {
       primaryDoctor: '2b537713-298c-4b60-83c3-8006ea622d70',
       primaryDoctorPhoneNumber: '159635AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       emmergencyDoctor: '1473AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      dischargingDoctor: '1473AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       emmergencyDoctorPhoneNumber: '163152AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       admissionDateTime: '1640AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       chiefComplaint: '5219AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
@@ -939,6 +940,21 @@ export const configSchema: ConfigSchema = {
     _description: 'OpenMRS privilege required to open the LCG wrong-patient correction wizard',
     _default: 'Correct LCG Wrong Patient',
   },
+  nationIdIdentifierTypeUuid: {
+    _type: Type.UUID,
+    _description: 'Identifier type uuid for the national ID',
+    _default: '49af6cdc-7968-4abb-bf46-de10d7f4859f',
+  },
+  crIdentifierTypeUuid: {
+    _type: Type.UUID,
+    _description: 'Identifier type uuid for the SHIF ID',
+    _default: '24aedd37-b5be-4e08-8311-3721b8d5100d',
+  },
+  showCrIdentifierOnSummary: {
+    _type: Type.Boolean,
+    _description: 'Whether to show the CR ID on the patient summary',
+    _default: true,
+  },
 } as const;
 
 export interface WardConfigObject {
@@ -973,6 +989,7 @@ export interface WardConfigObject {
     chiefComplaint: string;
     physicalExamination: string;
     dischargeInstruction: string;
+    dischargingDoctor: string;
     complaint: string;
     drugReaction: string;
     reactingDrug: string;
@@ -1050,6 +1067,9 @@ export interface WardConfigObject {
   treatmentChartTimeConceptUuid: string;
   partography: LabourCareGuidePartographyConfig;
   lcgSessionCorrectionPrivilege: string;
+  nationIdIdentifierTypeUuid: string;
+  crIdentifierTypeUuid: string;
+  showCrIdentifierOnSummary: boolean;
 }
 export interface PendingItemsElementConfig {
   id: string;
