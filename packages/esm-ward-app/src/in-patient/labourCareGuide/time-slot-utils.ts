@@ -44,7 +44,7 @@ export type LcgSlotSubmissionValidation = {
   valid: boolean;
   slotIndex: number | null;
   slotState: LcgSlotState | null;
-  errorCode?: 'OUT_OF_RANGE' | 'SLOT_LOCKED' | 'SLOT_PENDING';
+  errorCode?: 'OUT_OF_RANGE' | 'SLOT_LOCKED' | 'SLOT_PENDING' | 'FUTURE_TIME';
 };
 
 export const BABY_BASE_ROW_SLOT_OPTIONS: Required<LcgPointSlotOptions> = {
@@ -562,6 +562,17 @@ export const formatHHMM = (date: Date): string => {
   });
 };
 
+/** True when submissionTime is later than the current wall-clock time (same calendar day). */
+export const isWallClockTimeAfterNow = (submissionTime: string, now: Date): boolean => {
+  const submissionMinutes = parseHHMMToMinutes(submissionTime);
+  if (submissionMinutes === null) {
+    return false;
+  }
+
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return submissionMinutes > nowMinutes;
+};
+
 export const getAllowedEmergencyTimes = (now: Date): string[] => {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const allowedTimes: string[] = [];
@@ -588,6 +599,7 @@ export const getAllowedTimesForSlots = (
   }
 
   const nowRelativeMinutes = getCurrentRelativeMinutes(baseTime, _now);
+  const nowAbsoluteMinutes = nowRelativeMinutes !== null ? normalizeMinutes(baseMinutes + nowRelativeMinutes) : null;
   const allowedTimes = new Set<string>();
   const useExactSlotTimeOnly = earlyAllowanceMinutes === 0 && lateAllowanceMinutes === 0;
 
@@ -595,7 +607,9 @@ export const getAllowedTimesForSlots = (
     const slotTargetMinutes = baseMinutes + idx * slotIntervalMinutes;
 
     if (useExactSlotTimeOnly) {
-      for (let minute = slotTargetMinutes; minute < slotTargetMinutes + slotIntervalMinutes; minute += 1) {
+      const slotEnd = slotTargetMinutes + slotIntervalMinutes - 1;
+      const cappedEnd = nowAbsoluteMinutes !== null ? Math.min(slotEnd, nowAbsoluteMinutes) : slotEnd;
+      for (let minute = slotTargetMinutes; minute <= cappedEnd; minute += 1) {
         allowedTimes.add(formatMinutesToHHMM(minute));
       }
       return;
@@ -607,9 +621,13 @@ export const getAllowedTimesForSlots = (
     const rangeStart = isCurrentOrPastActiveSlot
       ? Math.max(slotTargetMinutes - earlyAllowanceMinutes, baseMinutes)
       : slotTargetMinutes;
-    const rangeEnd = isCurrentOrPastActiveSlot
+    let rangeEnd = isCurrentOrPastActiveSlot
       ? slotTargetMinutes + slotIntervalMinutes - 1 + lateAllowanceMinutes
       : slotTargetMinutes + lateAllowanceMinutes;
+
+    if (isCurrentOrPastActiveSlot && nowAbsoluteMinutes !== null) {
+      rangeEnd = Math.min(rangeEnd, nowAbsoluteMinutes);
+    }
 
     for (let minute = rangeStart; minute <= rangeEnd; minute += 1) {
       allowedTimes.add(formatMinutesToHHMM(minute));
@@ -665,7 +683,10 @@ export const getAllowedPointTimesForSlots = (
         : Math.max(opensAt, currentRelativeMinutes - resolvedOptions.earlyAllowanceMinutes);
     // Point-slot window must align with getPointSlotState/getPointSlotOffsets:
     // [target - earlyAllowance, target + lateAllowance] inclusive.
-    const visibleEndExclusive = targetMinute + resolvedOptions.lateAllowanceMinutes + 1;
+    let visibleEndExclusive = targetMinute + resolvedOptions.lateAllowanceMinutes + 1;
+    if (currentRelativeMinutes !== null) {
+      visibleEndExclusive = Math.min(visibleEndExclusive, currentRelativeMinutes + 1);
+    }
 
     for (let minuteOffset = visibleStart; minuteOffset < visibleEndExclusive; minuteOffset += 1) {
       times.add(formatMinutesToHHMM(baseMinutes + minuteOffset));
@@ -709,6 +730,10 @@ export const validateGridSlotSubmission = (
     return { valid: false, slotIndex, slotState, errorCode: 'SLOT_PENDING' };
   }
 
+  if (isWallClockTimeAfterNow(submissionTime, now)) {
+    return { valid: false, slotIndex, slotState, errorCode: 'FUTURE_TIME' };
+  }
+
   return { valid: true, slotIndex, slotState };
 };
 
@@ -731,6 +756,10 @@ export const validatePointSlotSubmission = (
   }
   if (slotState === 'pending') {
     return { valid: false, slotIndex, slotState, errorCode: 'SLOT_PENDING' };
+  }
+
+  if (isWallClockTimeAfterNow(submissionTime, now)) {
+    return { valid: false, slotIndex, slotState, errorCode: 'FUTURE_TIME' };
   }
 
   return { valid: true, slotIndex, slotState };
