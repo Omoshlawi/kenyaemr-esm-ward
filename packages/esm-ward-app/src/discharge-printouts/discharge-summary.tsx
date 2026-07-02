@@ -1,5 +1,5 @@
 import { InlineLoading, InlineNotification } from '@carbon/react';
-import { useConfig, useEmrConfiguration, usePatient, useSession } from '@openmrs/esm-framework';
+import { restBaseUrl, useConfig, useEmrConfiguration, usePatient, useSession } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -107,13 +107,7 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
   return (
     <div className={styles.content}>
       <div className={styles.header}>
-        <img
-          src={
-            'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8bG9nb3xlbnwwfHwwfHx8MA%3D%3D'
-          }
-          alt="logo"
-          className={styles.logo}
-        />
+        <img src={`/openmrs/${restBaseUrl}/palladiumemr/logo`} alt="logo" className={styles.logo} />
         <div>
           <h5>{session?.sessionLocation?.display}</h5>
           <h2>{t('dischargeSummary', 'Discharge Summary')}</h2>
