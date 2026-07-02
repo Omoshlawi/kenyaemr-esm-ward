@@ -1344,9 +1344,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
       const cervicalDilation = parseCervicalDilationValue(
         getEncounterObsValue(encounter, PARTOGRAPHY_CONCEPTS['cervical-dilation']),
       );
-      const urgeToPush = parseUrgeToPushValue(getEncounterObsValue(encounter, URGE_TO_PUSH_UUID));
-
-      if (cervicalDilation !== 10 || urgeToPush !== 'yes') {
+      if (cervicalDilation !== 10) {
         continue;
       }
 
@@ -1364,7 +1362,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
     }
 
     for (const entry of localLabourProgressEntries) {
-      if (entry.cervicalDilation !== 10 || entry.urgeToPush !== 'yes' || !entry.time) {
+      if (entry.cervicalDilation !== 10 || !entry.time) {
         continue;
       }
 

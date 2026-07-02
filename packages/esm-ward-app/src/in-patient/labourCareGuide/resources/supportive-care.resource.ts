@@ -93,10 +93,13 @@ export async function saveSupportiveCareData(
       if (!validation.valid) {
         return {
           success: false,
-          message: t(
-            'lcgSlotLocked',
-            'This time slot has closed. Data can only be entered during the active monitoring window.',
-          ),
+          message:
+            validation.errorCode === 'FUTURE_TIME'
+              ? t('futureTimeError', 'Cannot select a future time')
+              : t(
+                  'lcgSlotLocked',
+                  'This time slot has closed. Data can only be entered during the active monitoring window.',
+                ),
           error: validation.errorCode ?? 'SLOT_LOCKED',
         };
       }
