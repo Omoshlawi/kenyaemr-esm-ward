@@ -74,14 +74,6 @@ export const useProvider = (uuid: string) => {
 export const inpatientAdmissionSchema = z.object({
   bedId: z.number().optional(),
   admissionDate: z.date({ coerce: true }),
-  diagnosis: z.string().optional(),
-  primaryDoctor: z.string().optional(),
-  primaryDoctorPhoneNumber: z.string().optional(),
-  emergencyDoctor: z.string().optional(),
-  emergencyDoctorPhoneNumber: z.string().optional(),
-  paymentMode: z.string().optional(),
-  insuranceType: z.string().optional(),
-  otherInsuranceType: z.string().optional(),
 });
 
 const formartDate = (date: Date) => {
@@ -89,44 +81,3 @@ const formartDate = (date: Date) => {
 };
 
 export type InapatientAdmissionFormData = z.infer<typeof inpatientAdmissionSchema>;
-export const formValuesToObs = (data: InapatientAdmissionFormData, config: WardConfigObject) => {
-  const obs = [
-    {
-      concept: config.conceptUuidForWardAdmission.primaryDoctor,
-      value: data.primaryDoctor,
-    },
-    {
-      concept: config.conceptUuidForWardAdmission.chiefComplaint,
-      value: data.diagnosis,
-    },
-    {
-      concept: config.conceptUuidForWardAdmission.primaryDoctorPhoneNumber,
-      value: data.primaryDoctorPhoneNumber,
-    },
-    {
-      concept: config.conceptUuidForWardAdmission.emmergencyDoctor,
-      value: data.emergencyDoctor,
-    },
-    {
-      concept: config.conceptUuidForWardAdmission.emmergencyDoctorPhoneNumber,
-      value: data.emergencyDoctorPhoneNumber,
-    },
-    {
-      concept: config.conceptUuidForWardAdmission.paymentMethod,
-      value: data.paymentMode,
-    },
-  ];
-  if (data.paymentMode === config.conceptUuidForWardAdmission.insurancePaymentMethod) {
-    obs.push({
-      concept: config.conceptUuidForWardAdmission.insurancePaymentMethod,
-      value: data.insuranceType,
-    });
-    if (data.otherInsuranceType === config.conceptUuidForWardAdmission.otherInsuaranceType) {
-      obs.push({
-        concept: config.conceptUuidForWardAdmission.insuranceOtherSpecify,
-        value: data.otherInsuranceType,
-      });
-    }
-  }
-  return obs.filter((o) => Boolean(o.value));
-};
