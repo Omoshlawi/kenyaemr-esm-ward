@@ -747,7 +747,13 @@ export const configSchema: ConfigSchema = {
       },
       {
         uuid: '87379b0a-738b-4799-9736-cdac614cee2a',
-        label: 'Doctors Note',
+        label: 'Inpatient Review Notes',
+        tags: [],
+      },
+      {
+        uuid: 'dbc4ff03-3eee-49f0-86a8-7cfd33dc2460',
+        label: 'Admission Notes',
+        dependancies: ['87379b0a-738b-4799-9736-cdac614cee2a'],
         tags: [],
       },
       {
