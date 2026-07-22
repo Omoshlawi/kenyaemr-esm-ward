@@ -106,7 +106,10 @@ const AdmittedPatients = () => {
         admissionDate,
         idNumber: getOpenmrsId(patient.patient?.identifiers ?? []) ?? '--',
         name: (
-          <HyperLinkPatientCell patientName={patient.patient?.person?.display} patientUuid={patient.patient?.uuid} />
+          <HyperLinkPatientCell
+            patientName={patient.patient?.person?.display ?? ''}
+            patientUuid={patient.patient?.uuid}
+          />
         ),
         gender: patient.patient?.person?.gender ?? '--',
         age: patient.patient?.person?.age ?? '--',

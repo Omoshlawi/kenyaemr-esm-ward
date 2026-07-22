@@ -19,6 +19,7 @@ import { useAdmissionLocation } from '../hooks/useAdmissionLocation';
 import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
 import InpatientForms from './inpatient-forms.component';
 import styles from './inpatient.scss';
+import { timeAgo } from './time-ago';
 
 type InpatientDetailViewProps = {
   patientUuid: string;
@@ -71,20 +72,30 @@ const PatientAdmitted: FC<{
   patientUuid: string;
   patient: fhir.Patient;
 }> = ({ patient, patientUuid }) => {
+  const { i18n } = useTranslation();
   const { admissionEncounter, isPatientAdmitted } = useCurrentPatientAdmissionEncounter(patientUuid);
   const { t } = useTranslation();
 
-  const { dateOfAdmission, dayasInWard } = useMemo(() => {
+  const { dateOfAdmission, daysSinceAdmission } = useMemo(() => {
     const dateOfAdmission = admissionEncounter?.encounterDatetime
-      ? parseDate(admissionEncounter?.encounterDatetime)
+      ? parseDate(admissionEncounter.encounterDatetime)
       : null;
 
+    if (!dateOfAdmission) {
+      return {
+        dateOfAdmission: null,
+        daysSinceAdmission: 0,
+      };
+    }
+
+    const admissionDate = dayjs(dateOfAdmission).startOf('day');
     const today = dayjs().startOf('day');
-    const dayasInWard = dateOfAdmission ? Math.abs(today.diff(dateOfAdmission, 'days')) : 0;
+
+    const differenceInDays = today.diff(admissionDate, 'day');
 
     return {
       dateOfAdmission,
-      dayasInWard,
+      daysSinceAdmission: Math.max(0, differenceInDays),
     };
   }, [admissionEncounter?.encounterDatetime]);
   const { isLoading, admissionLocation, error } = useAdmissionLocation(undefined, admissionEncounter?.location?.uuid);
@@ -119,7 +130,11 @@ const PatientAdmitted: FC<{
         <Tile className={styles.detailTile}>
           <Alarm size={20} className={styles.tileIcon} />
           <p className={styles.tileLabel}>{t('daysInWard', 'Days in ward')}</p>
-          <p className={styles.tileValue}>{dayasInWard}</p>
+          <p className={styles.tileValue}>{daysSinceAdmission}</p>
+          <p className={styles.titleValueSubTitle}>
+            {daysSinceAdmission === 0 &&
+              ` ${t('durationSinceAdmission', 'Duration since admission')} ( ${timeAgo(admissionEncounter?.encounterDatetime, i18n.resolvedLanguage ?? i18n.language)} )`}
+          </p>
         </Tile>
         <Tile className={styles.detailTile}>
           <Location size={20} className={styles.tileIcon} />
