@@ -36,7 +36,7 @@ export function useWardPatientGrouping(overrideLocation?: string) {
       }
 
       for (const admission of inpatientAdmissions) {
-        _patientsNotInCurrentWard.delete(admission.patient.uuid);
+        _patientsNotInCurrentWard.delete(admission?.patient?.uuid);
       }
 
       return _patientsNotInCurrentWard;
