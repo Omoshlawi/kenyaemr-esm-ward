@@ -757,11 +757,6 @@ export const configSchema: ConfigSchema = {
         tags: [],
       },
       {
-        uuid: 'ac043326-c5f0-4d11-9e6f-f7266b3f3859',
-        label: 'Post Operation',
-        tags: [],
-      },
-      {
         uuid: 'a14824ca-29af-4d37-b9da-6bdee39f8808',
         label: 'Pre-Operation Checklist',
         tags: [],
