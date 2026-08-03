@@ -28,8 +28,9 @@ import { useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useSWRConfig } from 'swr';
 import { type WardConfigObject } from '../../config-schema';
-import { saveNursingCardexEncounter, usePastMedicationOrders } from './nursing-cardex-plan.resource';
+import { saveNursingCardexEncounter, useActiveMedicationOrders } from './nursing-cardex-plan.resource';
 import { buildNursingCardexEncounterPayload } from './nursing-cardex-payload-builder';
+import { isTreatmentChartOrderLocked, useNursingTreatmentSheet } from './nursing-treatment-sheet.resource';
 import { useNursingCardexFormSchema, type CardexFormValues } from './use-nursing-cardex-form-schema';
 import styles from './nursing-cardex-plan.workspace.scss';
 
@@ -76,7 +77,7 @@ const NursingCardexPlanWorkspace: React.FC<
     byUuid: medicationOrdersByUuid,
     byName: medicationOrdersByName,
     isLoading: isLoadingMedicationOrders,
-  } = usePastMedicationOrders(patientUuid);
+  } = useActiveMedicationOrders(patientUuid);
 
   const {
     control,
@@ -104,6 +105,19 @@ const NursingCardexPlanWorkspace: React.FC<
   const fluidRows = useMemo(() => watchedFluidRows ?? [], [watchedFluidRows]);
   const nursingNotes = useWatch({ control, name: 'nursingNotes' }) ?? '';
   const [isSubmittingEncounter, setIsSubmittingEncounter] = useState(false);
+
+  const {
+    administeredMedicationOrders,
+    administeredFluidOrders,
+    isLoading: isLoadingTreatmentSheetHistory,
+  } = useNursingTreatmentSheet(patientUuid ?? '');
+
+  const isOrderOptionLocked = useCallback(
+    (option: { id: string; label: string }, fieldName: 'medicationRows' | 'fluidRows') =>
+      isTreatmentChartOrderLocked(option, fieldName, administeredMedicationOrders, administeredFluidOrders),
+    [administeredFluidOrders, administeredMedicationOrders],
+  );
+
   const initialRouteRef = useRef<string>(`${window.location.pathname}${window.location.search}${window.location.hash}`);
   const initialPatientUuidRef = useRef<string | undefined>(patientUuid);
   const hasAutoClosedRef = useRef(false);
@@ -223,6 +237,40 @@ const NursingCardexPlanWorkspace: React.FC<
 
       clearErrors(['medicationRows', 'fluidRows']);
 
+      const resolveOrderOption = (row: AdministrationRow) => ({
+        id: row.orderUuid ?? medicationOrderOptions.find((option) => option.label === row.name)?.id ?? '',
+        label: row.name,
+      });
+
+      const lockedMedicationRow = values.medicationRows.find((row) =>
+        isTreatmentChartOrderLocked(
+          resolveOrderOption(row),
+          'medicationRows',
+          administeredMedicationOrders,
+          administeredFluidOrders,
+        ),
+      );
+      const lockedFluidRow = values.fluidRows.find((row) =>
+        isTreatmentChartOrderLocked(
+          resolveOrderOption(row),
+          'fluidRows',
+          administeredMedicationOrders,
+          administeredFluidOrders,
+        ),
+      );
+
+      if (lockedMedicationRow || lockedFluidRow) {
+        showSnackbar({
+          title: t('duplicateMedicationNotAllowed', 'Duplicate medication'),
+          kind: 'error',
+          subtitle: t(
+            'duplicateMedicationNotAllowedDescription',
+            'One or more selected items were already recorded in this section on the treatment sheet.',
+          ),
+        });
+        return;
+      }
+
       const encounterPayload = buildNursingCardexEncounterPayload({
         values,
         patientUuid,
@@ -274,6 +322,9 @@ const NursingCardexPlanWorkspace: React.FC<
       closeWorkspace,
       clearErrors,
       setIsSubmittingEncounter,
+      administeredFluidOrders,
+      administeredMedicationOrders,
+      medicationOrderOptions,
       mutateCache,
       t,
     ],
@@ -376,7 +427,7 @@ const NursingCardexPlanWorkspace: React.FC<
       {errorMessage && (
         <InlineNotification kind="error" title={t('error', 'Error')} subtitle={errorMessage} onClose={clearError} />
       )}
-      {isLoadingMedicationOrders ? (
+      {isLoadingMedicationOrders || isLoadingTreatmentSheetHistory ? (
         <p className={styles.emptyStateText}>{loadingLabel}</p>
       ) : medicationOrderOptions.length === 0 ? (
         <p className={styles.emptyStateText}>{emptyLabel}</p>
@@ -385,15 +436,30 @@ const NursingCardexPlanWorkspace: React.FC<
           {medicationOrderOptions.map((option) => {
             const selectedRowIndex = rows.findIndex((row) => row.orderUuid === option.id || row.name === option.label);
             const selectedRow = selectedRowIndex >= 0 ? rows[selectedRowIndex] : undefined;
+            const isLocked = isOrderOptionLocked(option, fieldName);
+            const rowClassName =
+              isLocked && !selectedRow
+                ? `${styles.orderCheckboxRow} ${styles.orderCheckboxRowLocked}`
+                : styles.orderCheckboxRow;
+            const lockedTitle = t(
+              'medicationAlreadyRecorded',
+              'Already recorded on the treatment sheet and cannot be selected again.',
+            );
 
             return (
-              <div key={option.id} className={styles.orderCheckboxRow}>
+              <div key={option.id} className={rowClassName}>
                 <div className={styles.orderNameCell}>
                   <Checkbox
                     id={`${idPrefix}-order-${option.id}`}
                     labelText={option.label}
                     checked={Boolean(selectedRow)}
+                    disabled={isLocked && !selectedRow}
+                    title={isLocked && !selectedRow ? lockedTitle : undefined}
                     onChange={(event) => {
+                      if (isLocked && !selectedRow) {
+                        return;
+                      }
+
                       const checked = event.target.checked;
                       clearError();
                       if (checked) {
@@ -483,8 +549,8 @@ const NursingCardexPlanWorkspace: React.FC<
                       rows: medicationRows,
                       fieldName: 'medicationRows',
                       idPrefix: 'medication',
-                      loadingLabel: t('loadingMedicationOptions', 'Loading past medications...'),
-                      emptyLabel: t('noPastMedicationOptions', 'No past medications found.'),
+                      loadingLabel: t('loadingMedicationOptions', 'Loading active medications...'),
+                      emptyLabel: t('noActiveMedicationOptions', 'No active medications found.'),
                     })}
 
                   {/* Fluids Administered Section */}
@@ -510,8 +576,8 @@ const NursingCardexPlanWorkspace: React.FC<
                       rows: fluidRows,
                       fieldName: 'fluidRows',
                       idPrefix: 'fluid',
-                      loadingLabel: t('loadingFluidOptions', 'Loading past medications...'),
-                      emptyLabel: t('noPastFluidOptions', 'No past medications found.'),
+                      loadingLabel: t('loadingFluidOptions', 'Loading active medications...'),
+                      emptyLabel: t('noActiveFluidOptions', 'No active medications found.'),
                     })}
                   <Layer className={styles.notesField}>
                     <p className={styles.notesHelperText}>{t('optionalTreatmentSheetNotes', 'Notes (Optional).')}</p>
