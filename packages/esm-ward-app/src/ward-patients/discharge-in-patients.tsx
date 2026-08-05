@@ -101,11 +101,12 @@ const DischargeInPatients = () => {
         ? formatDatetime(parseDate(encounterAssigningToCurrentInpatientLocation!.encounterDatetime!))
         : '--';
       const daysAdmitted = encounterAssigningToCurrentInpatientLocation?.encounterDatetime
-        ? Math.abs(
-            dayjs(encounterAssigningToCurrentInpatientLocation?.encounterDatetime)
+        ? Math.max(
+            0,
+            dayjs()
               .startOf('day')
-              .diff(dayjs().startOf('day'), 'days'),
-          ) + 1
+              .diff(dayjs(encounterAssigningToCurrentInpatientLocation.encounterDatetime).startOf('day'), 'day'),
+          )
         : '--';
 
       return {

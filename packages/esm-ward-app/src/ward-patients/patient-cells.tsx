@@ -89,7 +89,7 @@ export const PatientDayInWardCell: FC<PatientAdmissionCellProps> = ({ encounterU
       : dayjs().startOf('day');
     const daysAdmitted =
       admissionDate.isValid() && dischargeDate.isValid()
-        ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 1
+        ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 0
         : '--';
     return daysAdmitted;
   }, [encounter, encounterUuid, emrConfiguration]);
