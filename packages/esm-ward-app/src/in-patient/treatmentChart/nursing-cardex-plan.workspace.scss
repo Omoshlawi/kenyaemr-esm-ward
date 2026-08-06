@@ -222,6 +222,17 @@
   border-bottom: 0;
 }
 
+.orderCheckboxRowLocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.orderCheckboxRowLocked .orderNameCell :global(.cds--checkbox-label),
+.orderCheckboxRowLocked .orderNameCell :global(.bx--checkbox-label) {
+  color: colors.$gray-50;
+  cursor: not-allowed;
+}
+
 .orderNameCell {
   min-width: 0;
 }

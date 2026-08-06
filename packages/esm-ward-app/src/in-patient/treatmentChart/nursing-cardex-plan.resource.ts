@@ -50,25 +50,30 @@ const parseValidDate = (value?: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const isPastMedicationOrder = (order: MedicationOrder) => {
+const isActiveMedicationOrder = (order: MedicationOrder) => {
   const now = new Date();
   const autoExpireDate = parseValidDate(order.autoExpireDate);
   const dateStopped = parseValidDate(order.dateStopped);
 
-  return Boolean(
-    (autoExpireDate && autoExpireDate.getTime() < now.getTime()) ||
-    (dateStopped && dateStopped.getTime() < now.getTime()),
-  );
+  if (dateStopped && dateStopped.getTime() <= now.getTime()) {
+    return false;
+  }
+
+  if (autoExpireDate && autoExpireDate.getTime() < now.getTime()) {
+    return false;
+  }
+
+  return true;
 };
 
-export function usePastMedicationOrders(patientUuid?: string) {
+export function useActiveMedicationOrders(patientUuid?: string) {
   const medicationOrdersUrl = patientUuid
-    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&status=any&orderType=${drugOrderTypeUuid}&v=full`
+    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&status=active&orderType=${drugOrderTypeUuid}&v=full`
     : null;
 
   const { data, isLoading } = useSWR<FetchResponse<MedicationOrderResponse>>(medicationOrdersUrl, openmrsFetch);
 
-  const orders = useMemo(() => (data?.data?.results ?? []).filter(isPastMedicationOrder), [data]);
+  const orders = useMemo(() => (data?.data?.results ?? []).filter(isActiveMedicationOrder), [data]);
 
   const options = useMemo<Array<OrderOption>>(() => {
     const seen = new Set<string>();

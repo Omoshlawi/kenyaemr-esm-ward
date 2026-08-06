@@ -14,7 +14,7 @@ export interface TimePickerDropdownProps {
   existingTimeEntries?: Array<{ time: string; hour?: number }>;
   allowedTimes?: string[];
   currentTime?: string;
-  /** When true, times before currentTime are disabled; defaults to current time and keeps it in sync. */
+  /** When true, times before or after currentTime are disabled; defaults to current time. */
   disablePastTimes?: boolean;
 }
 
@@ -41,7 +41,6 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
 }) => {
   const instanceId = useId().replace(/:/g, '_');
   const resolvedId = `${id}-${instanceId}`;
-  const userSelectedFutureRef = useRef(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const [hours, minutes] = value && value.includes(':') ? value.split(':') : ['', ''];
@@ -58,6 +57,17 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
       }
       const timeMinutes = toTotalMinutes(time);
       return timeMinutes !== null && timeMinutes < currentTotalMinutes;
+    },
+    [currentTotalMinutes, disablePastTimes],
+  );
+
+  const isTimeInFuture = useCallback(
+    (time: string) => {
+      if (!disablePastTimes || currentTotalMinutes === null) {
+        return false;
+      }
+      const timeMinutes = toTotalMinutes(time);
+      return timeMinutes !== null && timeMinutes > currentTotalMinutes;
     },
     [currentTotalMinutes, disablePastTimes],
   );
@@ -138,35 +148,16 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
       return allowedTimes[0] ?? null;
     }
 
-    const futureOrCurrent = allowedTimes.find((time) => {
+    const atOrBeforeNow = allowedTimes.filter((time) => {
       const timeMinutes = toTotalMinutes(time);
-      return timeMinutes !== null && timeMinutes >= currentTotalMinutes;
+      return timeMinutes !== null && timeMinutes <= currentTotalMinutes;
     });
 
-    if (futureOrCurrent) {
-      return futureOrCurrent;
+    if (atOrBeforeNow.length > 0) {
+      return atOrBeforeNow[atOrBeforeNow.length - 1];
     }
 
-    return allowedTimes.reduce<string | null>((closestTime, candidateTime) => {
-      const candidateMinutes = toTotalMinutes(candidateTime);
-      if (candidateMinutes === null) {
-        return closestTime;
-      }
-
-      if (!closestTime) {
-        return candidateTime;
-      }
-
-      const closestMinutes = toTotalMinutes(closestTime);
-      if (closestMinutes === null) {
-        return candidateTime;
-      }
-
-      const candidateDistance = Math.abs(candidateMinutes - currentTotalMinutes);
-      const closestDistance = Math.abs(closestMinutes - currentTotalMinutes);
-
-      return candidateDistance < closestDistance ? candidateTime : closestTime;
-    }, null);
+    return allowedTimes[0] ?? null;
   }, [allowedTimes, currentTime, currentTotalMinutes, disablePastTimes, hasRestrictedOptions]);
 
   const syncTimeValue = useCallback(
@@ -190,8 +181,7 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
         return;
       }
 
-      if (isTimeInPast(value)) {
-        userSelectedFutureRef.current = false;
+      if (isTimeInPast(value) || isTimeInFuture(value)) {
         const fallback = allowedTimes?.includes(currentTime)
           ? currentTime
           : (defaultTime ?? allowedTimes?.[0] ?? currentTime);
@@ -199,7 +189,7 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
         return;
       }
 
-      if (!userSelectedFutureRef.current && allowedTimes?.includes(currentTime) && value !== currentTime) {
+      if (allowedTimes?.includes(currentTime) && value !== currentTime) {
         syncTimeValue(currentTime);
       }
       return;
@@ -208,17 +198,17 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
     if (!value) {
       syncTimeValue(defaultTime);
     }
-  }, [allowedTimes, currentTime, defaultTime, disablePastTimes, disabled, isTimeInPast, syncTimeValue, value]);
-
-  useEffect(() => {
-    if (!value) {
-      userSelectedFutureRef.current = false;
-    }
-  }, [value]);
-
-  useEffect(() => {
-    userSelectedFutureRef.current = false;
-  }, [id]);
+  }, [
+    allowedTimes,
+    currentTime,
+    defaultTime,
+    disablePastTimes,
+    disabled,
+    isTimeInFuture,
+    isTimeInPast,
+    syncTimeValue,
+    value,
+  ]);
 
   const latestEntry = useMemo(() => {
     if (hasRestrictedTimes) return null;
@@ -240,19 +230,19 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
 
       return Array.from(restrictedTimeIndex?.keys() ?? []).map((hour) => {
         const hourMinutes = restrictedTimeIndex?.get(hour) ?? [];
-        const allPast =
+        const allUnavailable =
           disablePastTimes &&
           currentTotalMinutes !== null &&
           hourMinutes.length > 0 &&
           hourMinutes.every((minute) => {
-            const timeMinutes = toTotalMinutes(`${hour}:${minute}`);
-            return timeMinutes !== null && timeMinutes < currentTotalMinutes;
+            const time = `${hour}:${minute}`;
+            return isTimeInPast(time) || isTimeInFuture(time);
           });
 
         return {
           value: hour,
           text: hour,
-          disabled: allPast,
+          disabled: allUnavailable,
         };
       });
     }
@@ -276,6 +266,8 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
     disablePastTimes,
     hasRestrictedOptions,
     hasRestrictedTimes,
+    isTimeInFuture,
+    isTimeInPast,
     latestEntry,
     restrictedTimeIndex,
   ]);
@@ -302,12 +294,11 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
         .map((minute) => {
           const time = `${hours || '00'}:${minute}`;
           const notAllowed = !allowedMinutesSet.has(minute);
-          const isPast = isTimeInPast(time);
 
           return {
             value: minute,
             text: minute,
-            disabled: notAllowed || isPast,
+            disabled: notAllowed || isTimeInPast(time) || isTimeInFuture(time),
           };
         });
     }
@@ -331,6 +322,7 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
     hasRestrictedOptions,
     hasRestrictedTimes,
     hours,
+    isTimeInFuture,
     isTimeInPast,
     latestEntry,
     restrictedMinuteStep,
@@ -340,10 +332,13 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
   const pickFirstSelectableMinute = useCallback(
     (selectedHour: string) => {
       const hourMinutes = restrictedTimeIndex?.get(selectedHour) ?? [];
-      const selectable = hourMinutes.filter((minute) => !isTimeInPast(`${selectedHour}:${minute}`));
+      const selectable = hourMinutes.filter((minute) => {
+        const time = `${selectedHour}:${minute}`;
+        return !isTimeInPast(time) && !isTimeInFuture(time);
+      });
       return selectable[0] ?? hourMinutes[0] ?? null;
     },
-    [isTimeInPast, restrictedTimeIndex],
+    [isTimeInFuture, isTimeInPast, restrictedTimeIndex],
   );
 
   const handleHourChange = useCallback(
@@ -353,32 +348,22 @@ const TimePickerDropdown: React.FC<TimePickerDropdownProps> = ({
       if (hasRestrictedTimes) {
         const minute = pickFirstSelectableMinute(selectedHour);
         if (minute) {
-          const newTime = `${selectedHour}:${minute}`;
-          if (disablePastTimes && currentTotalMinutes !== null) {
-            const newMinutes = toTotalMinutes(newTime);
-            userSelectedFutureRef.current = newMinutes !== null && newMinutes > currentTotalMinutes;
-          }
-          onChange(newTime);
+          onChange(`${selectedHour}:${minute}`);
         }
         return;
       }
 
       onChange(`${selectedHour}:00`);
     },
-    [currentTotalMinutes, disablePastTimes, disabled, hasRestrictedTimes, onChange, pickFirstSelectableMinute],
+    [disabled, hasRestrictedTimes, onChange, pickFirstSelectableMinute],
   );
 
   const handleMinuteChange = useCallback(
     (selectedMinute: string) => {
       if (disabled) return;
-      const newTime = `${hours || '00'}:${selectedMinute}`;
-      if (disablePastTimes && currentTotalMinutes !== null) {
-        const newMinutes = toTotalMinutes(newTime);
-        userSelectedFutureRef.current = newMinutes !== null && newMinutes > currentTotalMinutes;
-      }
-      onChange(newTime);
+      onChange(`${hours || '00'}:${selectedMinute}`);
     },
-    [currentTotalMinutes, disablePastTimes, disabled, hours, onChange],
+    [disabled, hours, onChange],
   );
 
   const pickerDisabled =
