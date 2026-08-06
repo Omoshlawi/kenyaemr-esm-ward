@@ -22,7 +22,6 @@ import {
   usePagination,
 } from '@openmrs/esm-framework';
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
-import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type WardPatient, type WardPatientWorkspaceProps, type WardViewContext } from '../types';
@@ -52,7 +51,6 @@ const AwaitingAdmissionPatients = () => {
     { key: 'gender', header: t('gender', 'Gender') },
     { key: 'age', header: t('age', 'Age') },
     { key: 'bedNumber', header: t('bedNumber', 'Bed Number') },
-    { key: 'daysAdmitted', header: t('durationOnWard', 'Days In Queue') },
     { key: 'action', header: t('action', 'Action') },
   ];
 
@@ -72,11 +70,6 @@ const AwaitingAdmissionPatients = () => {
       const admissionDate = request.dispositionEncounter?.encounterDatetime
         ? formatDatetime(parseDate(request.dispositionEncounter?.encounterDatetime))
         : '--';
-      const encounterDate = request.dispositionEncounter?.encounterDatetime;
-      const daysAdmitted =
-        encounterDate && dayjs(encounterDate).isValid()
-          ? Math.abs(dayjs().startOf('day').diff(dayjs(encounterDate).startOf('day'), 'days'))
-          : '--';
       const wardPatient = {
         patient: request.patient,
         visit: request.visit,
@@ -96,7 +89,6 @@ const AwaitingAdmissionPatients = () => {
         gender: request?.patient?.person?.gender ?? '--',
         age: request?.patient?.person?.age ?? '--',
         bedNumber: '--',
-        daysAdmitted,
         action: (
           <OverflowMenu size={'sm'} flipped>
             <OverflowMenuItem
