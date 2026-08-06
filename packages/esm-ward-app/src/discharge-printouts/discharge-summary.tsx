@@ -1,18 +1,20 @@
 import { InlineLoading, InlineNotification } from '@carbon/react';
-import { useEmrConfiguration, usePatient, useSession } from '@openmrs/esm-framework';
+import { restBaseUrl, useConfig, useEmrConfiguration, usePatient, useSession } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { WardConfigObject } from '../config-schema';
+import { useVisitSummary } from '../hooks/use-patient-summary';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
-import {
-  DATE_FORMART,
-  getTreatmentDisplayText,
-  usePatientDiagnosis,
-  usePatientOrders,
-} from './discharge-printout.resource';
+import { DATE_FORMART, usePatientDiagnosis, usePatientOrders } from './discharge-printout.resource';
 import styles from './discharge-printouts.scss';
 import FieldInput from './field-input';
-import LabResults from './lab-results';
+import {
+  ImagingSummary,
+  InvestigationsSummary,
+  MedicationSummary,
+  ProceduresSummary,
+} from './investigrations-and-procedures.components';
 
 type DischargeSummaryProps = {
   dischargeEncounterUuid: string;
@@ -25,23 +27,36 @@ type DischargeSummaryProps = {
 
 const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, patient: _patient }) => {
   const { t } = useTranslation();
+  const { crIdentifierTypeUuid, nationIdIdentifierTypeUuid, showCrIdentifierOnSummary } = useConfig<WardConfigObject>();
   const { encounter, error, isLoading } = useEncounterDetails(dischargeEncounterUuid);
+  const { error: summaryError, isLoading: isLoadingSumary, summary } = useVisitSummary(encounter?.visit?.uuid ?? '');
   const { isLoading: isLoadingPatient, patient, error: patientError } = usePatient(_patient.uuid);
+  const nationId = useMemo(() => {
+    if (!patient?.identifier) return null;
+
+    const identifier = patient.identifier.find((id) => id.type.coding?.[0]?.code === nationIdIdentifierTypeUuid);
+    return identifier?.value ?? null;
+  }, [patient, nationIdIdentifierTypeUuid]);
+  const shifNo = useMemo(() => {
+    if (!patient?.identifier) return null;
+
+    const identifier = patient.identifier.find((id) => id.type.coding?.[0]?.code === crIdentifierTypeUuid);
+    return identifier?.value ?? null;
+  }, [patient, crIdentifierTypeUuid]);
   const {
     isLoading: isLoadingDiagnosis,
     error: diagnosisError,
-    display: diagnoses,
+    doctorsNoteDiagnosesDisplay,
+    dischargeDiagnosesDisplay,
+    consultationDiagnosesDisplay,
   } = usePatientDiagnosis(dischargeEncounterUuid);
   const session = useSession();
   const { emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useEmrConfiguration();
   const {
     isLoading: isLoadingOders,
     error: orderserror,
-    drugOrders,
-    testOrders,
     complaints,
     drugReactions,
-    orderEncounters,
     dischargeinstructions,
     physicalExaminations,
   } = usePatientOrders(dischargeEncounterUuid);
@@ -63,10 +78,17 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
     return parts.length > 1 ? parts.slice(1).join(' - ') : raw;
   }, [encounter]);
 
-  if (isLoading || isLoadingPatient || isLoadingEmrConfiguration || isLoadingDiagnosis || isLoadingOders)
+  if (
+    isLoading ||
+    isLoadingPatient ||
+    isLoadingEmrConfiguration ||
+    isLoadingDiagnosis ||
+    isLoadingOders ||
+    isLoadingSumary
+  )
     return <InlineLoading />;
 
-  if (error || patientError || errorFetchingEmrConfiguration || diagnosisError || orderserror)
+  if (error || patientError || errorFetchingEmrConfiguration || diagnosisError || orderserror || summaryError)
     return (
       <InlineNotification
         kind="error"
@@ -75,7 +97,9 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
           patientError?.message ??
           errorFetchingEmrConfiguration?.message ??
           diagnosisError?.message ??
-          orderserror?.message
+          orderserror?.message ??
+          summaryError?.message ??
+          t('errorLoadingDischargeSummary', 'Error loading discharge summary')
         }
       />
     );
@@ -83,36 +107,53 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
   return (
     <div className={styles.content}>
       <div className={styles.header}>
-        <h5>{session.sessionLocation.display}</h5>
-        <h5>{t('dischargeSummary', 'Discharge Summary')}</h5>
+        <img src={`/openmrs/${restBaseUrl}/palladiumemr/logo`} alt="logo" className={styles.logo} />
+        <div>
+          <h5>{session?.sessionLocation?.display}</h5>
+          <h2>{t('dischargeSummary', 'Discharge Summary')}</h2>
+        </div>
       </div>
+      <strong className={styles.txtUpper}>{t('patientInformation', 'Patient information')}</strong>
       <div className={styles.cols3}>
-        <FieldInput name={t('name', 'Name')} value={_patient.name} />
+        <FieldInput name={t('patientsName', "Patient's name")} value={_patient.name} />
         <FieldInput name={t('ipNo', 'IP No')} value={_patient.openmrsId} />
+        <FieldInput name={t('dateOfBirth', 'Date of Birth')} value={dayjs(patient.birthDate).format(DATE_FORMART)} />
+      </div>
+      <div className={showCrIdentifierOnSummary ? styles.cols4 : styles.cols3}>
         <FieldInput
           name={t('age', 'Age')}
           value={`${Math.abs(dayjs(patient.birthDate).diff(dayjs(), 'years'))} years`}
         />
-      </div>
-      <div className={styles.cols3}>
         <FieldInput name={t('sex', 'Sex')} value={patient.gender} />
+        <FieldInput name={t('nationId', 'Nation ID')} value={nationId} />
+        {showCrIdentifierOnSummary && <FieldInput name={t('crNo', 'CR No')} value={shifNo} />}
+      </div>
+      <strong className={styles.txtUpper}>{t('admisionDetails', 'Admission details')}</strong>
+      <div className={styles.cols2}>
         <FieldInput name={t('dateOfAdmissionAbrv', 'DOA')} value={dayjs(admissionDate).format(DATE_FORMART)} />
         <FieldInput
           name={t('dateOfDischargeAbrv', 'DOD')}
-          value={dayjs(encounter.encounterDatetime).format(DATE_FORMART)}
+          value={dayjs(encounter?.encounterDatetime).format(DATE_FORMART)}
         />
       </div>
       <div className={styles.cols2}>
-        <FieldInput name={t('nameOfConsultant', 'Name of consultant')} value={consultantName} />
-        <FieldInput name={t('department', 'Department')} value={encounter.location?.display} />
+        <FieldInput
+          name={t('admissionDiagnosis', 'Admission Diagnosis')}
+          value={doctorsNoteDiagnosesDisplay ?? consultationDiagnosesDisplay}
+        />
+        <FieldInput name={t('bed', 'Bed')} value="" />
+      </div>
+      <div className={styles.cols2}>
+        <FieldInput name={t('attendingDoctor', 'Attending Doctor')} value={consultantName ?? undefined} />
+        <FieldInput name={t('ward', 'Ward')} value={encounter?.location?.display} />
       </div>
 
       <div>
-        <strong className={styles.txtUpper}>{t('diagnosis', 'Diagnosis')}</strong>
-        <p className={styles.txtTitle}>{diagnoses ?? t('noDiagnoses', 'No Diagnoses')}</p>
+        <strong className={styles.txtUpper}>{t('dischargeDiagnosis', 'Discharge Diagnosis')}</strong>
+        <p className={styles.txtTitle}>{dischargeDiagnosesDisplay ?? t('noDiagnoses', 'No Diagnoses')}</p>
       </div>
       <div>
-        <strong className={styles.txtUpper}>{t('history', 'History')}</strong>
+        <strong className={styles.txtUpper}>{t('medicalHistory', 'Medical History')}</strong>
         <p>
           {`${complaints ? 'Presented with ' + complaints + '.' : ''}${
             drugReactions
@@ -122,7 +163,7 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
         </p>
       </div>
       <div>
-        <strong className={styles.txtUpper}>{t('physicalExamination', 'Physical Examination')}</strong>
+        <strong className={styles.txtUpper}>{t('physicalFindings', 'Physical Findings')}</strong>
         {physicalExaminations?.length ? (
           physicalExaminations?.map((examination, i) => (
             <p key={i} className={styles.txtTitle}>
@@ -134,35 +175,20 @@ const DischargeSummary: FC<DischargeSummaryProps> = ({ dischargeEncounterUuid, p
         )}
       </div>
       <div>
-        <strong className={styles.txtUpper}>{t('investigation', 'Investigation')}</strong>
-        <p>
-          {testOrders.map((order) => (
-            <LabResults
-              order={order}
-              key={order.uuid}
-              labEncounter={orderEncounters.find((e) => e.uuid === order.encounter.uuid)}
-            />
-          ))}
-        </p>
+        <strong className={styles.txtUpper}>{t('investigations', 'Investigations')}</strong>
+        <InvestigationsSummary labResults={summary?.labResults ?? []} />
+        <ImagingSummary imaging={summary?.imaging ?? []} />
+        <ProceduresSummary procedures={summary?.procedures ?? []} />
       </div>
-      <div>
-        <strong className={styles.txtUpper}>{t('treatment', 'Treatment')}</strong>
-        <div>
-          {drugOrders.map((order) => (
-            <p key={order.uuid}>{getTreatmentDisplayText(order)}</p>
-          ))}
-        </div>
-      </div>
+      <MedicationSummary medications={summary?.medications ?? []} />
+
       <div>
         <strong className={styles.txtUpper}>{t('dischargeInstructions', 'Discharge Instructions')}</strong>
         <p>{dischargeinstructions ?? t('noInstructions', 'No instructions')}</p>
       </div>
-      <div className={styles.cols2}>
-        <FieldInput name={t('name', 'Name')} value={consultantName} />
+      <div className={styles.cols3}>
+        <FieldInput name={t('dischargingDoctor', 'Discharging Doctor')} value={consultantName} />
         <FieldInput name={t('signature', 'Signature')} />
-      </div>
-      <div className={styles.cols2}>
-        <FieldInput name={t('destination', 'Destination')} value={t('discharge', 'Discharge')} />
         <FieldInput name={t('date', 'Date')} value={dayjs().format(DATE_FORMART)} />
       </div>
     </div>

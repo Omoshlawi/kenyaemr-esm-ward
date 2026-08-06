@@ -1,0 +1,48 @@
+@use '@carbon/type';
+@use '@carbon/colors';
+@use '@carbon/layout';
+
+.sectionHeader {
+  @include type.type-style('body-02');
+  margin: layout.$spacing-03 0 layout.$spacing-02 0;
+}
+
+.proceduresTable {
+  // Ensures the table itself and its structure are bordered
+  border: 1px solid colors.$gray-20;
+  border-collapse: collapse; // Prevents double borders between cells
+  width: 100%; // Optional: ensures it stretches nicely
+  text-align: left; // Aligns all content (headers and data) to the left
+
+  & thead {
+    background-color: colors.$gray-10;
+    font-weight: 600;
+  }
+
+  // Applied borders to both header and data cells
+  & th,
+  & td {
+    border: 1px solid colors.$gray-20;
+    padding: layout.$spacing-01;
+  }
+
+  & th {
+    color: colors.$gray-70;
+  }
+
+  & td {
+    color: colors.$gray-100;
+  }
+}
+
+.medHeader {
+  margin: layout.$spacing-03 0 layout.$spacing-02 0;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.sectionHeader {
+  @include type.type-style('body-02');
+  margin: layout.$spacing-03 0 layout.$spacing-02 0;
+  font-style: italic;
+}
