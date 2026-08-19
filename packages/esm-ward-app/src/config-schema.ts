@@ -827,6 +827,11 @@ export const configSchema: ConfigSchema = {
         label: 'Pre- Anaesthesia Checklist',
         tags: [],
       },
+      {
+        uuid: '56b3ca43-2687-49d4-a03e-1b4329fe0f63',
+        label: 'Nursing Care Plan',
+        tags: [],
+      },
     ],
   },
   inPatientVisitTypeUuid: {
