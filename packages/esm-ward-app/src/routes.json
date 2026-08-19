@@ -305,6 +305,11 @@
       "name": "nursing-cardex-plan-workspace",
       "component": "nursingCardexPlanWorkspace",
       "window": "ewf-nursing-cardex"
+    },
+    {
+      "name": "maternity-inpatient-form-workspace",
+      "component": "maternityInpatientFormWorkspace",
+      "window": "maternity-inpatient-form-window"
     }
   ],
   "workspaceWindows2": [
@@ -328,6 +333,12 @@
       "name": "ward-form-entry-workspace-window",
       "group": "patient-chart",
       "width": "wider"
+    },
+    {
+      "name": "maternity-inpatient-form-window",
+      "group": "patient-chart",
+      "width": "extra-wide",
+      "canMaximize": true
     }
   ],
   "workspaceGroups2": [

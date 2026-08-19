@@ -188,11 +188,7 @@ const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
   const { tags, isLoading: isLoadingTags } = useAdmissionLocationTags(admissionEncounter?.location?.uuid);
 
   const isAdmittedToAllowedWard = React.useMemo(() => {
-    const allowedWardTags = [
-      inpatientLocationTags?.labourWard,
-      inpatientLocationTags?.antenatalWard,
-      inpatientLocationTags?.maternityWard,
-    ].filter(Boolean);
+    const allowedWardTags = [inpatientLocationTags?.labourWard, inpatientLocationTags?.maternityWard].filter(Boolean);
     return allowedWardTags.some((tagUuid) => tags.some((tag) => tag.uuid === tagUuid));
   }, [inpatientLocationTags, tags]);
 
@@ -1271,24 +1267,12 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
   const openMaternityForm = () => {
     const latestEncounterUuid = latestMaternityEncounter?.uuid ?? '';
 
-    launchWorkspace2(
-      'kenyaemr-custom-form-entry-workspace',
-      {
-        workspaceTitle: t('maternityInpatientForm', 'Maternity Inpatient Form'),
-        form: { uuid: maternityFormUuid },
-        formUuid: maternityFormUuid,
-        encounterTypeUuid: MATERNITY_INPATIENT_ENCOUNTER_TYPE_UUID,
-        patientUuid,
-        encounterUuid: latestEncounterUuid,
-        mutateForm: () => mutate(),
-      },
-      {
-        patient,
-        patientUuid,
-        encounterUuid: latestEncounterUuid,
-        visitContext: null,
-      },
-    );
+    launchWorkspace2('maternity-inpatient-form-workspace', {
+      formUuid: maternityFormUuid,
+      encounterUuid: latestEncounterUuid,
+      patientUuid,
+      mutateForm: () => mutate(),
+    });
   };
 
   const maternityEncounters = Array.isArray(maternityEncounter?.data?.results) ? maternityEncounter.data.results : [];
