@@ -188,11 +188,7 @@ const LabourCareGuide: React.FC<LabourCareGuideProps> = ({ patientUuid }) => {
   const { tags, isLoading: isLoadingTags } = useAdmissionLocationTags(admissionEncounter?.location?.uuid);
 
   const isAdmittedToAllowedWard = React.useMemo(() => {
-    const allowedWardTags = [
-      inpatientLocationTags?.labourWard,
-      inpatientLocationTags?.antenatalWard,
-      inpatientLocationTags?.maternityWard,
-    ].filter(Boolean);
+    const allowedWardTags = [inpatientLocationTags?.labourWard, inpatientLocationTags?.maternityWard].filter(Boolean);
     return allowedWardTags.some((tagUuid) => tags.some((tag) => tag.uuid === tagUuid));
   }, [inpatientLocationTags, tags]);
 

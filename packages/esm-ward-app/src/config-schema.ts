@@ -900,9 +900,9 @@ export const configSchema: ConfigSchema = {
     },
   },
   inpatientLocationTags: {
+    _description: 'Location tag UUIDs used to show partograph and labour care guide (maternity and labour ward only).',
     _default: {
       maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
-      antenatalWard: 'dab3c2bb-0b0b-4ebd-8f99-3ad44996d311',
       labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
     },
   },
@@ -1062,7 +1062,6 @@ export interface WardConfigObject {
   };
   inpatientLocationTags: {
     maternityWard: string;
-    antenatalWard: string;
     labourWard: string;
   };
   treatmentChartCardexEncounterTypeUuid: string;

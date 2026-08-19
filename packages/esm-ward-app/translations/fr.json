@@ -510,7 +510,7 @@
   "paperNo": "N° document",
   "parity": "Parity",
   "partograph": "Partogramme",
-  "partographReason": "Le partogramme ne peut être affiché que pour les patientes dans la salle de travail",
+  "partographReason": "Le partogramme ne peut être affiché que pour les patientes en maternité ou en salle de travail",
   "partography": "Partography",
   "partographyDataSavedSuccessfully": "Partography data saved successfully",
   "Patient": "patient",

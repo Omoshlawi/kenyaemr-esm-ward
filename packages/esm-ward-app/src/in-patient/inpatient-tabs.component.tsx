@@ -92,11 +92,7 @@ const InpatientTabs: FC<InpatientTabsProps> = ({ patientUuid }) => {
   }, [assignedExtensions]);
 
   const isAdmittedToAllowedWard = useMemo(() => {
-    const allowedWardTags = [
-      inpatientLocationTags?.labourWard,
-      inpatientLocationTags?.antenatalWard,
-      inpatientLocationTags?.maternityWard,
-    ].filter(Boolean);
+    const allowedWardTags = [inpatientLocationTags?.labourWard, inpatientLocationTags?.maternityWard].filter(Boolean);
     return allowedWardTags.some((tagUuid) => tags.some((tag) => tag.uuid === tagUuid));
   }, [inpatientLocationTags, tags]);
 

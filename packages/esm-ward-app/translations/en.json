@@ -503,7 +503,7 @@
   "paperNo": "Paper No",
   "parity": "Parity",
   "partograph": "Partograph",
-  "partographReason": "Can only show partograph for female patients in Labour Ward",
+  "partographReason": "Can only show partograph for female patients in Maternity or Labour Ward",
   "partography": "Partography",
   "partographyDataSavedSuccessfully": "Partography data saved successfully",
   "Patient": "patient",

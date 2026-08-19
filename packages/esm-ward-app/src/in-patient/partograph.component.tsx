@@ -18,7 +18,7 @@ const Partograph: FC<PartographProps> = ({ patient, patientUuid }) => {
       <InlineNotification
         kind="warning"
         title={t('partograph', 'Partograph')}
-        subtitle={t('partographReason', 'Can only show partograph for female patients in Labour Ward')}
+        subtitle={t('partographReason', 'Can only show partograph for female patients in Maternity or Labour Ward')}
       />
     );
   return <ExtensionSlot name="maternal-and-child-health-partograph-slot" state={{ patientUuid, patient }} />;
