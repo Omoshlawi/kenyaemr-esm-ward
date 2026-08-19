@@ -1267,24 +1267,12 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
   const openMaternityForm = () => {
     const latestEncounterUuid = latestMaternityEncounter?.uuid ?? '';
 
-    launchWorkspace2(
-      'kenyaemr-custom-form-entry-workspace',
-      {
-        workspaceTitle: t('maternityInpatientForm', 'Maternity Inpatient Form'),
-        form: { uuid: maternityFormUuid },
-        formUuid: maternityFormUuid,
-        encounterTypeUuid: MATERNITY_INPATIENT_ENCOUNTER_TYPE_UUID,
-        patientUuid,
-        encounterUuid: latestEncounterUuid,
-        mutateForm: () => mutate(),
-      },
-      {
-        patient,
-        patientUuid,
-        encounterUuid: latestEncounterUuid,
-        visitContext: null,
-      },
-    );
+    launchWorkspace2('maternity-inpatient-form-workspace', {
+      formUuid: maternityFormUuid,
+      encounterUuid: latestEncounterUuid,
+      patientUuid,
+      mutateForm: () => mutate(),
+    });
   };
 
   const maternityEncounters = Array.isArray(maternityEncounter?.data?.results) ? maternityEncounter.data.results : [];

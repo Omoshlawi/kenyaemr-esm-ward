@@ -194,6 +194,11 @@ export const labourCareGuide = getAsyncLifecycle(
   () => import('./in-patient/labourCareGuide/labour-care-guide.component'),
   options,
 );
+// t('maternityInpatientForm', 'Maternity Inpatient Form')
+export const maternityInpatientFormWorkspace = getAsyncLifecycle(
+  () => import('./in-patient/labourCareGuide/maternity-inpatient-form.workspace'),
+  options,
+);
 export const globalCdsAlertBanner = getAsyncLifecycle(
   () => import('./in-patient/labourCareGuide/global-cds-alerts/global-cds-alert-banner.component'),
   options,
