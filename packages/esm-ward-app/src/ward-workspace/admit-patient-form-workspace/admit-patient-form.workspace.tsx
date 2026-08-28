@@ -28,6 +28,7 @@ import type { WardPatientWorkspaceProps, WardViewContext } from '../../types';
 import { assignPatientToBed, removePatientFromBed, useAdmitPatient } from '../../ward.resource';
 import BedSelector from '../bed-selector.component';
 import WardPatientWorkspaceBanner from '../patient-banner/patient-banner.component';
+import FacilityBedCapacityNotification from './facility-bed-capacity-notification.component';
 import styles from './admit-patient-form.scss';
 import { type InapatientAdmissionFormData, inpatientAdmissionSchema } from './patient-admission.resources';
 
@@ -166,6 +167,9 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
       <Form className={styles.form} onSubmit={handleSubmit(onSubmit, onError)}>
         <Stack gap={4} className={styles.grid}>
           <WardPatientWorkspaceBanner {...{ wardPatient }} />
+          <Column>
+            <FacilityBedCapacityNotification />
+          </Column>
           <Column>
             <Controller
               control={control}
