@@ -15,6 +15,7 @@ import {
   InlineNotification,
   NumberInput,
   Stack,
+  TextInput,
 } from '@carbon/react';
 import { TrashCan } from '@carbon/react/icons';
 import {
@@ -23,6 +24,7 @@ import {
   useAppContext,
   useConfig,
   useLayoutType,
+  useSession,
   Workspace2,
   type Workspace2DefinitionProps,
 } from '@openmrs/esm-framework';
@@ -31,9 +33,11 @@ import {
   processBillItems,
   useBillableServiceByConcept,
   useBillableServices,
+  useCashPoints,
   useCurrencyFormatter,
   type BillableService,
   type BillableServicePrice,
+  type CashPoint,
 } from './create-bill.resource';
 import styles from './create-bill.scss';
 import { type WardViewContext } from '../types';
@@ -45,6 +49,7 @@ type CreateWardBillWorkspaceProps = {
 };
 
 const createBillSchema = z.object({
+  cashPointUuid: z.string().min(1, 'Select a cash point'),
   billableServiceUuid: z.string().min(1, 'Select a billable item'),
   quantity: z.number({ coerce: true }).min(1, 'Quantity must be at least 1'),
   priceUuid: z.string().min(1, 'Select a payment mode'),
@@ -61,8 +66,12 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
   const isTablet = useLayoutType() === 'tablet';
   const formatCurrency = useCurrencyFormatter();
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
+  const { currentProvider, sessionLocation, user } = useSession();
+  const cashierUuid = currentProvider?.uuid;
+  const cashierDisplay = user?.display ?? currentProvider?.identifier ?? t('unknownUser', 'Unknown user');
 
-  const { cashPointUuid, cashierUuid, dailyBedFeeBillableService } = useConfig<WardConfigObject>();
+  const { dailyBedFeeBillableService } = useConfig<WardConfigObject>();
+  const { cashPoints, isLoading: isLoadingCashPoints } = useCashPoints();
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,12 +95,14 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
     handleSubmit,
     watch,
     setValue,
+    getValues,
     reset,
     formState: { isDirty, isSubmitting, isValid, errors },
   } = useForm<CreateBillFormData>({
     resolver: zodResolver(createBillSchema),
     mode: 'onChange',
     defaultValues: {
+      cashPointUuid: '',
       billableServiceUuid: '',
       quantity: defaultQuantity,
       priceUuid: '',
@@ -99,6 +110,7 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
   });
 
   const selectedBillableServiceUuid = watch('billableServiceUuid');
+  const selectedCashPointUuid = watch('cashPointUuid');
   const selectedPriceUuid = watch('priceUuid');
   const quantity = watch('quantity');
 
@@ -132,11 +144,13 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
   // Using a ref ensures we don't re-select it if the user explicitly clears
   // the selection.
   const hasSeededDefault = useRef(false);
+  const hasSeededCashPoint = useRef(false);
   useEffect(() => {
     if (defaultBillableService && !hasSeededDefault.current) {
       hasSeededDefault.current = true;
       reset(
         {
+          cashPointUuid: getValues('cashPointUuid'),
           billableServiceUuid: defaultBillableService.uuid,
           quantity: defaultQuantity,
           priceUuid: defaultBillableService.servicePrices?.[0]?.uuid ?? '',
@@ -144,7 +158,22 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
         { keepDefaultValues: false },
       );
     }
-  }, [defaultBillableService, defaultQuantity, reset]);
+  }, [defaultBillableService, defaultQuantity, getValues, reset]);
+
+  useEffect(() => {
+    if (!cashPoints.length || hasSeededCashPoint.current) {
+      return;
+    }
+
+    const matchingLocationCashPoint = sessionLocation?.uuid
+      ? cashPoints.find((cashPoint) => cashPoint.location?.uuid === sessionLocation.uuid)
+      : undefined;
+    const defaultCashPoint = matchingLocationCashPoint ?? cashPoints[0];
+    if (defaultCashPoint) {
+      hasSeededCashPoint.current = true;
+      setValue('cashPointUuid', defaultCashPoint.uuid, { shouldValidate: true });
+    }
+  }, [cashPoints, sessionLocation?.uuid, setValue]);
 
   useEffect(() => {
     setHasUnsavedChanges(isDirty);
@@ -152,6 +181,7 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
 
   const handleClearSelection = () => {
     reset({
+      cashPointUuid: getValues('cashPointUuid'),
       billableServiceUuid: '',
       quantity: defaultQuantity,
       priceUuid: '',
@@ -166,8 +196,18 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
       return;
     }
 
+    if (!formData.cashPointUuid) {
+      setSubmitError(t('selectCashPoint', 'Select a cash point before saving.'));
+      return;
+    }
+
+    if (!cashierUuid) {
+      setSubmitError(t('missingLoggedInProvider', 'No provider is linked to the logged-in user.'));
+      return;
+    }
+
     const payload = {
-      cashPoint: cashPointUuid,
+      cashPoint: formData.cashPointUuid,
       cashier: cashierUuid,
       patient: patientUuid,
       ...(visitUuid ? { visit: visitUuid } : {}),
@@ -213,7 +253,7 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
     }
   };
 
-  const submitDisabled = !isValid || isSubmitting || !selectedService || !selectedPrice;
+  const submitDisabled = !isValid || isSubmitting || !selectedService || !selectedPrice || !cashierUuid;
 
   return (
     <Workspace2 title={t('createBill', 'Create Bill')} hasUnsavedChanges={hasUnsavedChanges}>
@@ -221,6 +261,7 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
         <div className={styles.formContainer}>
           <ResponsiveWrapper>
             <InlineNotification
+              className={styles.infoNotification}
               aria-label={t('createWardBillHelperLabel', 'Create ward bill')}
               kind="info"
               lowContrast
@@ -233,6 +274,57 @@ const CreateWardBillWorkspace: React.FC<Workspace2DefinitionProps<CreateWardBill
               )}
             />
           </ResponsiveWrapper>
+
+          <section>
+            <h5 className={styles.sectionTitle}>{t('billingDetails', 'Billing details')}</h5>
+            <Stack gap={5}>
+              <Controller
+                control={control}
+                name="cashPointUuid"
+                render={({ field }) => (
+                  <ResponsiveWrapper>
+                    <Dropdown
+                      id="ward-bill-cash-point"
+                      titleText={t('cashPoint', 'Cash point')}
+                      label={t('selectCashPoint', 'Select a cash point')}
+                      items={cashPoints}
+                      itemToString={(item: CashPoint | null) => {
+                        if (!item) {
+                          return '';
+                        }
+                        return item.location?.display ? `${item.name} — ${item.location.display}` : item.name;
+                      }}
+                      selectedItem={cashPoints.find((cashPoint) => cashPoint.uuid === field.value) ?? null}
+                      onChange={({ selectedItem }) => {
+                        field.onChange((selectedItem as CashPoint | null)?.uuid ?? '');
+                      }}
+                      invalid={Boolean(errors.cashPointUuid)}
+                      invalidText={errors.cashPointUuid?.message}
+                    />
+                  </ResponsiveWrapper>
+                )}
+              />
+
+              {isLoadingCashPoints && !selectedCashPointUuid && (
+                <InlineLoading description={t('loadingCashPoints', 'Loading cash points...')} />
+              )}
+
+              <TextInput id="ward-bill-cashier" labelText={t('cashier', 'Cashier')} value={cashierDisplay} readOnly />
+
+              {!cashierUuid && (
+                <InlineNotification
+                  kind="error"
+                  lowContrast
+                  hideCloseButton
+                  title={t('missingLoggedInProvider', 'No provider is linked to the logged-in user')}
+                  subtitle={t(
+                    'missingLoggedInProviderHelper',
+                    'You must be logged in as a provider to raise a ward bill.',
+                  )}
+                />
+              )}
+            </Stack>
+          </section>
 
           <section>
             <h5 className={styles.sectionTitle}>{t('chargeableItem', 'Chargeable item')}</h5>

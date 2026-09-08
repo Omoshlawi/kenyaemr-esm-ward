@@ -59,6 +59,28 @@ export const useBillableServiceByConcept = (conceptUuid?: string) => {
   };
 };
 
+export type CashPoint = {
+  uuid: string;
+  name: string;
+  description?: string;
+  retired?: boolean;
+  location?: {
+    uuid: string;
+    display: string;
+  };
+};
+
+export const useCashPoints = () => {
+  const url = `${restBaseUrl}/cashier/cashPoint?v=custom:(uuid,name,description,retired,location:(uuid,display))`;
+  const { data, error, isLoading } = useSWR<FetchResponse<{ results: Array<CashPoint> }>>(url, openmrsFetch);
+
+  return {
+    cashPoints: (data?.data?.results ?? []).filter((cashPoint) => !cashPoint.retired),
+    isLoading,
+    error,
+  };
+};
+
 export type CreateBillLineItem = {
   billableService: string;
   quantity: number;
