@@ -711,6 +711,26 @@ export const configSchema: ConfigSchema = {
     _type: Type.UUID,
     _default: '0a5a23e3-c953-428c-92e3-3b99f8a822f0',
   },
+  cashPointUuid: {
+    _type: Type.String,
+    _description: 'Cash point uuid used when raising a ward bill',
+    _default: '54065383-b4d4-42d2-af4d-d250a1fd2590',
+  },
+  cashierUuid: {
+    _type: Type.String,
+    _description: 'Cashier uuid used when raising a ward bill',
+    _default: '54065383-b4d4-42d2-af4d-d250a1fd2590',
+  },
+  wardBillingCurrencyLocaleMap: {
+    _type: Type.Object,
+    _description: 'Optional mapping of locale (e.g. en-KE) to ISO currency code (e.g. KES) for ward billing displays.',
+    _default: {
+      en: 'KES',
+      sw: 'KES',
+      'en-KE': 'KES',
+      'sw-KE': 'KES',
+    },
+  },
   drugOrderEncounterType: {
     _description: 'Drug Order encounter type Uuid',
     _type: Type.UUID,
@@ -1004,6 +1024,9 @@ export interface WardConfigObject {
   inpatientAdmissionEncounterProviderRole: string;
   mortuaryAdmissionLoctionTagUuid: string;
   dailyBedFeeBillableService: string;
+  cashPointUuid: string;
+  cashierUuid: string;
+  wardBillingCurrencyLocaleMap: Record<string, string>;
   drugOrderEncounterType: string;
   clinicalConsultationEncounterType: string;
   doctorsNoteEncounterType: string;

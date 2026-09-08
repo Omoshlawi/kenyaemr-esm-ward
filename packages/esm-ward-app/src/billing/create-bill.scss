@@ -1,0 +1,118 @@
+@use '@carbon/colors';
+@use '@carbon/layout';
+@use '@carbon/type';
+
+.form {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.formContainer {
+  display: flex;
+  flex-direction: column;
+  padding: layout.$spacing-05;
+  row-gap: layout.$spacing-06;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sectionTitle {
+  @include type.type-style('heading-compact-02');
+  color: colors.$gray-100;
+  margin: 0 0 layout.$spacing-03 0;
+}
+
+.sectionHelper {
+  @include type.type-style('body-compact-01');
+  color: colors.$gray-70;
+  margin: 0 0 layout.$spacing-04 0;
+}
+
+.selectedItem {
+  border: 1px solid colors.$gray-20;
+  padding: layout.$spacing-04;
+  background-color: colors.$white-0;
+  display: flex;
+  flex-direction: column;
+  row-gap: layout.$spacing-04;
+}
+
+.selectedItemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: layout.$spacing-03;
+}
+
+.serviceName {
+  @include type.type-style('heading-compact-01');
+  color: colors.$gray-100;
+}
+
+.selectedItemGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: layout.$spacing-05;
+
+  @media (max-width: 42rem) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: layout.$spacing-03;
+  border-top: 1px solid colors.$gray-20;
+}
+
+.summaryLabel {
+  @include type.type-style('label-01');
+  color: colors.$gray-70;
+}
+
+.summaryValue {
+  @include type.type-style('heading-compact-02');
+  color: colors.$gray-100;
+}
+
+.buttonSet {
+  display: flex;
+  align-items: center;
+  margin: 0;
+
+  button {
+    max-width: unset !important;
+    width: 50% !important;
+
+    > svg {
+      fill: currentColor !important;
+    }
+  }
+}
+
+.tablet {
+  padding: layout.$spacing-06 layout.$spacing-05;
+  background-color: colors.$white-0;
+}
+
+.desktop {
+  padding: 0;
+}
+
+.button {
+  height: layout.$spacing-10;
+  display: flex;
+  align-content: flex-start;
+  align-items: baseline;
+  min-width: 50%;
+}
+
+.spinner {
+  &::before {
+    background-color: transparent;
+  }
+}

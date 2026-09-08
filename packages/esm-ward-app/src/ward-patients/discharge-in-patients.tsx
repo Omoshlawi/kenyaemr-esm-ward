@@ -15,6 +15,7 @@ import {
 import {
   type Encounter,
   formatDatetime,
+  launchWorkspace2,
   parseDate,
   useAppContext,
   useConfig,
@@ -29,7 +30,12 @@ import { type WardConfigObject } from '../config-schema';
 import { type WardPatient, type WardViewContext } from '../types';
 import { bedLayoutToBed, getOpenmrsId } from '../ward-view/ward-view.resource';
 import { usePatientDischarge } from '../ward-workspace/kenya-emr-patient-discharge/patient-discharge.resource';
-import { HyperLinkPatientCell, PatientBillStatus, UnAssignPatientBedAction } from './patient-cells';
+import {
+  CreateWardBillAction,
+  HyperLinkPatientCell,
+  PatientBillStatus,
+  UnAssignPatientBedAction,
+} from './patient-cells';
 import { EmptyState } from './table-state-components';
 
 const DischargeInPatients = () => {
@@ -122,18 +128,31 @@ const DischargeInPatients = () => {
         daysAdmitted,
         billStatus: (
           <PatientBillStatus
-            patientUuid={patient.patient.uuid}
+            patientUuid={patient.patient?.uuid ?? ''}
             encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid}
+            visitUuid={visit?.uuid}
           />
         ),
         action: (
           <OverflowMenu size={'sm'} flipped>
-            <OverflowMenuItem itemText={t('goToBilling', 'Go to Billing')} onClick={() => {}} />
+            <CreateWardBillAction
+              patientUuid={patient.patient.uuid}
+              encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid}
+              visitUuid={visit?.uuid}
+              onClick={() =>
+                launchWorkspace2('create-ward-bill-workspace', {
+                  patientUuid: patient.patient.uuid,
+                  daysAdmitted,
+                  visitUuid: visit?.uuid,
+                })
+              }
+            />
             <OverflowMenuItem itemText={t('waivePatient', 'Waive Patient')} onClick={() => {}} />
             <OverflowMenuItem itemText={t('patientAbscondend', 'Patient Absconded')} onClick={() => {}} />
             <UnAssignPatientBedAction
               patientUuid={patient.patient.uuid}
               encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid}
+              visitUuid={visit?.uuid}
               loading={wardPatientGroupDetails?.admissionLocationResponse?.isLoading || isLoadingEmrConfiguration}
               onClick={async () => {
                 await handleDischarge(
