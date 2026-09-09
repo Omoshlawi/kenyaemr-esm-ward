@@ -215,3 +215,5 @@ export function startupApp() {
     'Enables features related to bed management / assignment. Requires the backend bed management module to be installed.',
   );
 }
+
+export const createWardBillWorkspace = getAsyncLifecycle(() => import('./billing/create-bill.workspace'), options);
