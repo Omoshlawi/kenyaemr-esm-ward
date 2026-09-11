@@ -310,6 +310,11 @@
       "name": "maternity-inpatient-form-workspace",
       "component": "maternityInpatientFormWorkspace",
       "window": "maternity-inpatient-form-window"
+    },
+    {
+      "name": "create-ward-bill-workspace",
+      "component": "createWardBillWorkspace",
+      "window": "kenyaemr-esm-ward-window"
     }
   ],
   "workspaceWindows2": [
