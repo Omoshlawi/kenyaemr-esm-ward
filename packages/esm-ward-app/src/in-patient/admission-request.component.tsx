@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { WardConfigObject } from '../config-schema';
 import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
-import { usePatientChartStore } from '@openmrs/esm-patient-common-lib/src';
+import { usePatientChartStore } from '@openmrs/esm-patient-common-lib';
 import { useAdmissionRequest } from './in-patient.resource';
 
 type AdmissionRequestProps = {

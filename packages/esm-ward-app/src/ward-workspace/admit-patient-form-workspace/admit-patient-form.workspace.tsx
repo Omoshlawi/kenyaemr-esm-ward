@@ -58,6 +58,9 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     patient.uuid,
   );
   const beds = isLoading ? [] : (wardPatientGroupDetails?.bedLayouts ?? []);
+  // A bed is only assignable if it is not occupied (no patients currently in it).
+  const availableBeds = beds.filter((bed) => bed.status !== 'OCCUPIED' && bed.patients.length === 0);
+  const hasNoBeds = !isLoading && availableBeds.length === 0;
 
   const {
     control,
@@ -75,6 +78,21 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
   }, [isDirty]);
 
   const onSubmit = (values: InapatientAdmissionFormData) => {
+    if (hasNoBeds) {
+      showSnackbar({
+        kind: 'error',
+        title: t('errorCreatingEncounter', 'Failed to admit patient'),
+        subtitle:
+          beds.length === 0
+            ? t('noBedsConfiguredForLocation', 'No beds configured for {{location}} location', {
+                location: location?.display,
+              })
+            : t('noAvailableBedsForLocation', 'All beds are occupied in {{location}} location', {
+                location: location?.display,
+              }),
+      });
+      return;
+    }
     setShowErrorNotifications(false);
     setIsSubmitting(true);
     const bedSelected = beds.find((bed) => bed.bedId === values.bedId);
@@ -213,6 +231,18 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
               }}
             />
           </Column>
+          {hasNoBeds && beds.length > 0 && (
+            <Column>
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title={t('noAvailableBedsForLocation', 'All beds are occupied in {{location}} location', {
+                  location: location?.display,
+                })}
+              />
+            </Column>
+          )}
           <Column>
             <TextInput
               id="bed-type"
@@ -256,7 +286,8 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
               isLoadingEmrConfiguration ||
               errorFetchingEmrConfiguration ||
               isLoading ||
-              isLoadingBedsAssignedToPatient
+              isLoadingBedsAssignedToPatient ||
+              hasNoBeds
             }>
             {!isSubmitting ? t('admit', 'Admit') : t('admitting', 'Admitting...')}
           </Button>

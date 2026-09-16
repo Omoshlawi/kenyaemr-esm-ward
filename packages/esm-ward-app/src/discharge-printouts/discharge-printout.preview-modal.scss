@@ -1,0 +1,21 @@
+@use '@carbon/type';
+@use '@carbon/layout';
+@use '@carbon/colors';
+
+.title {
+  @include type.type-style('heading-02');
+}
+
+.loadingContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.previewFrame {
+  width: 100%;
+  height: 65vh;
+  border: 1px solid colors.$gray-20;
+  background-color: colors.$white;
+}

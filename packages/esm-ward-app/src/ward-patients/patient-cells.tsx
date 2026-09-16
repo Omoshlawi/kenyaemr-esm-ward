@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../config-schema';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
 import { usePatientBills } from '../ward-workspace/kenya-emr-patient-discharge/patient-discharge.resource';
+import styles from './patient-cells.scss';
 
 type CellProps = {
   patientUuid: string;
@@ -32,7 +33,7 @@ export const PatientAgeCell: FC<CellProps> = ({ patientUuid }) => {
 export const HyperLinkPatientCell: FC<CellProps & { patientName: string }> = ({ patientUuid, patientName }) => {
   const patientChartUrl = '${openmrsSpaBase}/patient/${patientUuid}/chart/Patient Summary';
   return (
-    <ConfigurableLink to={patientChartUrl} templateParams={{ patientUuid }} style={{ textDecoration: 'none' }}>
+    <ConfigurableLink to={patientChartUrl} templateParams={{ patientUuid }} className={styles.patientLink}>
       {patientName}
     </ConfigurableLink>
   );
@@ -67,7 +68,7 @@ export const PatientAdmissionDateCell: FC<PatientAdmissionCellProps> = ({ encoun
   if (isLoading) return <InlineLoading />;
   if (error) return <p>--</p>;
 
-  return <p>{admissionDate}</p>;
+  return <span>{admissionDate}</span>;
 };
 
 export const PatientDayInWardCell: FC<PatientAdmissionCellProps> = ({ encounterUuid }) => {
@@ -205,10 +206,12 @@ export const CreateWardBillAction: FC<CreateWardBillActionProps> = ({
 }) => {
   const { t } = useTranslation();
   const { isLoading, daysInWard } = useAdmissionBillingDetails(encounterUuid);
-  const { isLoading: isLoadingBills, bills, pendingBills, dailyBedFeeSettled } = usePatientBills(
-    visitUuid,
-    patientUuid,
-  );
+  const {
+    isLoading: isLoadingBills,
+    bills,
+    pendingBills,
+    dailyBedFeeSettled,
+  } = usePatientBills(visitUuid, patientUuid);
 
   const disabled = useMemo(() => {
     if (isLoading || isLoadingBills) return true;
@@ -223,7 +226,5 @@ export const CreateWardBillAction: FC<CreateWardBillActionProps> = ({
     return true;
   }, [isLoading, isLoadingBills, bills, pendingBills, dailyBedFeeSettled, daysInWard]);
 
-  return (
-    <OverflowMenuItem itemText={t('createWardBill', 'Create Ward Bill')} onClick={onClick} disabled={disabled} />
-  );
+  return <OverflowMenuItem itemText={t('createWardBill', 'Create Ward Bill')} onClick={onClick} disabled={disabled} />;
 };

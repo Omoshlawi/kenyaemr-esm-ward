@@ -3,7 +3,6 @@ import {
   OverflowMenu,
   OverflowMenuItem,
   Pagination,
-  Search,
   Table,
   TableBody,
   TableCell,
@@ -11,6 +10,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableToolbar,
+  TableToolbarContent,
+  TableToolbarSearch,
 } from '@carbon/react';
 import {
   type Encounter,
@@ -37,13 +39,14 @@ import {
   UnAssignPatientBedAction,
 } from './patient-cells';
 import { EmptyState } from './table-state-components';
+import styles from './ward-patient.scss';
 
 const DischargeInPatients = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { bedLayouts, wardAdmittedPatientsWithBed, isLoading } = wardPatientGroupDetails ?? {};
-  const { emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useEmrConfiguration();
+  const { emrConfiguration, isLoadingEmrConfiguration } = useEmrConfiguration();
   const { handleDischarge } = usePatientDischarge();
 
   const config = useConfig<WardConfigObject>();
@@ -56,7 +59,6 @@ const DischargeInPatients = () => {
     { key: 'bedNumber', header: t('bedNumber', 'Bed Number') },
     { key: 'daysAdmitted', header: t('durationOnWard', 'Duration on Ward') },
     { key: 'billStatus', header: t('billStatus', 'Bill Status') },
-    { key: 'action', header: t('action', 'Action') },
   ];
 
   const patients = useMemo(() => {
@@ -120,7 +122,10 @@ const DischargeInPatients = () => {
         admissionDate,
         idNumber: getOpenmrsId(patient.patient?.identifiers ?? []) ?? '--',
         name: (
-          <HyperLinkPatientCell patientName={patient.patient?.person?.display} patientUuid={patient.patient?.uuid} />
+          <HyperLinkPatientCell
+            patientName={patient.patient?.person?.display ?? ''}
+            patientUuid={patient.patient?.uuid}
+          />
         ),
         gender: patient.patient?.person?.gender ?? '--',
         age: patient.patient?.person?.age ?? '--',
@@ -129,82 +134,126 @@ const DischargeInPatients = () => {
         billStatus: (
           <PatientBillStatus
             patientUuid={patient.patient?.uuid ?? ''}
-            encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid}
+            encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid ?? ''}
             visitUuid={visit?.uuid}
           />
         ),
-        action: (
-          <OverflowMenu size={'sm'} flipped>
-            <CreateWardBillAction
-              patientUuid={patient.patient.uuid}
-              encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid}
-              visitUuid={visit?.uuid}
-              onClick={() =>
-                launchWorkspace2('create-ward-bill-workspace', {
-                  patientUuid: patient.patient.uuid,
-                  daysAdmitted,
-                  visitUuid: visit?.uuid,
-                })
-              }
-            />
-            <OverflowMenuItem itemText={t('waivePatient', 'Waive Patient')} onClick={() => {}} />
-            <OverflowMenuItem itemText={t('patientAbscondend', 'Patient Absconded')} onClick={() => {}} />
-            <UnAssignPatientBedAction
-              patientUuid={patient.patient.uuid}
-              encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid}
-              visitUuid={visit?.uuid}
-              loading={wardPatientGroupDetails?.admissionLocationResponse?.isLoading || isLoadingEmrConfiguration}
-              onClick={async () => {
-                await handleDischarge(
-                  {} as Encounter,
-                  patient,
-                  emrConfiguration as Record<string, any>,
-                  patient.visit,
-                  wardPatientGroupDetails?.admissionLocationResponse?.admissionLocation?.ward,
-                );
-              }}
-            />
-          </OverflowMenu>
-        ),
       };
     });
-  }, [results, t, emrConfiguration, handleDischarge, wardPatientGroupDetails, isLoadingEmrConfiguration]);
+  }, [results]);
 
   if (!patients.length) return <EmptyState message={t('noDischargeInpatients', 'No Discharge in patients')} />;
 
   return (
-    <div>
-      <Search
-        labelText={t('searchInpatients', 'Search inpatients')}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
-        {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
-          <TableContainer>
-            <Table {...getTableProps()} aria-label="sample table">
+    <div className={styles.dataTableContainer}>
+      <DataTable size="sm" rows={tableRows} headers={headers} isSortable useZebraStyles>
+        {({
+          rows,
+          headers,
+          getHeaderProps,
+          getRowProps,
+          getTableProps,
+          getCellProps,
+          getToolbarProps,
+          getTableContainerProps,
+        }) => (
+          <TableContainer
+            title={t('dischargeInPatientsTitle', 'Patients pending discharge')}
+            description={t(
+              'dischargeInPatientsDescription',
+              'Admitted patients marked for discharge. Settle bills to complete discharge.',
+            )}
+            {...getTableContainerProps()}>
+            <TableToolbar {...getToolbarProps()}>
+              <TableToolbarContent>
+                <TableToolbarSearch
+                  persistent
+                  value={search}
+                  placeholder={t('searchInpatients', 'Search inpatients')}
+                  onChange={(event, value) =>
+                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
+                  }
+                />
+              </TableToolbarContent>
+            </TableToolbar>
+            <Table {...getTableProps()} aria-label={t('dischargeIn', 'Discharge In')}>
               <TableHead>
                 <TableRow>
                   {headers.map((header) => (
                     <TableHeader
-                      key={header.key}
                       {...getHeaderProps({
                         header,
-                      })}>
+                      })}
+                      key={header.key}>
                       {header.header}
                     </TableHeader>
                   ))}
+                  <TableHeader />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {rows.map((row) => {
+                  const wardPatient = results.find((result) => result.patient.uuid === row.id);
+                  const { encounterAssigningToCurrentInpatientLocation, visit } = wardPatient?.inpatientAdmission ?? {};
+                  const daysAdmitted = encounterAssigningToCurrentInpatientLocation?.encounterDatetime
+                    ? Math.max(
+                        0,
+                        dayjs()
+                          .startOf('day')
+                          .diff(
+                            dayjs(encounterAssigningToCurrentInpatientLocation.encounterDatetime).startOf('day'),
+                            'day',
+                          ),
+                      )
+                    : '--';
                   return (
-                    <TableRow key={row.id} {...getRowProps({ row })}>
+                    <TableRow {...getRowProps({ row })} key={row.id}>
                       {row.cells.map((cell) => (
-                        <TableCell key={cell.id} {...getCellProps({ cell })}>
+                        <TableCell {...getCellProps({ cell })} key={cell.id}>
                           {cell.value}
                         </TableCell>
                       ))}
+                      <TableCell className="cds--table-column-menu">
+                        {wardPatient && (
+                          <OverflowMenu size={'sm'} flipped>
+                            <CreateWardBillAction
+                              patientUuid={wardPatient?.patient.uuid}
+                              encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid ?? ''}
+                              visitUuid={visit?.uuid}
+                              onClick={() =>
+                                launchWorkspace2('create-ward-bill-workspace', {
+                                  patientUuid: wardPatient?.patient.uuid,
+                                  daysAdmitted,
+                                  visitUuid: visit?.uuid,
+                                })
+                              }
+                            />
+                            <OverflowMenuItem itemText={t('waivePatient', 'Waive Patient')} onClick={() => {}} />
+                            <OverflowMenuItem
+                              itemText={t('patientAbscondend', 'Patient Absconded')}
+                              onClick={() => {}}
+                            />
+                            <UnAssignPatientBedAction
+                              patientUuid={wardPatient.patient.uuid}
+                              encounterUuid={encounterAssigningToCurrentInpatientLocation?.uuid ?? ''}
+                              visitUuid={visit?.uuid}
+                              loading={
+                                wardPatientGroupDetails?.admissionLocationResponse?.isLoading ||
+                                isLoadingEmrConfiguration
+                              }
+                              onClick={async () => {
+                                await handleDischarge(
+                                  {} as Encounter,
+                                  wardPatient,
+                                  emrConfiguration as Record<string, any>,
+                                  wardPatient.visit,
+                                  wardPatientGroupDetails?.admissionLocationResponse?.admissionLocation?.ward,
+                                );
+                              }}
+                            />
+                          </OverflowMenu>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}

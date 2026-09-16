@@ -8,6 +8,7 @@ import {
   WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
   WARD_PATIENTS_DISCHARGE_IN_SLOT,
   WARD_PATIENTS_DISCHARGED_SLOT,
+  WARD_PATIENTS_UNASSIGNED_SLOT,
 } from './ward-patients-slots';
 
 describe('WardPatientsTable', () => {
@@ -18,11 +19,12 @@ describe('WardPatientsTable', () => {
       .mockImplementation(({ name }: { name: string }) => <div data-testid={`extension-slot-${name}`}>{name}</div>);
   });
 
-  it('renders four tabs with expected labels', () => {
+  it('renders five tabs with expected labels', () => {
     renderWithSwr(<WardPatientsTable />);
 
     expect(screen.getByText('Awaiting Admission')).toBeInTheDocument();
     expect(screen.getByText('Admitted')).toBeInTheDocument();
+    expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.getByText('Discharge In')).toBeInTheDocument();
     expect(screen.getByText('Discharged')).toBeInTheDocument();
   });
@@ -36,6 +38,10 @@ describe('WardPatientsTable', () => {
     );
     expect(ExtensionSlot).toHaveBeenCalledWith(
       expect.objectContaining({ name: WARD_PATIENTS_ADMITTED_SLOT }),
+      expect.anything(),
+    );
+    expect(ExtensionSlot).toHaveBeenCalledWith(
+      expect.objectContaining({ name: WARD_PATIENTS_UNASSIGNED_SLOT }),
       expect.anything(),
     );
     expect(ExtensionSlot).toHaveBeenCalledWith(
@@ -53,6 +59,6 @@ describe('WardPatientsTable', () => {
 
     renderWithSwr(<WardPatientsTable />);
 
-    expect(screen.getAllByText('No component configured for this ward patients tab')).toHaveLength(4);
+    expect(screen.getAllByText('No component configured for this ward patients tab')).toHaveLength(5);
   });
 });

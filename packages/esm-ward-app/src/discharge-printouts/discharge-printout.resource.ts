@@ -7,8 +7,8 @@ import {
   restBaseUrl,
   useConfig,
   type Visit,
+  type Order,
 } from '@openmrs/esm-framework';
-import { type Order } from '@openmrs/esm-patient-common-lib';
 import { useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { type WardConfigObject } from '../config-schema';
