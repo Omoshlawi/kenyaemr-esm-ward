@@ -144,6 +144,11 @@ export const wardPatientsAwaitingAdmissionTable = getAsyncLifecycle(
 
 export const wardPatientsAdmittedTable = getAsyncLifecycle(() => import('./ward-patients/admitted-patients'), options);
 
+export const wardPatientsUnassignedTable = getAsyncLifecycle(
+  () => import('./ward-patients/unassigned-patients'),
+  options,
+);
+
 export const wardPatientsDischargeInTable = getAsyncLifecycle(
   () => import('./ward-patients/discharge-in-patients'),
   options,

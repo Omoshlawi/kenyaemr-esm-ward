@@ -97,6 +97,11 @@
       "slot": "ward-patients-admitted-slot"
     },
     {
+      "name": "ward-patients-unassigned",
+      "component": "wardPatientsUnassignedTable",
+      "slot": "ward-patients-unassigned-slot"
+    },
+    {
       "name": "ward-patients-discharge-in",
       "component": "wardPatientsDischargeInTable",
       "slot": "ward-patients-discharge-in-slot"

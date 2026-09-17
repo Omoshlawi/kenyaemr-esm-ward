@@ -4,46 +4,7 @@
 
 .modalContent {
   padding: layout.$spacing-05;
-}
-
-:global {
-  .cds--multi-select__wrapper {
-    position: relative;
-  }
-
-  .cds--list-box__menu {
-    position: absolute;
-    z-index: 99999;
-    max-height: 250px;
-    width: 100%;
-    min-width: 300px;
-    background: #a6a6a6;
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    padding: 4px 0;
-    top: 100%;
-    left: 0;
-    margin-top: 4px;
-
-    .cds--list-box__menu-item {
-      background: #f9f9f9;
-      padding: 8px 16px;
-
-      &:hover {
-        background: #e8e8e8;
-      }
-    }
-
-    .cds--checkbox-label {
-      color: #161616;
-    }
-  }
-
-  [class*='modalContent'],
-  [class*='formContainer'],
-  .cds--modal-content {
-    overflow: visible;
-  }
+  overflow: visible;
 }
 
 .normalRangeInfo {
@@ -92,6 +53,41 @@
 .formGrid {
   gap: 1rem;
   padding: 1rem 1rem 2rem;
+
+  // Carbon renders the multi-select menu inline within the form, so these
+  // overrides stay scoped to this module's `.formGrid` wrapper rather than
+  // leaking as page-global rules.
+  :global(.cds--multi-select__wrapper) {
+    position: relative;
+  }
+
+  :global(.cds--list-box__menu) {
+    position: absolute;
+    z-index: 99999;
+    max-height: 250px;
+    width: 100%;
+    min-width: 300px;
+    background: #a6a6a6;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 4px 0;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+
+    :global(.cds--list-box__menu-item) {
+      background: #f9f9f9;
+      padding: 8px 16px;
+
+      &:hover {
+        background: #e8e8e8;
+      }
+    }
+
+    :global(.cds--checkbox-label) {
+      color: #161616;
+    }
+  }
 }
 
 .fieldRow {

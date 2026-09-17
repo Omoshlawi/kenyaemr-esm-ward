@@ -4,7 +4,6 @@ import {
   OverflowMenu,
   OverflowMenuItem,
   Pagination,
-  Search,
   Table,
   TableBody,
   TableCell,
@@ -12,23 +11,20 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableToolbar,
+  TableToolbarContent,
+  TableToolbarSearch,
 } from '@carbon/react';
-import {
-  formatDatetime,
-  launchWorkspace,
-  launchWorkspace2,
-  parseDate,
-  useAppContext,
-  usePagination,
-} from '@openmrs/esm-framework';
+import { formatDatetime, launchWorkspace2, parseDate, useAppContext, usePagination } from '@openmrs/esm-framework';
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type WardPatient, type WardPatientWorkspaceProps, type WardViewContext } from '../types';
+import { type WardPatient, type WardViewContext } from '../types';
 import { getOpenmrsId } from '../ward-view/ward-view.resource';
 import AdmitPatientButton from '../ward-workspace/admit-patient-button.component';
 import { HyperLinkPatientCell } from './patient-cells';
 import { EmptyState, ErrorState } from './table-state-components';
+import styles from './ward-patient.scss';
 
 const AwaitingAdmissionPatients = () => {
   const { t } = useTranslation();
@@ -51,7 +47,6 @@ const AwaitingAdmissionPatients = () => {
     { key: 'gender', header: t('gender', 'Gender') },
     { key: 'age', header: t('age', 'Age') },
     { key: 'bedNumber', header: t('bedNumber', 'Bed Number') },
-    { key: 'action', header: t('action', 'Action') },
   ];
 
   const launchPatientTransferForm = (wardPatient: WardPatient) => {
@@ -89,64 +84,105 @@ const AwaitingAdmissionPatients = () => {
         gender: request?.patient?.person?.gender ?? '--',
         age: request?.patient?.person?.age ?? '--',
         bedNumber: '--',
-        action: (
-          <OverflowMenu size={'sm'} flipped>
-            <OverflowMenuItem
-              itemText={
-                isTransfer ? t('transferElsewhere', 'Transfer elsewhere') : t('admitElsewhere', 'Admit elsewhere')
-              }
-              onClick={() => launchPatientTransferForm(wardPatient)}
-            />
-            <AdmitPatientButton
-              wardPatient={wardPatient}
-              dispositionType={wardPatient.inpatientRequest.dispositionType}
-              onAdmitPatientSuccess={() => {}}
-              component="menu"
-            />
-            <OverflowMenuItem itemText={t('cancel', 'Cancel')} onClick={() => launchCancelAdmissionForm(wardPatient)} />
-          </OverflowMenu>
-        ),
       };
     });
-  }, [results, t]);
+  }, [results]);
 
   if (isLoading) return <DataTableSkeleton />;
   if (error) return <ErrorState error={error} />;
   if (!inpatientRequests || !inpatientRequests.length)
     return <EmptyState message={t('noPatientInAdmisionQueue', 'No patients in admission queue')} />;
   return (
-    <div>
-      <Search
-        labelText={t('searchPatients', 'Search patients')}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
-        {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
-          <TableContainer>
-            <Table {...getTableProps()} aria-label="sample table">
+    <div className={styles.dataTableContainer}>
+      <DataTable size="sm" rows={tableRows} headers={headers} isSortable useZebraStyles>
+        {({
+          rows,
+          headers,
+          getHeaderProps,
+          getRowProps,
+          getTableProps,
+          getCellProps,
+          getToolbarProps,
+          getTableContainerProps,
+        }) => (
+          <TableContainer
+            title={t('awaitingAdmissionTitle', 'Patients awaiting admission')}
+            description={t(
+              'awaitingAdmissionDescription',
+              'Patients with a pending request to be admitted to this ward.',
+            )}
+            {...getTableContainerProps()}>
+            <TableToolbar {...getToolbarProps()}>
+              <TableToolbarContent>
+                <TableToolbarSearch
+                  persistent
+                  value={search}
+                  placeholder={t('searchPatients', 'Search patients')}
+                  onChange={(event, value) =>
+                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
+                  }
+                />
+              </TableToolbarContent>
+            </TableToolbar>
+            <Table {...getTableProps()} aria-label={t('awaitingAdmission', 'Awaiting Admission')}>
               <TableHead>
                 <TableRow>
                   {headers.map((header) => (
                     <TableHeader
-                      key={header.key}
                       {...getHeaderProps({
                         header,
-                      })}>
+                      })}
+                      key={header.key}>
                       {header.header}
                     </TableHeader>
                   ))}
+                  <TableHead />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {rows.map((row) => {
+                  const wardPatientInfo = results.find((result) => result.patient.uuid === row.id);
+                  const wardPatient = {
+                    patient: wardPatientInfo?.patient,
+                    visit: wardPatientInfo?.visit,
+                    bed: null,
+                    inpatientRequest: wardPatientInfo,
+                    inpatientAdmission: null,
+                  };
+                  const isTransfer = wardPatient?.inpatientRequest?.dispositionType == 'TRANSFER';
                   return (
-                    <TableRow key={row.id} {...getRowProps({ row })}>
+                    <TableRow {...getRowProps({ row })} key={row.id}>
                       {row.cells.map((cell) => (
-                        <TableCell key={cell.id} {...getCellProps({ cell })}>
+                        <TableCell {...getCellProps({ cell })} key={cell.id}>
                           {cell.value}
                         </TableCell>
                       ))}
+                      <TableCell className="cds--table-column-menu">
+                        <OverflowMenu size={'sm'} flipped>
+                          {wardPatient?.inpatientRequest && (
+                            <>
+                              <OverflowMenuItem
+                                itemText={
+                                  isTransfer
+                                    ? t('transferElsewhere', 'Transfer elsewhere')
+                                    : t('admitElsewhere', 'Admit elsewhere')
+                                }
+                                onClick={() => launchPatientTransferForm(wardPatient as WardPatient)}
+                              />
+                              <AdmitPatientButton
+                                wardPatient={wardPatient as WardPatient}
+                                dispositionType={wardPatient.inpatientRequest.dispositionType}
+                                onAdmitPatientSuccess={() => {}}
+                                component="menu"
+                              />
+                              <OverflowMenuItem
+                                itemText={t('cancel', 'Cancel')}
+                                onClick={() => launchCancelAdmissionForm(wardPatient as WardPatient)}
+                              />
+                            </>
+                          )}
+                        </OverflowMenu>
+                      </TableCell>
                     </TableRow>
                   );
                 })}

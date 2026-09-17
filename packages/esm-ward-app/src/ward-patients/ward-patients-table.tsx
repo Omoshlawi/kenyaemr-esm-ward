@@ -8,7 +8,10 @@ import {
   WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
   WARD_PATIENTS_DISCHARGE_IN_SLOT,
   WARD_PATIENTS_DISCHARGED_SLOT,
+  WARD_PATIENTS_UNASSIGNED_SLOT,
 } from './ward-patients-slots';
+
+import styles from './ward-patient.scss';
 
 const WardPatientsTabPanel: React.FC<{ slotName: string }> = ({ slotName }) => {
   const { t } = useTranslation();
@@ -27,28 +30,34 @@ const WardPatientsTable = () => {
   const { t } = useTranslation();
 
   return (
-    <Tabs onTabCloseRequest={() => {}}>
-      <TabList scrollDebounceWait={200}>
-        <Tab>{t('awaitingAdmision', 'Awaiting Admission')}</Tab>
-        <Tab>{t('admitted', 'Admitted')}</Tab>
-        <Tab>{t('dischargeIn', 'Discharge In')}</Tab>
-        <Tab>{t('discharged', 'Discharged')}</Tab>
-      </TabList>
-      <TabPanels>
-        <TabPanel>
-          <WardPatientsTabPanel slotName={WARD_PATIENTS_AWAITING_ADMISSION_SLOT} />
-        </TabPanel>
-        <TabPanel>
-          <WardPatientsTabPanel slotName={WARD_PATIENTS_ADMITTED_SLOT} />
-        </TabPanel>
-        <TabPanel>
-          <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGE_IN_SLOT} />
-        </TabPanel>
-        <TabPanel>
-          <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGED_SLOT} />
-        </TabPanel>
-      </TabPanels>
-    </Tabs>
+    <div className={styles.tabContainer}>
+      <Tabs onTabCloseRequest={() => {}}>
+        <TabList contained scrollDebounceWait={200}>
+          <Tab>{t('awaitingAdmision', 'Awaiting Admission')}</Tab>
+          <Tab>{t('admitted', 'Admitted')}</Tab>
+          <Tab>{t('unassigned', 'Unassigned')}</Tab>
+          <Tab>{t('dischargeIn', 'Discharge In')}</Tab>
+          <Tab>{t('discharged', 'Discharged')}</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_AWAITING_ADMISSION_SLOT} />
+          </TabPanel>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_ADMITTED_SLOT} />
+          </TabPanel>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_UNASSIGNED_SLOT} />
+          </TabPanel>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGE_IN_SLOT} />
+          </TabPanel>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGED_SLOT} />
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+    </div>
   );
 };
 

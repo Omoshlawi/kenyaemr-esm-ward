@@ -35,19 +35,19 @@ export type WardPatient = {
    * the bed assigned to the patient. This object is only set if the patient
    * has a bed assigned
    */
-  bed: Bed;
+  bed: Bed | null;
 
   /**
    * The admission detail. This object is only set if the patient has been
    * admitted to the ward
    */
-  inpatientAdmission: InpatientAdmission;
+  inpatientAdmission: InpatientAdmission | null;
 
   /**
    * The admission request. The object is only set if the patient has a
    * pending admission / transfer request.
    */
-  inpatientRequest: InpatientRequest;
+  inpatientRequest: InpatientRequest | null;
 };
 
 export interface WardPatientWorkspaceProps {

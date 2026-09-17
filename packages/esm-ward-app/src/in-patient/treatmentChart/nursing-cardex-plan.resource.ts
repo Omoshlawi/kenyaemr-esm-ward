@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { type FetchResponse, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
-import { type Order } from '@openmrs/esm-patient-common-lib';
+import { type FetchResponse, openmrsFetch, restBaseUrl, type Order } from '@openmrs/esm-framework';
 export const CARDEX_META_PREFIX = '__CARDEX_META__:';
 type UuidDisplayResource = {
   uuid?: string;

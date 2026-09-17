@@ -4,7 +4,6 @@ import {
   OverflowMenu,
   OverflowMenuItem,
   Pagination,
-  Search,
   Table,
   TableBody,
   TableCell,
@@ -12,12 +11,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableToolbar,
+  TableToolbarContent,
+  TableToolbarSearch,
 } from '@carbon/react';
 import { formatDatetime, parseDate, showModal } from '@openmrs/esm-framework';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import DischargeSummary from '../discharge-printouts/discharge-summary';
-import GatePassPrintout from '../discharge-printouts/gate-pass-printout';
 import { useIpdDischargeEncounter } from '../hooks/useIpdDischargeEncounter';
 import {
   HyperLinkPatientCell,
@@ -27,7 +27,7 @@ import {
   PatientGenderCell,
 } from './patient-cells';
 import { EmptyState, ErrorState } from './table-state-components';
-import PostProcedureSummaryLauncher from '../discharge-printouts/PostProcedureSummaryLauncher';
+import styles from './ward-patient.scss';
 
 const DischargePatients = () => {
   const { t } = useTranslation();
@@ -55,7 +55,6 @@ const DischargePatients = () => {
     { key: 'age', header: t('age', 'Age') },
     { key: 'bedNumber', header: t('bedNumber', 'Bed Number') },
     { key: 'daysAdmitted', header: t('durationOnWard', 'Duration on Ward') },
-    { key: 'action', header: t('action', 'Action') },
   ];
 
   const tableRows = useMemo(() => {
@@ -74,80 +73,107 @@ const DischargePatients = () => {
           age: <PatientAgeCell patientUuid={encounter.patient.uuid} />,
           bedNumber: '--',
           daysAdmitted: <PatientDayInWardCell patientUuid={encounter.patient.uuid} encounterUuid={encounter.uuid} />,
-          action: (
-            <OverflowMenu size="sm" flipped>
-              <OverflowMenuItem
-                itemText={t('dischargeSummary', 'Discharge Summary')}
-                onClick={() => {
-                  const dispose = showModal('patient-discharge-document-preview-modal', {
-                    size: 'lg',
-                    onClose: () => dispose(),
-                    printout: <DischargeSummary dischargeEncounterUuid={encounter.uuid} patient={encounter.patient} />,
-                  });
-                }}
-              />
-              <OverflowMenuItem
-                itemText={t('postOperationNotes', 'Post Operation Notes')}
-                onClick={() => {
-                  const dispose = showModal('patient-discharge-document-preview-modal', {
-                    size: 'lg',
-                    onClose: () => dispose(),
-                    printout: (
-                      <PostProcedureSummaryLauncher encounterUuid={encounter.uuid} patient={encounter.patient} />
-                    ),
-                  });
-                }}
-              />
-              <OverflowMenuItem
-                itemText={t('gatePass', 'Gate Pass')}
-                onClick={() => {
-                  const dispose = showModal('patient-discharge-document-preview-modal', {
-                    size: 'lg',
-                    onClose: () => dispose(),
-                    printout: <GatePassPrintout dischargeEncounterUuid={encounter.uuid} patient={encounter.patient} />,
-                  });
-                }}
-              />
-            </OverflowMenu>
-          ),
         };
       });
-  }, [encounters, search, t]);
+  }, [encounters, search]);
 
   if (isLoading) return <DataTableSkeleton />;
   if (error) return <ErrorState error={error} />;
   if (!encounters?.length) return <EmptyState message={t('noDischargedPatients', 'No Discharged patients')} />;
 
   return (
-    <div>
-      <Search
-        labelText={t('searchPatients', 'Search patients')}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
-        {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
-          <TableContainer>
-            <Table {...getTableProps()} aria-label="sample table">
+    <div className={styles.dataTableContainer}>
+      <DataTable size="sm" rows={tableRows} headers={headers} isSortable useZebraStyles>
+        {({
+          rows,
+          headers,
+          getHeaderProps,
+          getRowProps,
+          getTableProps,
+          getCellProps,
+          getToolbarProps,
+          getTableContainerProps,
+        }) => (
+          <TableContainer
+            title={t('dischargedPatientsTitle', 'Discharged patients')}
+            description={t('dischargedPatientsDescription', 'Patients discharged from this ward.')}
+            {...getTableContainerProps()}>
+            <TableToolbar {...getToolbarProps()}>
+              <TableToolbarContent>
+                <TableToolbarSearch
+                  persistent
+                  value={search}
+                  placeholder={t('searchPatients', 'Search patients')}
+                  onChange={(event, value) =>
+                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
+                  }
+                />
+              </TableToolbarContent>
+            </TableToolbar>
+            <Table {...getTableProps()} aria-label={t('discharged', 'Discharged')}>
               <TableHead>
                 <TableRow>
                   {headers.map((header) => (
-                    <TableHeader key={header.key} {...getHeaderProps({ header })}>
+                    <TableHeader {...getHeaderProps({ header })} key={header.key}>
                       {header.header}
                     </TableHeader>
                   ))}
+                  <TableHeader />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id} {...getRowProps({ row })}>
-                    {row.cells.map((cell) => (
-                      <TableCell key={cell.id} {...getCellProps({ cell })}>
-                        {cell.value}
+                {rows.map((row) => {
+                  const encounter = encounters.find((encounter) => encounter.uuid === row.id);
+                  return (
+                    <TableRow {...getRowProps({ row })} key={row.id}>
+                      {row.cells.map((cell) => (
+                        <TableCell {...getCellProps({ cell })} key={cell.id}>
+                          {cell.value}
+                        </TableCell>
+                      ))}
+                      <TableCell className="cds--table-column-menu">
+                        <OverflowMenu size="sm" flipped>
+                          <OverflowMenuItem
+                            itemText={t('dischargeSummary', 'Discharge Summary')}
+                            onClick={() => {
+                              const dispose = showModal('patient-discharge-document-preview-modal', {
+                                size: 'lg',
+                                onClose: () => dispose(),
+                                documentName: 'dischargeSummary',
+                                visitUuid: encounter?.visitUuid,
+                                patientName: encounter?.patient?.name,
+                              });
+                            }}
+                          />
+                          <OverflowMenuItem
+                            itemText={t('postOperationNotes', 'Post Operation Notes')}
+                            onClick={() => {
+                              const dispose = showModal('patient-discharge-document-preview-modal', {
+                                size: 'lg',
+                                onClose: () => dispose(),
+                                documentName: 'postOperationNotes',
+                                visitUuid: encounter?.visitUuid,
+                                patientName: encounter?.patient?.name,
+                              });
+                            }}
+                          />
+                          <OverflowMenuItem
+                            itemText={t('gatePass', 'Gate Pass')}
+                            onClick={() => {
+                              const dispose = showModal('patient-discharge-document-preview-modal', {
+                                size: 'lg',
+                                onClose: () => dispose(),
+                                documentName: 'gatePass',
+                                visitUuid: encounter?.visitUuid,
+                                patientName: encounter?.patient?.name,
+                              });
+                            }}
+                          />
+                        </OverflowMenu>
                       </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             {paginated && !isLoading && (
