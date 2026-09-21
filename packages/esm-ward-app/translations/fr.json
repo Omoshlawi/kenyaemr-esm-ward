@@ -355,5 +355,11 @@
   "wardPatients": "Patients du service",
   "wards": "Services",
   "years": "Ans",
-  "yes": "Yes"
+  "yes": "Yes",
+  "icu": "ICU",
+  "hdu": "HDU",
+  "nicu": "NICU",
+  "picu": "PICU",
+  "criticalCareModuleMissing": "{{label}} dashboard not loaded",
+  "criticalCareModuleMissingSubtitle": "Start @kenyaemr/esm-icu-app in the same SPA (openmrs develop --sources for both ward-app and icu-app) so the census and charts can appear here."
 }
