@@ -179,6 +179,7 @@ describe.skip('Testing AdmitPatientForm', () => {
     renderAdmissionForm();
     expect(screen.getByText('Select a bed')).toBeInTheDocument();
     expect(screen.getByText(/No beds configured/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Admit' })).toBeDisabled();
     replacedProperty.restore();
   });
 

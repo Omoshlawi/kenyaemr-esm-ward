@@ -33,6 +33,7 @@ export type CardexRow = {
   time: string;
   date: string;
   provider: string;
+  notes: string;
   dose: string;
   route: string;
   frequency: string;
@@ -164,14 +165,77 @@ const getEncounterSortTime = (enc: RawEncounter, treatmentChartTimeConceptUuid: 
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
 
+const getEncounterNotes = (enc: RawEncounter, nursingNotesConceptUuid?: string) =>
+  nursingNotesConceptUuid
+    ? toStr((enc.obs ?? []).find((obs) => obs?.concept?.uuid === nursingNotesConceptUuid)?.value) || emptyValue
+    : emptyValue;
+
+export type AdministeredOrderKeys = {
+  orderUuids: Set<string>;
+  labels: Set<string>;
+};
+
+const extractAdministeredOrderKeys = (
+  encounters: RawEncounter[],
+  groupConcept: string,
+  treatmentChartNameConceptUuid: string,
+): AdministeredOrderKeys => {
+  const orderUuids = new Set<string>();
+  const labels = new Set<string>();
+
+  encounters.forEach((enc) => {
+    (enc.obs ?? [])
+      .filter(
+        (obs) => obs?.concept?.uuid === groupConcept && Array.isArray(obs.groupMembers) && obs.groupMembers.length > 0,
+      )
+      .forEach((group) => {
+        const nameMember = group.groupMembers!.find(
+          (m) => m?.concept?.uuid === treatmentChartNameConceptUuid && !toStr(m.value).startsWith(CARDEX_META_PREFIX),
+        );
+        const metaMember = group.groupMembers!.find(
+          (m) => m?.concept?.uuid === treatmentChartNameConceptUuid && toStr(m.value).startsWith(CARDEX_META_PREFIX),
+        );
+        const metadata = parseCardexMeta(toStr(metaMember?.value));
+        const name = toStr(nameMember?.value).trim();
+
+        if (metadata?.orderUuid) {
+          orderUuids.add(metadata.orderUuid);
+        }
+        if (name) {
+          labels.add(name.toLowerCase());
+        }
+      });
+  });
+
+  return { orderUuids, labels };
+};
+
+export function isTreatmentChartOrderLocked(
+  option: { id: string; label: string },
+  fieldName: 'medicationRows' | 'fluidRows',
+  administeredMedication: AdministeredOrderKeys,
+  administeredFluid: AdministeredOrderKeys,
+): boolean {
+  const labelKey = option.label.trim().toLowerCase();
+  if (!labelKey) {
+    return false;
+  }
+
+  const administered = fieldName === 'medicationRows' ? administeredMedication : administeredFluid;
+
+  return administered.orderUuids.has(option.id) || administered.labels.has(labelKey);
+}
+
 const extractRows = (
   encounters: RawEncounter[],
   groupConcept: string,
   treatmentChartNameConceptUuid: string,
   treatmentChartTimeConceptUuid: string,
+  nursingNotesConceptUuid?: string,
 ): CardexRow[] =>
   encounters.flatMap((enc) => {
     const provider = enc.encounterProviders?.[0]?.provider?.person?.display ?? '--';
+    const notes = getEncounterNotes(enc, nursingNotesConceptUuid);
     return (enc.obs ?? [])
       .filter(
         (obs) => obs?.concept?.uuid === groupConcept && Array.isArray(obs.groupMembers) && obs.groupMembers.length > 0,
@@ -192,6 +256,7 @@ const extractRows = (
           time: fmtTime(rawTime),
           date: fmtDate(enc.encounterDatetime || rawTime),
           provider: metadata?.provider || provider,
+          notes,
           dose: formatDose(metadata),
           route: metadata?.route || '--',
           frequency: metadata?.frequency || '--',
@@ -210,7 +275,9 @@ export function useNursingTreatmentSheet(patientUuid: string) {
     treatmentChartFluidGroupUuid,
     treatmentChartNameConceptUuid,
     treatmentChartTimeConceptUuid,
+    nursingCardex,
   } = useConfig<WardConfigObject>();
+  const nursingNotesConceptUuid = nursingCardex?.concepts?.nursingNotes;
 
   const encounterTypeQuery = treatmentChartCardexEncounterTypeUuid
     ? `&encounterType=${treatmentChartCardexEncounterTypeUuid}`
@@ -256,8 +323,15 @@ export function useNursingTreatmentSheet(patientUuid: string) {
         treatmentChartMedicationGroupUuid,
         treatmentChartNameConceptUuid,
         treatmentChartTimeConceptUuid,
+        nursingNotesConceptUuid,
       ),
-    [encounters, treatmentChartMedicationGroupUuid, treatmentChartNameConceptUuid, treatmentChartTimeConceptUuid],
+    [
+      encounters,
+      treatmentChartMedicationGroupUuid,
+      treatmentChartNameConceptUuid,
+      treatmentChartTimeConceptUuid,
+      nursingNotesConceptUuid,
+    ],
   );
   const fluidAndNutritionRows = useMemo(
     () =>
@@ -266,13 +340,32 @@ export function useNursingTreatmentSheet(patientUuid: string) {
         treatmentChartFluidGroupUuid,
         treatmentChartNameConceptUuid,
         treatmentChartTimeConceptUuid,
+        nursingNotesConceptUuid,
       ),
-    [encounters, treatmentChartFluidGroupUuid, treatmentChartNameConceptUuid, treatmentChartTimeConceptUuid],
+    [
+      encounters,
+      treatmentChartFluidGroupUuid,
+      treatmentChartNameConceptUuid,
+      treatmentChartTimeConceptUuid,
+      nursingNotesConceptUuid,
+    ],
+  );
+
+  const administeredMedicationOrders = useMemo(
+    () => extractAdministeredOrderKeys(encounters, treatmentChartMedicationGroupUuid, treatmentChartNameConceptUuid),
+    [encounters, treatmentChartMedicationGroupUuid, treatmentChartNameConceptUuid],
+  );
+
+  const administeredFluidOrders = useMemo(
+    () => extractAdministeredOrderKeys(encounters, treatmentChartFluidGroupUuid, treatmentChartNameConceptUuid),
+    [encounters, treatmentChartFluidGroupUuid, treatmentChartNameConceptUuid],
   );
 
   return {
     medicationRows,
     fluidAndNutritionRows,
+    administeredMedicationOrders,
+    administeredFluidOrders,
     encounters,
     isLoading,
     error: error

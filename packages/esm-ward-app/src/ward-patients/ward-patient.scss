@@ -3,22 +3,35 @@
 @use '@carbon/colors';
 
 .empty {
-    justify-content: center;
-    align-items: center;
-    gap: layout.$spacing-03;
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    color: $text-02;
-    height: 200px;
+  justify-content: center;
+  align-items: center;
+  gap: layout.$spacing-03;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  color: $text-02;
+  height: 200px;
 }
 
 .error {
-    justify-content: center;
-    align-items: center;
-    gap: layout.$spacing-03;
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    height: 200px;
+  justify-content: center;
+  align-items: center;
+  gap: layout.$spacing-03;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 200px;
+}
+
+.tabContainer {
+  margin-block: layout.$spacing-04;
+  margin-inline: layout.$spacing-03;
+}
+
+.dataTableContainer {
+  border: 1px solid colors.$gray-20;
+
+  :global(.cds--table-toolbar) {
+    position: relative !important;
+  }
 }

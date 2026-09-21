@@ -1,15 +1,18 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { type FetchResponse, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
-import { type Order } from '@openmrs/esm-patient-common-lib';
+import { type FetchResponse, openmrsFetch, restBaseUrl, type Order } from '@openmrs/esm-framework';
 export const CARDEX_META_PREFIX = '__CARDEX_META__:';
 type UuidDisplayResource = {
   uuid?: string;
   display?: string;
 };
 
-export type ActiveOrder = Pick<Order, 'uuid'> &
+export type MedicationOrder = Pick<Order, 'uuid'> &
   Partial<Pick<Order, 'display' | 'dose' | 'quantity' | 'duration'>> & {
+    dateActivated?: string | null;
+    scheduledDate?: string | null;
+    dateStopped?: string | null;
+    autoExpireDate?: string | null;
     drug?: Order['drug'] | UuidDisplayResource | null;
     doseUnits?: Order['doseUnits'] | UuidDisplayResource | null;
     route?: Order['route'] | UuidDisplayResource | null;
@@ -23,8 +26,8 @@ export type ActiveOrder = Pick<Order, 'uuid'> &
       | null;
   };
 
-export type ActiveOrderResponse = {
-  results: Array<ActiveOrder>;
+export type MedicationOrderResponse = {
+  results: Array<MedicationOrder>;
 };
 
 export type OrderOption = {
@@ -32,19 +35,44 @@ export type OrderOption = {
   label: string;
 };
 
-const activeOrdersRepresentation =
-  'custom:(uuid,display,drug:(uuid,display),dose,doseUnits:(uuid,display),route:(uuid,display),frequency:(uuid,display),quantity,quantityUnits:(uuid,display),duration,durationUnits:(uuid,display),orderer:(uuid,display,person:(uuid,display)))';
+const inpatientCareSettingUuid = '6f0c9a92-6f24-11e3-af88-005056821db0';
+const drugOrderTypeUuid = '131168f4-15f5-102d-96e4-000c29c2a5d7';
 
-export const getOrderLabel = (order: ActiveOrder) => order?.drug?.display?.trim() || order?.display?.trim() || '';
+export const getOrderLabel = (order: MedicationOrder) => order?.drug?.display?.trim() || order?.display?.trim() || '';
 
-export function useActiveNursingOrders(patientUuid?: string) {
-  const activeOrdersUrl = patientUuid
-    ? `${restBaseUrl}/order?patient=${patientUuid}&status=ACTIVE&v=${activeOrdersRepresentation}`
+const parseValidDate = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isActiveMedicationOrder = (order: MedicationOrder) => {
+  const now = new Date();
+  const autoExpireDate = parseValidDate(order.autoExpireDate);
+  const dateStopped = parseValidDate(order.dateStopped);
+
+  if (dateStopped && dateStopped.getTime() <= now.getTime()) {
+    return false;
+  }
+
+  if (autoExpireDate && autoExpireDate.getTime() < now.getTime()) {
+    return false;
+  }
+
+  return true;
+};
+
+export function useActiveMedicationOrders(patientUuid?: string) {
+  const medicationOrdersUrl = patientUuid
+    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&status=active&orderType=${drugOrderTypeUuid}&v=full`
     : null;
 
-  const { data, isLoading } = useSWR<FetchResponse<ActiveOrderResponse>>(activeOrdersUrl, openmrsFetch);
+  const { data, isLoading } = useSWR<FetchResponse<MedicationOrderResponse>>(medicationOrdersUrl, openmrsFetch);
 
-  const orders = useMemo(() => data?.data?.results ?? [], [data]);
+  const orders = useMemo(() => (data?.data?.results ?? []).filter(isActiveMedicationOrder), [data]);
 
   const options = useMemo<Array<OrderOption>>(() => {
     const seen = new Set<string>();

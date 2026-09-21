@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../config-schema';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
 import { usePatientBills } from '../ward-workspace/kenya-emr-patient-discharge/patient-discharge.resource';
+import styles from './patient-cells.scss';
 
 type CellProps = {
   patientUuid: string;
@@ -32,7 +33,7 @@ export const PatientAgeCell: FC<CellProps> = ({ patientUuid }) => {
 export const HyperLinkPatientCell: FC<CellProps & { patientName: string }> = ({ patientUuid, patientName }) => {
   const patientChartUrl = '${openmrsSpaBase}/patient/${patientUuid}/chart/Patient Summary';
   return (
-    <ConfigurableLink to={patientChartUrl} templateParams={{ patientUuid }} style={{ textDecoration: 'none' }}>
+    <ConfigurableLink to={patientChartUrl} templateParams={{ patientUuid }} className={styles.patientLink}>
       {patientName}
     </ConfigurableLink>
   );
@@ -48,6 +49,7 @@ export const PatientGenderCell: FC<CellProps> = ({ patientUuid }) => {
 
 type PatientAdmissionCellProps = CellProps & {
   encounterUuid: string;
+  visitUuid?: string;
 };
 
 export const PatientAdmissionDateCell: FC<PatientAdmissionCellProps> = ({ encounterUuid }) => {
@@ -66,7 +68,7 @@ export const PatientAdmissionDateCell: FC<PatientAdmissionCellProps> = ({ encoun
   if (isLoading) return <InlineLoading />;
   if (error) return <p>--</p>;
 
-  return <p>{admissionDate}</p>;
+  return <span>{admissionDate}</span>;
 };
 
 export const PatientDayInWardCell: FC<PatientAdmissionCellProps> = ({ encounterUuid }) => {
@@ -89,7 +91,7 @@ export const PatientDayInWardCell: FC<PatientAdmissionCellProps> = ({ encounterU
       : dayjs().startOf('day');
     const daysAdmitted =
       admissionDate.isValid() && dischargeDate.isValid()
-        ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 1
+        ? Math.abs(dischargeDate.diff(admissionDate, 'days')) + 0
         : '--';
     return daysAdmitted;
   }, [encounter, encounterUuid, emrConfiguration]);
@@ -124,18 +126,14 @@ const useAdmissionBillingDetails = (encounterUuid: string) => {
   const daysInWard = useMemo(() => {
     if (!admissionDate) return 0;
     const endDay = endDate.startOf('day');
-    return Math.abs(endDay.diff(admissionDate, 'days')) + 1;
+    return Math.abs(endDay.diff(admissionDate, 'days')) + 0;
   }, [admissionDate, endDate]);
 
-  const billStartDate = useMemo(() => admissionDate?.toDate() ?? null, [admissionDate]);
-
-  const billEndDate = useMemo(() => endDate.toDate(), [endDate]);
-
-  return { encounter, error, isLoading, daysInWard, billStartDate, billEndDate };
+  return { encounter, error, isLoading, daysInWard };
 };
 
-export const PatientBillStatus: FC<PatientAdmissionCellProps> = ({ patientUuid, encounterUuid }) => {
-  const { error, isLoading, daysInWard, billStartDate, billEndDate } = useAdmissionBillingDetails(encounterUuid);
+export const PatientBillStatus: FC<PatientAdmissionCellProps> = ({ patientUuid, encounterUuid, visitUuid = '' }) => {
+  const { error, isLoading, daysInWard } = useAdmissionBillingDetails(encounterUuid);
   const { t } = useTranslation();
 
   const {
@@ -143,10 +141,11 @@ export const PatientBillStatus: FC<PatientAdmissionCellProps> = ({ patientUuid, 
     error: billsError,
     bills,
     pendingBills,
+    isValidating,
     dailyBedFeeSettled,
-  } = usePatientBills(patientUuid, billStartDate, billEndDate);
+  } = usePatientBills(visitUuid, patientUuid);
 
-  if (isLoading || isLoadingBills) return <InlineLoading />;
+  if (isLoading || isLoadingBills || isValidating) return <InlineLoading />;
   if (error || billsError) return <p>--</p>;
   if (bills.length === 0) return <Tag type="red">{t('billsNotRaised', 'Bills Not Raised')}</Tag>;
   if (pendingBills.length > 0) return <Tag type="red">{t('pendingBills', 'Pending Bills')}</Tag>;
@@ -163,10 +162,11 @@ type UnAssignPatientBedActionProps = PatientAdmissionCellProps & {
 export const UnAssignPatientBedAction: FC<UnAssignPatientBedActionProps> = ({
   encounterUuid,
   patientUuid,
+  visitUuid = '',
   onClick,
   loading,
 }) => {
-  const { error, isLoading, daysInWard, billStartDate, billEndDate } = useAdmissionBillingDetails(encounterUuid);
+  const { error, isLoading, daysInWard } = useAdmissionBillingDetails(encounterUuid);
   const { t } = useTranslation();
 
   const {
@@ -175,7 +175,7 @@ export const UnAssignPatientBedAction: FC<UnAssignPatientBedActionProps> = ({
     bills,
     pendingBills,
     dailyBedFeeSettled,
-  } = usePatientBills(patientUuid, billStartDate, billEndDate);
+  } = usePatientBills(visitUuid, patientUuid);
 
   if (isLoading || isLoadingBills || loading) return <InlineLoading />;
   if (error || billsError) return null;
@@ -183,4 +183,48 @@ export const UnAssignPatientBedAction: FC<UnAssignPatientBedActionProps> = ({
   if (pendingBills.length > 0) return null;
   if (!dailyBedFeeSettled(daysInWard)) return null;
   return <OverflowMenuItem itemText={t('unAssignBed', 'Un Assign bed')} onClick={onClick} />;
+};
+
+type CreateWardBillActionProps = PatientAdmissionCellProps & {
+  onClick?: () => void;
+};
+
+/**
+ * "Create Ward Bill" overflow item. Kept enabled only when a bill would
+ * actually be actionable:
+ *   - no bill has been raised yet, OR
+ *   - some bills exist but the daily bed fee is still short of the days in
+ *     ward (i.e. more line items are needed).
+ * It's disabled when there are pending (unsettled) bills or when the bills
+ * are already fully settled.
+ */
+export const CreateWardBillAction: FC<CreateWardBillActionProps> = ({
+  encounterUuid,
+  patientUuid,
+  visitUuid = '',
+  onClick,
+}) => {
+  const { t } = useTranslation();
+  const { isLoading, daysInWard } = useAdmissionBillingDetails(encounterUuid);
+  const {
+    isLoading: isLoadingBills,
+    bills,
+    pendingBills,
+    dailyBedFeeSettled,
+  } = usePatientBills(visitUuid, patientUuid);
+
+  const disabled = useMemo(() => {
+    if (isLoading || isLoadingBills) return true;
+    // No bills yet → user should be able to raise one.
+    if (bills.length === 0) return false;
+    // Any pending (unsettled) bill blocks new bill creation.
+    if (pendingBills.length > 0) return true;
+    // Bills exist and are settled, but daily bed fee still trails the stay →
+    // allow topping up.
+    if (!dailyBedFeeSettled(daysInWard)) return false;
+    // Everything is settled → nothing to raise.
+    return true;
+  }, [isLoading, isLoadingBills, bills, pendingBills, dailyBedFeeSettled, daysInWard]);
+
+  return <OverflowMenuItem itemText={t('createWardBill', 'Create Ward Bill')} onClick={onClick} disabled={disabled} />;
 };

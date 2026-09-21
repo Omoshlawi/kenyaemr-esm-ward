@@ -64,3 +64,8 @@
     border-radius: 3px;
   }
 }
+
+.titleValueSubTitle {
+  @include type.type-style('label-01');
+  color: colors.$gray-70;
+}

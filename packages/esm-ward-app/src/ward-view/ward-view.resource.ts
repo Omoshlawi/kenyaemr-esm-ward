@@ -110,17 +110,17 @@ export function createAndGetWardPatientGrouping(
         const dispositionType = admission.currentInpatientRequest?.dispositionType;
         if (dispositionType == 'TRANSFER' || dispositionType == 'DISCHARGE') wardPatientPendingCount++;
       } else {
-        wardUnadmittedPatientsWithBed.set(patient.uuid, patient);
+        wardUnadmittedPatientsWithBed.set(patient?.uuid, patient);
       }
     });
   });
 
   const wardUnassignedPatientsList =
     inpatientAdmissionsAtCurrentLocation?.filter((inpatientAdmission) => {
-      allWardPatientUuids.add(inpatientAdmission.patient.uuid);
+      allWardPatientUuids.add(inpatientAdmission?.patient?.uuid);
       return (
-        !wardAdmittedPatientsWithBed.has(inpatientAdmission.patient.uuid) &&
-        !wardUnadmittedPatientsWithBed.has(inpatientAdmission.patient.uuid)
+        !wardAdmittedPatientsWithBed.has(inpatientAdmission?.patient?.uuid) &&
+        !wardUnadmittedPatientsWithBed.has(inpatientAdmission?.patient?.uuid)
       );
     }) ?? [];
 

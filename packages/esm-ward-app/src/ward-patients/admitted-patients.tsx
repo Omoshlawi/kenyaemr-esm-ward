@@ -4,7 +4,6 @@ import {
   OverflowMenu,
   OverflowMenuItem,
   Pagination,
-  Search,
   Table,
   TableBody,
   TableCell,
@@ -12,6 +11,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableToolbar,
+  TableToolbarContent,
+  TableToolbarSearch,
 } from '@carbon/react';
 import {
   formatDatetime,
@@ -30,6 +32,7 @@ import { type WardPatient, type WardViewContext } from '../types';
 import { bedLayoutToBed, getOpenmrsId } from '../ward-view/ward-view.resource';
 import { HyperLinkPatientCell } from './patient-cells';
 import { EmptyState } from './table-state-components';
+import styles from './ward-patient.scss';
 const AdmittedPatients = () => {
   const [search, setSearch] = useState('');
 
@@ -45,7 +48,6 @@ const AdmittedPatients = () => {
     { key: 'age', header: t('age', 'Age') },
     { key: 'bedNumber', header: t('bedNumber', 'Bed Number') },
     { key: 'daysAdmitted', header: t('daysInWard', 'Days In Ward') },
-    { key: 'action', header: t('action', 'Action') },
   ];
 
   const patients = useMemo(() => {
@@ -106,90 +108,117 @@ const AdmittedPatients = () => {
         admissionDate,
         idNumber: getOpenmrsId(patient.patient?.identifiers ?? []) ?? '--',
         name: (
-          <HyperLinkPatientCell patientName={patient.patient?.person?.display} patientUuid={patient.patient?.uuid} />
+          <HyperLinkPatientCell
+            patientName={patient.patient?.person?.display ?? ''}
+            patientUuid={patient.patient?.uuid}
+          />
         ),
         gender: patient.patient?.person?.gender ?? '--',
         age: patient.patient?.person?.age ?? '--',
         bedNumber: patient.bed?.bedNumber ?? '--',
         daysAdmitted,
-        action: (
-          <OverflowMenu size={'sm'} flipped>
-            <OverflowMenuItem
-              itemText={t('interWardTransfer', 'Interward Trasfer')}
-              onClick={() =>
-                launchWorkspace2('patient-admit-or-transfer-request-form', {
-                  workspaceTitle: 'Trasfer',
-                  wardPatient: patient,
-                  withContentSwitcher: false,
-                  defaultTransfersection: 'transfer',
-                })
-              }
-            />
-            <OverflowMenuItem
-              itemText={t('bedSwap', 'Bed Swap')}
-              onClick={() =>
-                launchWorkspace2('patient-bed-swap-form', {
-                  workspaceTitle: 'Bed Swap',
-                  wardPatient: patient,
-                  withContentSwitcher: false,
-                  defaultTransfersection: 'bed-swap',
-                })
-              }
-            />
-            <OverflowMenuItem
-              itemText={t('discharge', 'Discharge')}
-              onClick={() => {
-                launchWorkspace2('patient-discharge-workspace', {
-                  wardPatient: patient,
-                  patientUuid: patient.patient.uuid,
-                  formUuid: config.inpatientDischargeFormUuid,
-                  dischargePatientOnSuccesfullSubmission: false,
-                });
-              }}
-            />
-          </OverflowMenu>
-        ),
       };
     });
-  }, [results, config, t]);
+  }, [results]);
 
   if (isLoading) return <DataTableSkeleton />;
   if (!patients.length)
     return <EmptyState message={t('noAdmittedPatientsinCurrentward', 'No admitted patients in the current ward')} />;
 
   return (
-    <div>
-      <Search
-        labelText={t('searchPatients', 'Search patients')}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <DataTable rows={tableRows} headers={headers} isSortable useZebraStyles>
-        {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps }) => (
-          <TableContainer>
-            <Table {...getTableProps()} aria-label="sample table">
+    <div className={styles.dataTableContainer}>
+      <DataTable size="sm" rows={tableRows} headers={headers} isSortable useZebraStyles>
+        {({
+          rows,
+          headers,
+          getHeaderProps,
+          getRowProps,
+          getTableProps,
+          getCellProps,
+          getToolbarProps,
+          getTableContainerProps,
+        }) => (
+          <TableContainer
+            title={t('admittedPatientsTitle', 'Admitted patients')}
+            description={t(
+              'admittedPatientsDescription',
+              'Patients currently admitted and assigned a bed in this ward.',
+            )}
+            {...getTableContainerProps()}>
+            <TableToolbar {...getToolbarProps()}>
+              <TableToolbarContent>
+                <TableToolbarSearch
+                  persistent
+                  value={search}
+                  placeholder={t('searchPatients', 'Search patients')}
+                  onChange={(event, value) =>
+                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
+                  }
+                />
+              </TableToolbarContent>
+            </TableToolbar>
+            <Table {...getTableProps()} aria-label={t('admitted', 'Admitted')}>
               <TableHead>
                 <TableRow>
                   {headers.map((header) => (
                     <TableHeader
-                      key={header.key}
                       {...getHeaderProps({
                         header,
-                      })}>
+                      })}
+                      key={header.key}>
                       {header.header}
                     </TableHeader>
                   ))}
+                  <TableHeader />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {rows.map((row) => {
+                  const wardPatient = results.find((result) => result.patient.uuid === row.id);
                   return (
-                    <TableRow key={row.id} {...getRowProps({ row })}>
+                    <TableRow {...getRowProps({ row })} key={row.id}>
                       {row.cells.map((cell) => (
-                        <TableCell key={cell.id} {...getCellProps({ cell })}>
+                        <TableCell {...getCellProps({ cell })} key={cell.id}>
                           {cell.value}
                         </TableCell>
                       ))}
+                      <TableCell className="cds--table-column-menu">
+                        <OverflowMenu size={'sm'} flipped>
+                          <OverflowMenuItem
+                            itemText={t('interWardTransfer', 'Interward Trasfer')}
+                            onClick={() =>
+                              launchWorkspace2('patient-admit-or-transfer-request-form', {
+                                workspaceTitle: 'Trasfer',
+                                wardPatient: wardPatient,
+                                withContentSwitcher: false,
+                                defaultTransfersection: 'transfer',
+                              })
+                            }
+                          />
+                          <OverflowMenuItem
+                            itemText={t('bedSwap', 'Bed Swap')}
+                            onClick={() =>
+                              launchWorkspace2('patient-bed-swap-form', {
+                                workspaceTitle: 'Bed Swap',
+                                wardPatient: wardPatient,
+                                withContentSwitcher: false,
+                                defaultTransfersection: 'bed-swap',
+                              })
+                            }
+                          />
+                          <OverflowMenuItem
+                            itemText={t('discharge', 'Discharge')}
+                            onClick={() => {
+                              launchWorkspace2('patient-discharge-workspace', {
+                                wardPatient: wardPatient,
+                                patientUuid: wardPatient?.patient.uuid,
+                                formUuid: config.inpatientDischargeFormUuid,
+                                dischargePatientOnSuccesfullSubmission: false,
+                              });
+                            }}
+                          />
+                        </OverflowMenu>
+                      </TableCell>
                     </TableRow>
                   );
                 })}

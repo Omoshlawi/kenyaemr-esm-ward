@@ -74,8 +74,7 @@ export const useAdmissionLocationTags = (locationUuid?: string) => {
   };
 };
 /**
- * Show partography component when patient is a female patient, admitted to labour ward.
- * For demos, set bypassPartographAdmissionChecks to skip admission and ward-tag checks.
+ * Show partography when the patient is female and admitted to a maternity or labour ward.
  */
 export const useShowPatography = (patient: fhir.Patient) => {
   const isFemale = patient?.gender?.toLowerCase() === 'female';
@@ -92,17 +91,15 @@ export const useShowPatography = (patient: fhir.Patient) => {
     isLoading: isloadingTags,
     tags,
   } = useAdmissionLocationTags(admissionEncounter?.location?.uuid);
-
-  const admissionLocationIsLabourWard = useMemo(
-    () => tags.some((t) => t.uuid === inpatientLocationTags?.labourWard),
-    [inpatientLocationTags, tags],
-  );
+  const { inpatientLocationTags } = useConfig<WardConfigObject>();
+  const admissionLocationIsAllowedWard = useMemo(() => {
+    const allowedWardTags = [inpatientLocationTags?.labourWard, inpatientLocationTags?.maternityWard].filter(Boolean);
+    return allowedWardTags.some((tagUuid) => tags.some((tag) => tag.uuid === tagUuid));
+  }, [inpatientLocationTags, tags]);
 
   return {
     isLoading: isloadingAdmission || isloadingTags,
     error: admissionError ?? tagsError,
-    showPartography: bypassPartographAdmissionChecks
-      ? isFemale
-      : isFemale && isPatientAdmitted && admissionLocationIsLabourWard,
+    showPartography: isFemale && isPatientAdmitted && admissionLocationIsAllowedWard,
   };
 };

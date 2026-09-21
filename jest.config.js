@@ -9,7 +9,9 @@ module.exports = {
   transform: {
     '^.+\\.m?[jt]sx?$': ['@swc/jest'],
   },
-  transformIgnorePatterns: ['/node_modules/(?!@openmrs|.+\\.pnp\\.[^\\/]+$)'],
+  transformIgnorePatterns: [
+    '/node_modules/(?!@openmrs|temporal-polyfill|temporal-spec|temporal-utils|.+\\.pnp\\.[^\\/]+$)',
+  ],
   moduleDirectories: ['node_modules', '__mocks__', 'tools', __dirname],
   moduleNameMapper: {
     '\\.(s?css)$': 'identity-obj-proxy',

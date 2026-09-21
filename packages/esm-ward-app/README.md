@@ -22,6 +22,37 @@ Please see the [EMR API README](https://github.com/openmrs/openmrs-module-emrapi
 
 See the [config-schema](./src/config-schema.ts) for details on the configuration options available to the ward app.
 
+## Ward Patient Table Tab Extension Slots
+
+The default ward table view renders four fixed tabs (Awaiting Admission, Admitted, Discharge In, Discharged). Each tab panel is backed by an extension slot so implementers can replace the default table UI without forking the ward app.
+
+| Tab | Slot name | Default extension name |
+|-----|-----------|------------------------|
+| Awaiting Admission | `ward-patients-awaiting-admission-slot` | `ward-patients-awaiting-admission` |
+| Admitted | `ward-patients-admitted-slot` | `ward-patients-admitted` |
+| Discharge In | `ward-patients-discharge-in-slot` | `ward-patients-discharge-in` |
+| Discharged | `ward-patients-discharged-slot` | `ward-patients-discharged` |
+
+### Custom component requirements
+
+- Render under `DefaultWardView` so `useAppContext('ward-view-context')` provides ward patient data.
+- Reuse types from [`src/types/index.ts`](./src/types/index.ts): `WardViewContext`, `WardPatient`, etc.
+- Optional shared UI helpers: `HyperLinkPatientCell`, `EmptyState`, `ErrorState`, `getOpenmrsId`.
+
+### Replacing a default table
+
+In your module's `routes.json`, register the replacement extension:
+
+```json
+{
+  "name": "my-custom-awaiting-admission",
+  "component": "myAwaitingAdmissionTable",
+  "slot": "ward-patients-awaiting-admission-slot"
+}
+```
+
+The default table components are exported from this module (`wardPatientsAwaitingAdmissionTable`, `wardPatientsAdmittedTable`, `wardPatientsDischargeInTable`, `wardPatientsDischargedTable`) if you need to wrap or extend them.
+
 ## Bed Management
 
 The ward app is designed to support patient bed assignments and to be used in conjunction with the bedmanagement module and the bed-management-app ESM. However, bed management is entirely optional. Patients will appear on a ward if they:

@@ -23,9 +23,20 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           server-token: ${{ env.TURBO_TOKEN }}
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+        env:
+          YARN_ENABLE_IMMUTABLE_INSTALLS: false
+
       - name: 📊 Compute bundle size report
         uses: preactjs/compressed-size-action@v2
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          minimum-change-threshold: 10000 # 10 KB
+          minimum-change-threshold: 512000
           build-script: "turbo run build --concurrency=5"

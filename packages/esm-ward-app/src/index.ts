@@ -137,6 +137,28 @@ export const maternalWardView = getAsyncLifecycle(
   options,
 );
 
+export const wardPatientsAwaitingAdmissionTable = getAsyncLifecycle(
+  () => import('./ward-patients/awaiting-admission-patients'),
+  options,
+);
+
+export const wardPatientsAdmittedTable = getAsyncLifecycle(() => import('./ward-patients/admitted-patients'), options);
+
+export const wardPatientsUnassignedTable = getAsyncLifecycle(
+  () => import('./ward-patients/unassigned-patients'),
+  options,
+);
+
+export const wardPatientsDischargeInTable = getAsyncLifecycle(
+  () => import('./ward-patients/discharge-in-patients'),
+  options,
+);
+
+export const wardPatientsDischargedTable = getAsyncLifecycle(
+  () => import('./ward-patients/discharge-patients'),
+  options,
+);
+
 export const wardPatientWorkspaceBanner = getAsyncLifecycle(
   () => import('./ward-workspace/patient-banner/patient-banner.component'),
   options,
@@ -173,6 +195,19 @@ export const inPatientTreatmentChart = getAsyncLifecycle(
   () => import('./in-patient/treatmentChart/treatment-chart-dashboard.component'),
   options,
 );
+export const labourCareGuide = getAsyncLifecycle(
+  () => import('./in-patient/labourCareGuide/labour-care-guide.component'),
+  options,
+);
+// t('maternityInpatientForm', 'Maternity Inpatient Form')
+export const maternityInpatientFormWorkspace = getAsyncLifecycle(
+  () => import('./in-patient/labourCareGuide/maternity-inpatient-form.workspace'),
+  options,
+);
+export const globalCdsAlertBanner = getAsyncLifecycle(
+  () => import('./in-patient/labourCareGuide/global-cds-alerts/global-cds-alert-banner.component'),
+  options,
+);
 export const inPatientPartographView = getAsyncLifecycle(() => import('./in-patient/partograph.component'), options);
 
 export function startupApp() {
@@ -185,3 +220,5 @@ export function startupApp() {
     'Enables features related to bed management / assignment. Requires the backend bed management module to be installed.',
   );
 }
+
+export const createWardBillWorkspace = getAsyncLifecycle(() => import('./billing/create-bill.workspace'), options);

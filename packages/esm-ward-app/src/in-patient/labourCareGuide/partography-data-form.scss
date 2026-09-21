@@ -1,0 +1,622 @@
+@use '@carbon/layout';
+@use '@carbon/type';
+@use '@carbon/colors';
+
+.modalContent {
+  padding: layout.$spacing-05;
+  overflow: visible;
+}
+
+.normalRangeInfo {
+  margin-bottom: layout.$spacing-04;
+  padding: layout.$spacing-03;
+  background-color: colors.$gray-10;
+  border-radius: layout.$spacing-02;
+  border: 1px solid colors.$gray-20;
+}
+
+.dataEntryForm {
+  margin-bottom: layout.$spacing-05;
+}
+
+.measurementSection {
+  margin-top: layout.$spacing-05;
+  margin-bottom: layout.$spacing-05;
+}
+
+.timeInputContainer {
+  margin-bottom: layout.$spacing-04;
+
+  .timeLabel {
+    @include type.type-style('label-01');
+    color: colors.$gray-100;
+    margin-bottom: layout.$spacing-02;
+    display: block;
+  }
+
+  .timeInputGroup {
+    display: flex;
+    align-items: center;
+    gap: layout.$spacing-02;
+
+    .timeInput {
+      flex: 1;
+      min-width: layout.$spacing-10;
+    }
+
+    .timePeriodSelect {
+      min-width: layout.$spacing-10;
+    }
+  }
+}
+
+.formGrid {
+  gap: 1rem;
+  padding: 1rem 1rem 2rem;
+
+  // Carbon renders the multi-select menu inline within the form, so these
+  // overrides stay scoped to this module's `.formGrid` wrapper rather than
+  // leaking as page-global rules.
+  :global(.cds--multi-select__wrapper) {
+    position: relative;
+  }
+
+  :global(.cds--list-box__menu) {
+    position: absolute;
+    z-index: 99999;
+    max-height: 250px;
+    width: 100%;
+    min-width: 300px;
+    background: #a6a6a6;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 4px 0;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+
+    :global(.cds--list-box__menu-item) {
+      background: #f9f9f9;
+      padding: 8px 16px;
+
+      &:hover {
+        background: #e8e8e8;
+      }
+    }
+
+    :global(.cds--checkbox-label) {
+      color: #161616;
+    }
+  }
+}
+
+.fieldRow {
+  margin-bottom: 1rem;
+}
+
+.formField {
+  margin-bottom: 1rem;
+}
+
+.autoPromptSummary {
+  margin: 0 0 1rem;
+  color: colors.$red-60;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.autoPromptSummaryTitle {
+  margin: 0 0 0.35rem;
+  color: colors.$gray-100;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.autoPromptHint {
+  margin: 0 0 0.5rem;
+  color: colors.$gray-70;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.autoPromptSummaryRow {
+  margin: 0 0 0.25rem;
+}
+
+.autoPromptToken {
+  display: inline-block;
+  padding: 0 0.2rem;
+  border-radius: 0.2rem;
+  border-bottom: 1px dashed colors.$red-60;
+  cursor: help;
+
+  &:hover {
+    background-color: colors.$red-10;
+  }
+}
+
+.assessmentEditor {
+  border: 1px solid colors.$gray-50;
+  background-color: colors.$white;
+  padding: 0.75rem;
+  min-height: 9rem;
+  max-height: 16rem;
+  overflow-y: auto;
+
+  &:focus-within {
+    outline: 2px solid colors.$blue-60;
+    outline-offset: -2px;
+  }
+
+  &[aria-invalid='true'] {
+    outline: 2px solid colors.$red-60;
+    outline-offset: -2px;
+  }
+}
+
+.assessmentLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+  font-size: 0.875rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.assessmentAlertLabel {
+  color: colors.$red-60;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.assessmentUserInput {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  border: none;
+  background: transparent;
+  color: colors.$gray-100;
+  font-size: inherit;
+  font-family: inherit;
+  line-height: inherit;
+  padding: 0;
+  outline: none;
+
+  &:disabled {
+    color: colors.$gray-50;
+    cursor: not-allowed;
+  }
+
+  &::placeholder {
+    color: colors.$gray-50;
+  }
+}
+
+.errorText {
+  @include type.type-style('caption-01');
+  color: var(--cds-support-error, #{colors.$red-60});
+  margin-top: layout.$spacing-02;
+}
+
+.autoPromptInfoTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.3rem;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  border: 1px solid colors.$red-60;
+  background-color: transparent;
+  color: colors.$red-60;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  padding: 0;
+
+  &:hover {
+    background-color: colors.$red-10;
+  }
+}
+
+.modalContent,
+.cds--modal-container {
+  overflow: visible;
+  z-index: 1;
+}
+
+.fieldLabel {
+  @include type.type-style('label-01');
+  color: colors.$gray-100;
+  margin-bottom: layout.$spacing-02;
+  display: block;
+}
+
+.cds--number input {
+  text-align: left;
+}
+
+.modal {
+  .cds--modal-content {
+    padding: 0;
+  }
+
+  .cds--modal-container {
+    max-width: 600px;
+  }
+}
+
+.cervixModal {
+  .cds--modal-content {
+    padding: 0;
+    overflow-y: auto !important;
+    max-height: 70vh;
+  }
+
+  .cds--modal-container {
+    max-width: 600px;
+  }
+}
+
+.sharedDecisionModal {
+  .cds--modal-container {
+    max-width: min(96vw, 760px);
+    width: 100%;
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cds--modal-content {
+    padding: 0;
+    overflow: visible;
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .cds--modal-footer {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+  }
+
+  :global(.cds--list-box__menu) {
+    z-index: 100001;
+  }
+}
+
+.sharedDecisionModalBody {
+  max-height: calc(100vh - 11rem);
+  overflow-y: auto;
+  padding: 0 1rem 0.5rem;
+}
+
+.sharedDecisionAlertsPanel {
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid colors.$red-40;
+  background-color: colors.$red-10;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+.summaryOfLabourModal {
+  .cds--modal-container {
+    max-width: min(96vw, 1120px);
+    width: 100%;
+  }
+
+  .cds--modal-content {
+    padding: 0;
+    overflow: visible;
+    max-height: none;
+  }
+
+  .cds--modal-footer {
+    position: relative;
+    z-index: 1;
+  }
+
+  :global(.cds--list-box__menu) {
+    z-index: 100001;
+  }
+}
+
+.summaryOfLabourModalBody {
+  max-height: calc(100vh - 11rem);
+  overflow-y: auto;
+  padding-bottom: 0.5rem;
+}
+
+.summaryFormSection {
+  margin-bottom: 0.5rem;
+}
+
+.summaryFormRow {
+  margin-bottom: 0.25rem;
+}
+
+.cds--form-item {
+  margin-bottom: 1rem;
+}
+
+.cds--number__controls {
+  display: flex;
+  flex-direction: column;
+}
+
+.cds--number__control-btn {
+  height: 1.5rem;
+  width: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.validationHint {
+  font-size: 0.75rem;
+  color: #6f6f6f;
+  margin-top: 0.25rem;
+  font-style: italic;
+  background-color: #f4f4f4;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border-left: 3px solid #0f62fe;
+}
+
+.requiredFieldsNote {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background-color: #e8f4fd;
+  border-left: 4px solid #0f62fe;
+  border-radius: 4px;
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #161616;
+    font-weight: 500;
+  }
+}
+
+.workspaceLauncherSection {
+  margin-bottom: layout.$spacing-06;
+  padding: layout.$spacing-05;
+  background-color: colors.$blue-10;
+  border-radius: layout.$spacing-03;
+  border: 1px solid colors.$blue-20;
+
+  h4 {
+    @include type.type-style('heading-03');
+    color: colors.$gray-100;
+    margin-bottom: layout.$spacing-03;
+  }
+
+  .helperText {
+    @include type.type-style('body-01');
+    color: colors.$gray-70;
+    margin-bottom: layout.$spacing-04;
+  }
+
+  .workspaceLauncherButton {
+    min-height: layout.$spacing-09;
+  }
+}
+
+.manualEntrySection {
+  background-color: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+
+  h4 {
+    margin-bottom: 0.5rem;
+    color: var(--cds-text-primary);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .helperText {
+    color: var(--cds-text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+  }
+}
+
+.orderSource {
+  background-color: var(--cds-support-success);
+  color: var(--cds-text-on-color);
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.manualSource {
+  background-color: var(--cds-support-info);
+  color: var(--cds-text-on-color);
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.noValidation {
+  .cds--select__invalid-icon,
+  .cds--number__invalid-icon {
+    display: none;
+  }
+
+  .cds--select--invalid,
+  .cds--number--invalid {
+    border-bottom-color: var(--cds-border-strong-01);
+  }
+
+  .cds--select--invalid .cds--select-input,
+  .cds--number--invalid .cds--number input {
+    border-bottom-color: var(--cds-border-strong-01);
+    background-color: var(--cds-field-01);
+  }
+
+  .cds--form-requirement {
+    display: none;
+  }
+}
+
+.disabledHourOption {
+  color: colors.$gray-40;
+  background-color: colors.$gray-10;
+  opacity: 0.6;
+  font-style: italic;
+
+  &:hover {
+    background-color: colors.$gray-10;
+    color: colors.$gray-40;
+  }
+}
+
+.hourSelectionHelper {
+  @include type.type-style('helper-text-01');
+  color: colors.$blue-60;
+  margin-top: layout.$spacing-02;
+}
+
+// Drug search multi-row styles
+.drugSearchBlock {
+  margin-bottom: 1rem;
+}
+
+.drugSearchRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+.drugSearchFields {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1fr 0.9fr auto;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.drugStockChecking {
+  font-size: 0.75rem;
+  color: #6f6f6f;
+}
+
+.drugStockInStock {
+  @include type.type-style('helper-text-01');
+  color: colors.$green-50;
+  margin: 0;
+}
+
+.drugStockOutOfStock {
+  @include type.type-style('label-01');
+  color: colors.$red-60;
+  font-weight: 700;
+  margin: 0;
+}
+
+.drugStockPreview {
+  @include type.type-style('helper-text-01');
+  color: colors.$gray-70;
+  margin: 0;
+}
+
+.drugStockInsufficient {
+  @include type.type-style('helper-text-01');
+  color: colors.$red-60;
+  margin: 0;
+}
+
+.drugStockError {
+  @include type.type-style('helper-text-01');
+  color: colors.$red-60;
+  margin: 0;
+}
+
+.drugSearchInputWrapper {
+  position: relative;
+}
+
+.drugSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #8d8d8d;
+  border-top: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 9999;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+
+  li {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: #161616;
+    cursor: pointer;
+    border-bottom: 1px solid #e0e0e0;
+
+    &:hover {
+      background-color: #e8f4fd;
+    }
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+.drugSearchLoading {
+  font-size: 0.75rem;
+  color: #6f6f6f;
+  margin-top: 0.2rem;
+  padding: 0.2rem 0;
+}
+
+.addDrugBtn {
+  margin-top: 0.5rem;
+}
+
+.helperTextError {
+  @include type.type-style('helper-text-01');
+  color: colors.$red-60;
+  margin-top: layout.$spacing-02;
+}
+
+.sectionFormHeading {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.sectionFormDescription {
+  font-size: 0.8125rem;
+  color: var(--cds-text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.summaryBabyBlock {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--cds-border-subtle);
+}

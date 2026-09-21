@@ -87,6 +87,31 @@
       "slot": "maternal-ward"
     },
     {
+      "name": "ward-patients-awaiting-admission",
+      "component": "wardPatientsAwaitingAdmissionTable",
+      "slot": "ward-patients-awaiting-admission-slot"
+    },
+    {
+      "name": "ward-patients-admitted",
+      "component": "wardPatientsAdmittedTable",
+      "slot": "ward-patients-admitted-slot"
+    },
+    {
+      "name": "ward-patients-unassigned",
+      "component": "wardPatientsUnassignedTable",
+      "slot": "ward-patients-unassigned-slot"
+    },
+    {
+      "name": "ward-patients-discharge-in",
+      "component": "wardPatientsDischargeInTable",
+      "slot": "ward-patients-discharge-in-slot"
+    },
+    {
+      "name": "ward-patients-discharged",
+      "component": "wardPatientsDischargedTable",
+      "slot": "ward-patients-discharged-slot"
+    },
+    {
       "component": "patientDischargeDocumentPreview",
       "name": "patient-discharge-document-preview-modal"
     },
@@ -150,6 +175,25 @@
         "fullWidth": false,
         "title": "treatmentChart"
       }
+    },
+        {
+      "name": "global-cds-alert-banner",
+      "slot": "patient-chart-clinical-encounter-slot",
+      "component": "globalCdsAlertBanner",
+      "order": 99,
+      "online": true,
+      "offline": false
+    },
+        {
+      "name": "maternal-and-child-health-labour-care-guide",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "labourCareGuide",
+      "meta":{
+          "title": "Labour Care Guide"
+       },
+      "order": 0,
+      "online": true,
+      "offline": false
     }
   ],
   "modals": [
@@ -266,6 +310,16 @@
       "name": "nursing-cardex-plan-workspace",
       "component": "nursingCardexPlanWorkspace",
       "window": "ewf-nursing-cardex"
+    },
+    {
+      "name": "maternity-inpatient-form-workspace",
+      "component": "maternityInpatientFormWorkspace",
+      "window": "maternity-inpatient-form-window"
+    },
+    {
+      "name": "create-ward-bill-workspace",
+      "component": "createWardBillWorkspace",
+      "window": "kenyaemr-esm-ward-window"
     }
   ],
   "workspaceWindows2": [
@@ -289,6 +343,12 @@
       "name": "ward-form-entry-workspace-window",
       "group": "patient-chart",
       "width": "wider"
+    },
+    {
+      "name": "maternity-inpatient-form-window",
+      "group": "patient-chart",
+      "width": "extra-wide",
+      "canMaximize": true
     }
   ],
   "workspaceGroups2": [

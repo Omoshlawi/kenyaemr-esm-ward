@@ -106,8 +106,11 @@ export const useIpdDischargeEncounter = () => {
     return (data ?? []).map((entry) => {
       const { name, openmrsId } = parseDisplayText(entry.subject.display);
       const patientUuid = entry.subject.reference.split('/').at(-1);
+      // In OpenMRS FHIR, an encounter's `partOf` references its visit.
+      const visitUuid = entry.partOf?.reference?.split('/').at(-1);
       return {
         uuid: entry?.id,
+        visitUuid,
         patient: { uuid: patientUuid, openmrsId, name },
         encounterDateTime: entry.period?.start,
       };

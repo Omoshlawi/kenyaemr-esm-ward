@@ -2,14 +2,10 @@ import {
   Button,
   ButtonSet,
   Column,
-  ComboBox,
   DatePicker,
   DatePickerInput,
-  Dropdown,
   Form,
   InlineNotification,
-  RadioButton,
-  RadioButtonGroup,
   Row,
   Stack,
   TextInput,
@@ -32,14 +28,9 @@ import type { WardPatientWorkspaceProps, WardViewContext } from '../../types';
 import { assignPatientToBed, removePatientFromBed, useAdmitPatient } from '../../ward.resource';
 import BedSelector from '../bed-selector.component';
 import WardPatientWorkspaceBanner from '../patient-banner/patient-banner.component';
+import FacilityBedCapacityNotification from './facility-bed-capacity-notification.component';
 import styles from './admit-patient-form.scss';
-import DiagnosisInput from './diagnosis-input.component';
-import {
-  formValuesToObs,
-  type InapatientAdmissionFormData,
-  inpatientAdmissionSchema,
-  useProviders,
-} from './patient-admission.resources';
+import { type InapatientAdmissionFormData, inpatientAdmissionSchema } from './patient-admission.resources';
 
 /**
  * This form gets rendered when the user clicks "admit patient" in
@@ -67,6 +58,9 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     patient.uuid,
   );
   const beds = isLoading ? [] : (wardPatientGroupDetails?.bedLayouts ?? []);
+  // A bed is only assignable if it is not occupied (no patients currently in it).
+  const availableBeds = beds.filter((bed) => bed.status !== 'OCCUPIED' && bed.patients.length === 0);
+  const hasNoBeds = !isLoading && availableBeds.length === 0;
 
   const {
     control,
@@ -77,23 +71,32 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     defaultValues: { admissionDate: new Date() },
     resolver: zodResolver(inpatientAdmissionSchema),
   });
-  const { isLoading: isLoadingProviders, providers } = useProviders();
-  const [paymentMethodObservable, insuaranceTypeObservable, bedIdObservable] = watch([
-    'paymentMode',
-    'insuranceType',
-    'bedId',
-  ]);
+  const [bedIdObservable] = watch(['bedId']);
 
   useEffect(() => {
     setHasUnsavedChanges(() => isDirty);
   }, [isDirty]);
 
   const onSubmit = (values: InapatientAdmissionFormData) => {
+    if (hasNoBeds) {
+      showSnackbar({
+        kind: 'error',
+        title: t('errorCreatingEncounter', 'Failed to admit patient'),
+        subtitle:
+          beds.length === 0
+            ? t('noBedsConfiguredForLocation', 'No beds configured for {{location}} location', {
+                location: location?.display,
+              })
+            : t('noAvailableBedsForLocation', 'All beds are occupied in {{location}} location', {
+                location: location?.display,
+              }),
+      });
+      return;
+    }
     setShowErrorNotifications(false);
     setIsSubmitting(true);
     const bedSelected = beds.find((bed) => bed.bedId === values.bedId);
-    const obs = formValuesToObs(values, config);
-    admitPatient(patient, dispositionType, visit.uuid, obs, values.admissionDate, config.admissionFormUuid)
+    admitPatient(patient, dispositionType, visit.uuid, [], values.admissionDate, config.admissionFormUuid)
       .then(
         async (response) => {
           if (response.ok) {
@@ -183,6 +186,9 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
         <Stack gap={4} className={styles.grid}>
           <WardPatientWorkspaceBanner {...{ wardPatient }} />
           <Column>
+            <FacilityBedCapacityNotification />
+          </Column>
+          <Column>
             <Controller
               control={control}
               name="admissionDate"
@@ -208,174 +214,6 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
             />
           </Column>
           <Column>
-            <DiagnosisInput control={control} name={'diagnosis'} />
-          </Column>
-          <Column>
-            <Controller
-              control={control}
-              name="primaryDoctor"
-              render={({ field: { onChange, value }, fieldState: { error } }) => {
-                return (
-                  <ComboBox
-                    id="primary-doctor"
-                    invalid={!!error?.message}
-                    helperText={isLoadingProviders ? 'Loading....' : undefined}
-                    invalidText={error?.message}
-                    itemToString={(provider) => providers.find((p) => p.uuid === provider)?.display ?? ''}
-                    items={providers.map((p) => p.uuid)}
-                    selectedItem={value}
-                    onChange={({ selectedItem }) => onChange(selectedItem)}
-                    placeholder={t('primaryDoctor', 'Primary Doctor')}
-                    titleText={t('primaryDoctor', 'Primary Doctor')}
-                  />
-                );
-              }}
-            />
-          </Column>
-          <Column>
-            <Controller
-              control={control}
-              name="primaryDoctorPhoneNumber"
-              render={({ field, fieldState: { error } }) => {
-                return (
-                  <TextInput
-                    {...field}
-                    invalid={!!error?.message}
-                    invalidText={error?.message}
-                    id="primary-doctor-phone-number"
-                    labelText={t('primaryDoctorPhoneNumber', 'Primary doctor phone number')}
-                    placeholder={t('phoneNumber', 'Phone number')}
-                    size="md"
-                    type="text"
-                  />
-                );
-              }}
-            />
-          </Column>
-          <Column>
-            <Controller
-              control={control}
-              name="emergencyDoctor"
-              render={({ field: { onChange, value }, fieldState: { error } }) => {
-                return (
-                  <ComboBox
-                    id="emergency-doctor"
-                    invalid={!!error?.message}
-                    helperText={isLoadingProviders ? 'Loading....' : undefined}
-                    invalidText={error?.message}
-                    itemToString={(provider) => providers.find((p) => p.uuid === provider)?.display ?? ''}
-                    items={providers.map((p) => p.uuid)}
-                    selectedItem={value}
-                    onChange={({ selectedItem }) => onChange(selectedItem)}
-                    placeholder={t('emergencyDoctor', 'Emergence Doctor')}
-                    titleText={t('emergencyDoctor', 'Emergency Doctor')}
-                  />
-                );
-              }}
-            />
-          </Column>
-          <Column>
-            <Controller
-              control={control}
-              name="emergencyDoctorPhoneNumber"
-              render={({ field, fieldState: { error } }) => {
-                return (
-                  <TextInput
-                    {...field}
-                    invalid={!!error?.message}
-                    invalidText={error?.message}
-                    id="emergency-doctor-phone-number"
-                    labelText={t('emergencyDoctorPhoneNumber', 'Emergency doctor phone number')}
-                    placeholder={t('phoneNumber', 'Phone number')}
-                    size="md"
-                    type="text"
-                  />
-                );
-              }}
-            />
-          </Column>
-          <Column>
-            <Controller
-              control={control}
-              name="paymentMode"
-              render={({ field: { onChange, value }, fieldState: { error } }) => {
-                return (
-                  <RadioButtonGroup
-                    legendText={t('paymentMode', 'Payment mode')}
-                    name="payment-mode"
-                    defaultSelected={value}
-                    invalid={!!error?.message}
-                    invalidText={error?.message}
-                    onChange={onChange}
-                    orientation="vertical">
-                    <RadioButton
-                      labelText={t('cash', 'Cash')}
-                      value={config.conceptUuidForWardAdmission.cashPaymentMethod}
-                    />
-                    <RadioButton
-                      labelText={t('mpesa', 'MPESA')}
-                      value={config.conceptUuidForWardAdmission.mpesaPaymentMethod}
-                    />
-                    <RadioButton
-                      labelText={t('insuarance', 'Insuarance')}
-                      value={config.conceptUuidForWardAdmission.insurancePaymentMethod}
-                    />
-                  </RadioButtonGroup>
-                );
-              }}
-            />
-          </Column>
-          {paymentMethodObservable === config.conceptUuidForWardAdmission.insurancePaymentMethod && (
-            <Column>
-              <Controller
-                control={control}
-                name="insuranceType"
-                render={({ field: { onChange, value }, fieldState: { error } }) => {
-                  return (
-                    <Dropdown
-                      invalid={!!error?.message}
-                      invalidText={error?.message}
-                      selectedItem={value}
-                      onChange={({ selectedItem }) => onChange(selectedItem)}
-                      id="insurance-type"
-                      itemToString={(concept) => {
-                        const display = config.insuaranceTypes.find((type) => type.concept === concept)?.label;
-                        return display ? t(display) : '';
-                      }}
-                      items={config.insuaranceTypes.map((type) => type.concept)}
-                      label={t('insuranceType', 'Insurance type')}
-                      titleText={t('insuranceType', 'Insurance type')}
-                      type="default"
-                    />
-                  );
-                }}
-              />
-            </Column>
-          )}
-          {paymentMethodObservable === config.conceptUuidForWardAdmission.insurancePaymentMethod &&
-            insuaranceTypeObservable === config.conceptUuidForWardAdmission.otherInsuaranceType && (
-              <Column>
-                <Controller
-                  control={control}
-                  name="otherInsuranceType"
-                  render={({ field, fieldState: { error } }) => {
-                    return (
-                      <TextInput
-                        {...field}
-                        invalid={!!error?.message}
-                        invalidText={error?.message}
-                        id="other-insurance-type"
-                        labelText={t('otherInsuranceType', 'Other Insurance Type')}
-                        placeholder={t('pleaseSpecify', 'Please specify')}
-                        size="md"
-                        type="text"
-                      />
-                    );
-                  }}
-                />
-              </Column>
-            )}
-          <Column>
             <Controller
               control={control}
               name="bedId"
@@ -393,6 +231,18 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
               }}
             />
           </Column>
+          {hasNoBeds && beds.length > 0 && (
+            <Column>
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title={t('noAvailableBedsForLocation', 'All beds are occupied in {{location}} location', {
+                  location: location?.display,
+                })}
+              />
+            </Column>
+          )}
           <Column>
             <TextInput
               id="bed-type"
@@ -436,7 +286,8 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
               isLoadingEmrConfiguration ||
               errorFetchingEmrConfiguration ||
               isLoading ||
-              isLoadingBedsAssignedToPatient
+              isLoadingBedsAssignedToPatient ||
+              hasNoBeds
             }>
             {!isSubmitting ? t('admit', 'Admit') : t('admitting', 'Admitting...')}
           </Button>

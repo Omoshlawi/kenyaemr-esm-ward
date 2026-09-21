@@ -2,8 +2,15 @@
 @use '@carbon/colors';
 
 .workspaceShell {
+  box-sizing: border-box;
   height: 100%;
   min-height: 0;
+}
+
+.workspaceShell *,
+.workspaceShell *::before,
+.workspaceShell *::after {
+  box-sizing: border-box;
 }
 
 .form {
@@ -22,7 +29,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: layout.$spacing-05;
+  padding-right: layout.$spacing-06;
   padding-bottom: layout.$spacing-06;
   scrollbar-gutter: stable;
 }
@@ -54,6 +61,11 @@
 .notesField {
   display: grid;
   gap: layout.$spacing-03;
+  padding: layout.$spacing-05;
+  background: colors.$gray-10;
+  border: 1px solid colors.$gray-20;
+  border-left: 4px solid colors.$gray-60;
+  border-radius: 4px;
 }
 
 .notesLabel {
@@ -64,10 +76,11 @@
 .notesHelperText {
   margin: 0;
   color: colors.$gray-70;
+  font-size: 0.875rem;
 }
 
 .notesTextArea {
-  min-height: 10rem;
+  min-height: 7rem;
   background: colors.$white;
   border: 1px solid colors.$gray-30;
   border-radius: 4px;
@@ -121,11 +134,10 @@
 
 .medicationBlock {
   display: grid;
-  gap: layout.$spacing-04;
+  gap: layout.$spacing-03;
   padding: layout.$spacing-05;
-  background: colors.$blue-10;
+  background: colors.$gray-10;
   border-radius: 4px;
-  border-left: 4px solid colors.$blue-60;
   border: 1px solid colors.$gray-20;
   border-left: 4px solid colors.$blue-60;
 }
@@ -160,9 +172,9 @@
 
 .fluidBlock {
   display: grid;
-  gap: layout.$spacing-04;
+  gap: layout.$spacing-03;
   padding: layout.$spacing-05;
-  background: colors.$purple-10;
+  background: colors.$gray-10;
   border-radius: 4px;
   border: 1px solid colors.$gray-20;
   border-left: 4px solid colors.$purple-60;
@@ -196,6 +208,65 @@
   width: 100%;
 }
 
+.orderCheckboxRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9.5rem;
+  align-items: center;
+  gap: layout.$spacing-05;
+  min-width: 0;
+  padding: layout.$spacing-04 0;
+  border-bottom: 1px solid colors.$gray-20;
+}
+
+.orderCheckboxRow:last-child {
+  border-bottom: 0;
+}
+
+.orderCheckboxRowLocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.orderCheckboxRowLocked .orderNameCell :global(.cds--checkbox-label),
+.orderCheckboxRowLocked .orderNameCell :global(.bx--checkbox-label) {
+  color: colors.$gray-50;
+  cursor: not-allowed;
+}
+
+.orderNameCell {
+  min-width: 0;
+}
+
+.orderNameCell :global(.cds--checkbox-label),
+.orderNameCell :global(.cds--checkbox-label-text),
+.orderNameCell :global(.bx--checkbox-label),
+.orderNameCell :global(.bx--checkbox-label-text) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.checkboxTimeField {
+  width: 100%;
+}
+
+.timeStepperGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: layout.$spacing-02;
+  width: 100%;
+}
+
+.timeNumberInput {
+  min-width: 0;
+  width: 100%;
+}
+
+.emptyStateText {
+  margin: 0;
+  color: colors.$gray-70;
+}
+
 .textAreaError {
   border-color: colors.$red-60 !important;
 }
@@ -222,10 +293,15 @@
   }
 
   .formContent {
-    padding-right: layout.$spacing-04;
+    padding-right: layout.$spacing-05;
   }
 
   .buttonSet {
     padding-right: layout.$spacing-05;
+  }
+
+  .orderCheckboxRow {
+    grid-template-columns: 1fr;
+    gap: layout.$spacing-03;
   }
 }

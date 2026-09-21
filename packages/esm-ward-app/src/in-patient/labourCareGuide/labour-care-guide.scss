@@ -1,0 +1,1110 @@
+@use '@carbon/layout';
+@use '@carbon/type';
+@use '@carbon/colors';
+
+$lcg-alert-band: #ffd9bf;
+
+.container {
+  background: colors.$gray-10;
+  padding: layout.$spacing-05;
+  overflow-x: auto;
+}
+
+.canvas {
+  min-width: 1400px;
+  background: colors.$white;
+  border: 1px solid colors.$gray-40;
+  padding: layout.$spacing-05;
+}
+
+.title {
+  @include type.type-style('heading-04');
+  text-align: center;
+  margin: 0 0 layout.$spacing-05;
+  letter-spacing: 0.03rem;
+}
+
+.headerRows {
+  margin-bottom: layout.$spacing-05;
+}
+
+.headerRowsWrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: layout.$spacing-05;
+  margin-bottom: layout.$spacing-05;
+
+  .headerRows {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+}
+
+.headerAddButton {
+  flex-shrink: 0;
+  align-self: flex-start;
+  height: 2.1rem;
+  min-width: 7.5rem;
+  border: 0;
+  background: colors.$gray-100;
+  color: colors.$white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: layout.$spacing-03;
+  padding: 0 layout.$spacing-04;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.headerRow {
+  display: grid;
+  grid-template-columns: 2.4fr 0.55fr 1fr 1fr;
+  gap: layout.$spacing-05;
+  margin-bottom: layout.$spacing-03;
+}
+
+.headerRowPrimary {
+  grid-template-columns: 1.75fr 0.5fr 1fr 1.15fr;
+}
+
+.headerRowSecondary {
+  grid-template-columns: 1.25fr 1.65fr 0.35fr;
+  gap: layout.$spacing-03;
+}
+
+.dateRow {
+  @include type.type-style('body-compact-01');
+  margin-bottom: layout.$spacing-04;
+}
+
+.fieldLine,
+.fieldLineSmall,
+.fieldLineMedium,
+.fieldLineLarge,
+.fieldLineTiny {
+  @include type.type-style('body-compact-01');
+  display: flex;
+  align-items: center;
+  gap: layout.$spacing-02;
+  min-width: 0;
+}
+
+.fieldLineSmall {
+  min-width: 0;
+}
+
+.fieldLineMedium {
+  min-width: 0;
+}
+
+.fieldLineLarge {
+  min-width: 0;
+}
+
+.fieldLineTiny {
+  min-width: 0;
+
+  .line {
+    max-width: 2.25rem;
+  }
+}
+
+.line {
+  flex: 1;
+  min-width: 2rem;
+  border-bottom: 1px solid colors.$gray-80;
+}
+
+.patientAgeInline {
+  margin-left: layout.$spacing-05;
+  white-space: nowrap;
+}
+
+.valueText {
+  @include type.type-style('body-compact-01');
+  color: colors.$gray-100;
+  white-space: nowrap;
+}
+
+.sectionBlock {
+  margin-top: layout.$spacing-03;
+}
+
+.headerSection {
+  margin-top: layout.$spacing-03;
+}
+
+.headerToolbarRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: layout.$spacing-01;
+
+  .sectionToolbar {
+    gap: layout.$spacing-01;
+  }
+
+  .viewToggle {
+    border-color: colors.$gray-50;
+  }
+
+  .iconButton,
+  .addButton {
+    height: 1.75rem;
+  }
+
+  .iconButton {
+    width: 1.75rem;
+  }
+}
+
+.stackedSectionTable {
+  margin-top: layout.$spacing-06;
+}
+
+.continuousSheetSection {
+  margin-top: layout.$spacing-01;
+
+  .sectionHeaderControls {
+    margin-bottom: layout.$spacing-01;
+  }
+}
+
+.continuousStackedSection {
+  margin-top: layout.$spacing-02;
+}
+
+.sectionHeaderControls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: layout.$spacing-02;
+
+  .sectionHeaderStack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: layout.$spacing-02;
+  }
+
+  .sectionHintText {
+    @include type.type-style('body-compact-01');
+    color: colors.$gray-70;
+  }
+  .sectionToolbar {
+    gap: layout.$spacing-01;
+  }
+
+  .viewToggle {
+    border-color: colors.$gray-50;
+  }
+
+  .iconButton,
+  .addButton {
+    height: 1.75rem;
+  }
+
+  .iconButton {
+    width: 1.75rem;
+  }
+}
+
+.sectionToolbar {
+  display: flex;
+  align-items: center;
+  gap: layout.$spacing-01;
+}
+
+.viewToggle {
+  display: inline-flex;
+  border: 1px solid colors.$gray-60;
+}
+
+.iconButton {
+  width: 1.85rem;
+  height: 1.85rem;
+  border: 0;
+  background: colors.$gray-80;
+  color: colors.$white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.iconButtonActive {
+  background: colors.$green-60;
+}
+
+.addButton {
+  height: 1.85rem;
+  min-width: 6.25rem;
+  border: 0;
+  background: colors.$gray-100;
+  color: colors.$white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: layout.$spacing-02;
+  padding: 0 layout.$spacing-03;
+  cursor: pointer;
+}
+
+.addDivider {
+  width: 1px;
+  align-self: stretch;
+  background: colors.$gray-70;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.gridTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 0;
+
+  /* Shared column widths so the header + all sections align */
+  --lcg-col-vertical: 2.75rem;
+  --lcg-col-parameter: 9rem;
+  --lcg-col-alert: 3.75rem;
+  --lcg-col-entry: 3rem;
+  --lcg-col-gap: 0.75rem;
+
+  td {
+    border: 1px solid colors.$gray-60;
+    @include type.type-style('body-compact-01');
+    padding: 0.2rem;
+    height: 2rem;
+    text-align: center;
+    vertical-align: middle;
+  }
+}
+
+.headerGridTable {
+  td {
+    height: 2rem;
+    padding: 0.2rem;
+  }
+
+  .headerLeadCell,
+  .hourCell,
+  .stageLabel {
+    background: colors.$white;
+  }
+
+  .headerLeadCell,
+  .stageLabel {
+    font-weight: 700;
+  }
+
+  .timeMarker {
+    font-size: 0.75rem;
+    letter-spacing: 0.01rem;
+  }
+
+  .stageLabel {
+    letter-spacing: 0.04rem;
+  }
+}
+
+.headerOffsetCell {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.headerLeadCell {
+  font-weight: 700;
+  text-align: center;
+  padding-left: 0 !important;
+  background: colors.$white;
+}
+
+.headerSpacerCell {
+  background: colors.$white;
+}
+
+.leftHeader {
+  font-weight: 600;
+  text-align: left;
+  padding-left: layout.$spacing-03;
+}
+
+.timeMarker {
+  color: colors.$gray-70;
+}
+
+.hourCell {
+  font-weight: 600;
+}
+
+.alertCell {
+  font-weight: 800;
+  text-align: center;
+  background: $lcg-alert-band;
+}
+
+.stageLabel {
+  font-weight: 700;
+  letter-spacing: 0.03rem;
+}
+
+.stageBand {
+  display: flex;
+  align-items: center;
+  gap: layout.$spacing-02;
+  width: 100%;
+}
+
+.stageBandText {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.stageArrowLeft,
+.stageArrowRight {
+  position: relative;
+  flex: 1;
+  height: 0;
+  border-top: 1px solid colors.$black;
+}
+
+.stageArrowLeft::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: -4px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 10px solid colors.$black;
+}
+
+.stageArrowRight::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -4px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 10px solid colors.$black;
+}
+
+.gapCell {
+  border: none !important;
+  width: var(--lcg-col-gap);
+  background: transparent;
+}
+
+.verticalLabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-weight: 700;
+  letter-spacing: 0.03rem;
+  width: var(--lcg-col-vertical);
+  text-align: center;
+}
+
+.parameterCell {
+  text-align: left !important;
+  padding-left: layout.$spacing-03 !important;
+  width: var(--lcg-col-parameter);
+}
+
+.multiLineParameterCell {
+  line-height: 1;
+  padding-top: 0.1rem !important;
+  padding-bottom: 0.1rem !important;
+
+  div {
+    white-space: nowrap;
+  }
+}
+
+.parameterWideCell {
+  text-align: left !important;
+  padding-left: layout.$spacing-03 !important;
+  width: 12.75rem;
+}
+
+.alertValueCell {
+  width: var(--lcg-col-alert);
+  font-weight: 700;
+  background: $lcg-alert-band;
+}
+
+.formNotFilledNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: layout.$spacing-07;
+  text-align: center;
+  background: colors.$gray-10;
+  border: 1px solid colors.$gray-30;
+  border-radius: 4px;
+
+  p {
+    @include type.type-style('body-long-01');
+    margin-bottom: layout.$spacing-05;
+  }
+}
+
+.levelCell {
+  width: 2rem;
+  font-weight: 600;
+}
+
+.noteCell {
+  @include type.type-style('body-compact-01');
+  text-align: left !important;
+  vertical-align: top !important;
+  padding: layout.$spacing-02 !important;
+  font-style: italic;
+  line-height: 1.25;
+}
+
+.labourGuidanceWrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: layout.$spacing-03;
+}
+
+.labourGuidance {
+  @include type.type-style('body-compact-01');
+  width: 14rem;
+  border: 1px solid colors.$gray-60;
+  padding: layout.$spacing-03;
+  color: colors.$gray-90;
+  line-height: 1.3;
+  background: colors.$white;
+}
+
+.entryCell {
+  background: colors.$white;
+  padding: 0 !important;
+}
+
+.hiddenSecondStageCell {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.sharedDecisionTallCell {
+  height: 10rem !important;
+  vertical-align: top !important;
+  overflow: hidden;
+  position: relative;
+  max-width: var(--lcg-col-entry);
+}
+
+.sharedDecisionShortCell {
+  height: 2rem !important;
+  overflow: hidden;
+}
+
+.sharedDecisionGridText {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: calc(10rem - 0.4rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sharedDecisionTableCell {
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: top;
+  min-width: 12rem;
+  max-width: 28rem;
+}
+
+.cellText {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  padding: 0.2rem;
+  max-height: none;
+  overflow: visible;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  @include type.type-style('body-compact-01');
+}
+
+.sharedDecisionCriticalActionText {
+  color: colors.$red-60;
+  font-weight: 600;
+}
+
+.sharedDecisionAuditRow {
+  background-color: colors.$yellow-10;
+}
+
+.sharedDecisionAuditActionText {
+  color: colors.$gray-100;
+  font-weight: 600;
+}
+
+.summaryBox {
+  border: 1px solid colors.$gray-60;
+  padding: layout.$spacing-05;
+  margin-top: layout.$spacing-05;
+  position: relative;
+}
+
+.summaryTitle {
+  @include type.type-style('heading-02');
+  text-align: center;
+  margin: 0 0 layout.$spacing-05;
+}
+
+.summaryActions {
+  position: absolute;
+  top: layout.$spacing-03;
+  right: layout.$spacing-03;
+}
+
+.summaryLine {
+  @include type.type-style('body-compact-01');
+  display: flex;
+  align-items: center;
+  gap: layout.$spacing-05;
+  margin-bottom: layout.$spacing-03;
+
+  strong {
+    font-weight: 700;
+  }
+}
+
+.inlineBlank,
+.inlineBlankLong,
+.inlineBlankSmall,
+.inlineBlankTiny {
+  flex-grow: 1;
+  border-bottom: 1px solid colors.$gray-80;
+  min-width: 4rem;
+}
+
+.inlineBlankLong {
+  min-width: 10rem;
+}
+
+.inlineBlankSmall {
+  min-width: 2rem;
+  flex-grow: 0.2;
+}
+
+.inlineBlankTiny {
+  min-width: 1.5rem;
+  flex-grow: 0.1;
+}
+
+.entryCell {
+  width: 3rem;
+}
+
+.activeEntryCell {
+  background: colors.$green-10;
+}
+
+.lockedEntryCell {
+  background: colors.$gray-10;
+  color: colors.$gray-90;
+  font-weight: 600;
+}
+
+.emergencyRow td {
+  background-color: colors.$red-60 !important;
+  color: colors.$white !important;
+  font-weight: 700;
+}
+
+.emergencyRow td :global(a) {
+  color: colors.$white !important;
+}
+
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+
+  :global(.cds--data-table-container) {
+    width: 100%;
+  }
+
+  :global(.cds--pagination) {
+    border-top: 1px solid colors.$gray-20;
+  }
+}
+
+.alertCircle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.2rem;
+  border: 0.16rem solid colors.$red-60;
+  border-radius: 9999px;
+  color: colors.$red-60;
+  font-weight: 700;
+  line-height: 1;
+}
+
+// Cervix / second-stage lag alert: applied to the level and alert-value cells
+// in the specific row whose dilation threshold has been exceeded.
+.alertExceededLevelCell {
+  background: colors.$red-60 !important;
+  color: colors.$white !important;
+  font-weight: 800;
+}
+
+.alertExceededValueCell {
+  background: colors.$red-40 !important;
+  font-weight: 800;
+}
+
+.alertText {
+  color: colors.$red-60;
+  font-weight: 700;
+  margin-top: layout.$spacing-02;
+}
+
+.verticalPlotValue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 100%;
+  line-height: 1;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+.birthCellBanner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.15rem;
+  height: 1.2rem;
+  padding: 0 layout.$spacing-02;
+  border-radius: 9999px;
+  background: colors.$red-60;
+  color: colors.$white;
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.03rem;
+  line-height: 1;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  transform: none;
+}
+
+.birthCellBannerInline {
+  margin-left: layout.$spacing-02;
+  background: colors.$blue-60;
+  color: colors.$white;
+  min-width: 2.35rem;
+  height: 1.15rem;
+}
+
+.birthSectionBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  background: colors.$blue-60;
+  color: colors.$white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.03rem;
+}
+.headerRowsWrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.headerRows {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.headerRowPrimary {
+  display: grid;
+  grid-template-columns: 3fr 1fr 1fr 2fr 3fr;
+  width: 100%;
+  align-items: center;
+  column-gap: 24px;
+}
+
+.headerRowSecondary {
+  display: grid;
+  grid-template-columns: 3fr 5fr 1fr;
+  width: 100%;
+  align-items: center;
+  column-gap: 24px;
+  margin-bottom: 2rem;
+}
+
+.infoItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  font-weight: 600;
+  white-space: 8px;
+}
+
+.value {
+  white-space: nowrap;
+}
+
+.riskFactorsValue {
+  color: #da1e28;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.headerAddButton {
+  margin-left: 16px;
+}
+
+.summaryOfLabourSection {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid colors.$gray-30;
+  border-left: 4px solid colors.$blue-60;
+  border-radius: 8px;
+  background: linear-gradient(180deg, colors.$white 0%, colors.$gray-10 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.summaryOfLabourHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid colors.$gray-30;
+}
+
+.summaryOfLabourTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: colors.$gray-100;
+}
+
+.summaryOfLabourDraftHint {
+  margin: 0 0 1rem;
+  padding: 0.625rem 0.875rem;
+  color: colors.$blue-70;
+  background: colors.$blue-10;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.summaryOfLabourGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.summaryOfLabourGroup {
+  background: colors.$white;
+  border: 1px solid colors.$gray-20;
+  border-radius: 8px;
+  padding: 1rem 1.125rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  h4 {
+    margin: 0 0 0.875rem;
+    padding-bottom: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: colors.$blue-70;
+    border-bottom: 1px solid colors.$gray-20;
+  }
+}
+
+.summaryFieldGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.875rem 1rem;
+
+  @media (max-width: 1056px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 672px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summaryField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.summaryFieldLabel {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: colors.$gray-70;
+}
+
+.summaryFieldValue {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: colors.$gray-100;
+  word-break: break-word;
+}
+
+.summaryFieldValueEmpty {
+  color: colors.$gray-50;
+  font-style: italic;
+}
+
+.summaryBabyGroup {
+  border-left: 3px solid colors.$teal-50;
+}
+
+.workflowStopLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1;
+  font-weight: 800;
+  font-size: 0.96rem;
+  letter-spacing: 0.12rem;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  color: colors.$gray-80;
+}
+
+.workflowStopMarkerCell {
+  background: colors.$white !important;
+  vertical-align: middle;
+  text-align: center;
+  padding: 0 !important;
+}
+
+.splitCellTwo,
+.splitCellFour {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.splitCellVertical {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  height: 100%;
+  width: 100%;
+  min-height: 2rem;
+}
+
+.splitSegment {
+  flex: 1;
+  border-left: 1px solid colors.$gray-50;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splitSegment:first-child {
+  border-left: none;
+}
+
+.splitSegmentVertical {
+  border-top: 1px solid colors.$gray-50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0.15rem;
+  min-height: 1rem;
+  width: 100%;
+}
+
+.splitSegmentVertical:first-child {
+  border-top: none;
+}
+
+.womanSecondStageSplitCell {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: 100%;
+  width: 100%;
+  min-height: 1.2rem;
+}
+
+.womanSecondStageSplitSegment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border-left: 1px solid colors.$gray-60;
+  overflow: hidden;
+  padding: 0.15rem;
+}
+
+.womanSecondStageSplitSegment:first-child {
+  border-left: none;
+}
+
+.correctionAuditBanner,
+.correctionAuditBannerForm,
+.correctionAuditBannerChart {
+  margin-bottom: layout.$spacing-05;
+}
+
+.sharedDecisionAuditGridCell {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  text-align: left;
+}
+
+.correctionWizardHelp {
+  margin: 0;
+  color: colors.$gray-70;
+}
+
+.correctionWizardModal {
+  :global(.cds--modal-container) {
+    max-width: min(96vw, 720px);
+    width: 100%;
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  :global(.cds--modal-content) {
+    padding: 0;
+    overflow: visible;
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  :global(.cds--modal-footer) {
+    flex-shrink: 0;
+  }
+}
+
+.correctionWizardModalBody {
+  max-height: calc(100vh - 11rem);
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.correctionPatientFieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.correctionPatientLegend {
+  @include type.type-style('label-01');
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: colors.$gray-100;
+  margin-bottom: 0.5rem;
+  padding: 0;
+}
+
+.correctionPatientCount {
+  color: colors.$gray-60;
+  font-weight: 400;
+}
+
+.correctionPatientList {
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid colors.$gray-30;
+  background-color: colors.$white;
+}
+
+.correctionPatientOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid colors.$gray-20;
+  cursor: pointer;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background-color: colors.$gray-10;
+  }
+}
+
+.correctionPatientOptionSelected {
+  background-color: colors.$blue-10;
+}
+
+.correctionPatientRadio {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.correctionPatientDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.correctionPatientName {
+  font-weight: 600;
+  color: colors.$gray-100;
+  word-break: break-word;
+}
+
+.correctionPatientMeta {
+  font-size: 0.875rem;
+  color: colors.$gray-70;
+  word-break: break-word;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    padding: layout.$spacing-03;
+  }
+
+  .canvas {
+    padding: layout.$spacing-03;
+  }
+
+  .sectionHeaderControls {
+    justify-content: flex-start;
+  }
+}

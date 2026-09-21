@@ -134,16 +134,27 @@ type Bill = OpenmrsResource & {
   }>;
 };
 
-export const usePatientBills = (patientUuid: string, startingDate?: Date, endDate?: Date) => {
-  const rep =
-    'custom:(uuid,display,voided,voidReason,dateCreated,status,patient:(uuid,display),' +
-    'lineItems:(uuid,paymentStatus,billableService,itemOrServiceConceptUuid,quantity,dateCreated))';
+/**
+ * Fetch a patient's bills scoped to a single visit. Because the cashier
+ * `/bill` endpoint accepts a `visitUuid` query param, we no longer need to
+ * pull the patient's entire billing history and then filter by admission
+ * window on the client — the visit itself scopes the results to the current
+ * admission.
+ */
+export const usePatientBills = (visitUuid: string, patientUuid: string) => {
+  const rep = 'custom:(uuid,display,voided,voidReason,dateCreated,status,patient:(uuid,display),' + 'lineItems:full)';
 
   const { dailyBedFeeBillableService } = useConfig<WardConfigObject>();
 
-  const url = patientUuid ? `${restBaseUrl}/cashier/bill?v=${rep}&patientUuid=${patientUuid}` : null;
+  const url =
+    visitUuid && patientUuid
+      ? `${restBaseUrl}/cashier/bill?v=${rep}&visitUuid=${visitUuid}&patientUuid=${patientUuid}`
+      : null;
 
-  const { data, isLoading, error } = useSWR<FetchResponse<{ results: Array<Bill> }>>(url);
+  const { data, isLoading, error, mutate, isValidating } = useSWR<FetchResponse<{ results: Array<Bill> }>>(
+    url,
+    openmrsFetch,
+  );
 
   const bills = useMemo(
     () => (data?.data?.results ?? []).filter((b) => !b.voided && b.patient?.uuid === patientUuid),
@@ -159,27 +170,16 @@ export const usePatientBills = (patientUuid: string, startingDate?: Date, endDat
     (daysInWard?: number) => {
       if (!daysInWard || daysInWard <= 0) return true;
 
-      const allBedFeeLineItems = bills.reduce<Bill['lineItems']>((prev, curr) => {
-        const matching = (curr.lineItems ?? []).filter(
+      const totalQuantity = bills.reduce((total, bill) => {
+        const matching = (bill.lineItems ?? []).filter(
           (item) => item.itemOrServiceConceptUuid === dailyBedFeeBillableService,
         );
-        prev.push(...matching);
-        return prev;
-      }, []);
+        return total + matching.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+      }, 0);
 
-      const scopedItems =
-        startingDate && endDate
-          ? allBedFeeLineItems.filter((item) => {
-              if (!item.dateCreated) return true;
-              const d = new Date(item.dateCreated).getTime();
-              return d >= startingDate.getTime() && d <= endDate.getTime();
-            })
-          : allBedFeeLineItems;
-
-      const totalQuantity = scopedItems.reduce((prev, curr) => prev + (curr.quantity ?? 0), 0);
       return totalQuantity >= daysInWard;
     },
-    [dailyBedFeeBillableService, bills, startingDate, endDate],
+    [dailyBedFeeBillableService, bills],
   );
 
   return {
@@ -188,5 +188,7 @@ export const usePatientBills = (patientUuid: string, startingDate?: Date, endDat
     bills,
     pendingBills,
     dailyBedFeeSettled,
+    mutate,
+    isValidating,
   };
 };
