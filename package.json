@@ -12,6 +12,7 @@
     "ci:prepublish": "yarn workspaces foreach --all --topological --exclude @kenyaemr/esm-ward npm publish --access public --tag next",
     "release": "yarn workspaces foreach --all --topological version",
     "verify": "turbo run lint typescript test --concurrency=1",
+    "turbo": "turbo",
     "test-e2e": "playwright test",
     "postinstall": "husky install"
   },
