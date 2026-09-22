@@ -587,7 +587,7 @@
   "patientWasDischarged": "Patient sorti",
   "paymentMode": "Payment mode",
   "pdf": "PDF",
-  "pediatrickError": "Patients older than 12 years cannot be admitted to the pediatric ward",
+  "pediatricError": "Patients older than 12 years cannot be admitted to the pediatric ward",
   "pendingAdmissions": "Admissions en attente",
   "pendingBills": "Factures en attente",
   "pendingDischarge": "Sortie en attente",

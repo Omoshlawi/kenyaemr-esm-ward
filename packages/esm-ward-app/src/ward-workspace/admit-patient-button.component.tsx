@@ -64,7 +64,7 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
       return showSnackbar({
         kind: 'error',
         title: t('admissionError', 'Admission error'),
-        subtitle: t('pediatrickError', 'Patients older than 12 years cannot be admitted to the pediatric ward'),
+        subtitle: t('pediatricError', 'Patients older than 12 years cannot be admitted to the pediatric ward'),
       });
     }
     if (isBedManagementModuleInstalled && !bed) {

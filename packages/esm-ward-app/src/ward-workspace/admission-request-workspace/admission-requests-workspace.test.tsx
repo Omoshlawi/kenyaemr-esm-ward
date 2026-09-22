@@ -1,14 +1,16 @@
 import React from 'react';
 import { screen } from '@testing-library/react';
-import { useAppContext } from '@openmrs/esm-framework';
+import { getDefaultsFromConfigSchema, useAppContext, useConfig } from '@openmrs/esm-framework';
 import { renderWithSwr } from 'tools';
 import { mockWardViewContext } from '../../../mock';
+import { configSchema, type WardConfigObject } from '../../config-schema';
 import { type AdmissionRequestsWorkspaceContextProps } from './admission-requests-context';
 import { type WardViewContext } from '../../types';
 import useEmrConfiguration from '../../hooks/useEmrConfiguration';
 import DefaultWardPendingPatients from '../../ward-view/default-ward/default-ward-pending-patients.component';
 import AdmissionRequestsWorkspace from './admission-requests.workspace';
 
+jest.mocked(useConfig<WardConfigObject>).mockReturnValue(getDefaultsFromConfigSchema(configSchema));
 jest.mocked(useAppContext<WardViewContext>).mockReturnValue(mockWardViewContext);
 
 jest.mock('../../hooks/useEmrConfiguration', () => jest.fn());
