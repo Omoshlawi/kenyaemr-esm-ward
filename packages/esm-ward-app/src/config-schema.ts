@@ -924,6 +924,7 @@ export const configSchema: ConfigSchema = {
     _default: {
       maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
       labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
+      pediatricWard: '0db2eb63-f0ac-4f22-8d65-766a4828c9ba',
     },
   },
   treatmentChartCardexEncounterTypeUuid: {
@@ -1086,6 +1087,7 @@ export interface WardConfigObject {
   inpatientLocationTags: {
     maternityWard: string;
     labourWard: string;
+    pediatricWard: string;
   };
   treatmentChartCardexEncounterTypeUuid: string;
   treatmentChartCardexFormUuid: string;
