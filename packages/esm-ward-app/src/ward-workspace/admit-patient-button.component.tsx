@@ -1,18 +1,20 @@
-import { Button, OverflowMenuItem } from '@carbon/react';
+import { Button, InlineLoading, OverflowMenuItem } from '@carbon/react';
 import {
   ArrowRightIcon,
   launchWorkspace,
   launchWorkspace2,
   showSnackbar,
   useAppContext,
+  useConfig,
   useFeatureFlag,
   useLayoutType,
 } from '@openmrs/esm-framework';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useWardLocation from '../hooks/useWardLocation';
 import type { DispositionType, WardPatient, WardViewContext } from '../types';
 import { useAdmitPatient } from '../ward.resource';
+import { type WardConfigObject } from '../config-schema';
 
 interface AdmitPatientButtonProps {
   wardPatient: WardPatient;
@@ -33,12 +35,22 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
   dispositionType,
   component = 'btn',
 }) => {
+  const {
+    inpatientLocationTags: { pediatricWard },
+  } = useConfig<WardConfigObject>();
   const { patient, visit, bed } = wardPatient ?? {};
   const { t } = useTranslation();
   const { location } = useWardLocation();
   const responsiveSize = useLayoutType() === 'tablet' ? 'lg' : 'md';
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { admitPatient, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useAdmitPatient();
+  const { isPediatricWard, isLoading: isLoadingTags } = useMemo(() => {
+    const { isLoading, admissionLocation } = wardPatientGroupDetails?.admissionLocationResponse ?? {};
+    return {
+      isPediatricWard: !isLoading && admissionLocation?.ward?.tags?.some((tag) => tag.uuid === pediatricWard),
+      isLoading,
+    };
+  }, [pediatricWard, wardPatientGroupDetails?.admissionLocationResponse]);
 
   const launchPatientAdmissionForm = () => launchWorkspace2('admit-patient-form-workspace', { wardPatient });
 
@@ -48,6 +60,13 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
   // open the next form for bed selection. If not, admit patient directly
   // (Note that it is possible, albeit an edge case, for a patient to have a bed assigned while not admitted)
   const onAdmit = () => {
+    if (isPediatricWard && patient?.person?.age > 12) {
+      return showSnackbar({
+        kind: 'error',
+        title: t('admissionError', 'Admission error'),
+        subtitle: t('pediatrickError', 'Patients older than 12 years cannot be admitted to the pediatric ward'),
+      });
+    }
     if (isBedManagementModuleInstalled && !bed) {
       launchPatientAdmissionForm();
     } else {
@@ -81,6 +100,9 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
 
   const disabledButton = isLoadingEmrConfiguration || errorFetchingEmrConfiguration || disabled;
 
+  if (isLoadingTags) {
+    return <InlineLoading />;
+  }
   if (component === 'menu') return <OverflowMenuItem itemText={t('admitPatient', 'Admit patient')} onClick={onAdmit} />;
 
   return (
