@@ -1,4 +1,4 @@
-import { useAppContext, useVisit } from '@openmrs/esm-framework';
+import { getDefaultsFromConfigSchema, useAppContext, useConfig, useVisit } from '@openmrs/esm-framework';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -11,6 +11,7 @@ import {
 import React from 'react';
 import { renderWithSwr } from '../../../../../tools';
 import { mockWardViewContext } from '../../../mock';
+import { configSchema, type WardConfigObject } from '../../config-schema';
 import { useAssignedBedByPatient } from '../../hooks/useAssignedBedByPatient';
 import useEmrConfiguration from '../../hooks/useEmrConfiguration';
 import { useInpatientAdmissionByPatients } from '../../hooks/useInpatientAdmissionByPatients';
@@ -21,6 +22,7 @@ import { type WardViewContext } from '../../types';
 import { useAdmitPatient } from '../../ward.resource';
 import CreateAdmissionEncounterWorkspace from './create-admission-encounter.workspace';
 
+jest.mocked(useConfig<WardConfigObject>).mockReturnValue(getDefaultsFromConfigSchema(configSchema));
 jest.mocked(useAppContext<WardViewContext>).mockReturnValue(mockWardViewContext);
 
 const mockUseVisit = jest.mocked(useVisit).mockReturnValue({
