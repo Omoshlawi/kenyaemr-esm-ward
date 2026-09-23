@@ -924,8 +924,19 @@ export const configSchema: ConfigSchema = {
     _default: {
       maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
       labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
+      // Official KenyaEMR critical-care location tag UUIDs (same at every facility).
+      icuWard: '770f6a93-8e59-48ad-ba7d-98d5652db240',
+      hduWard: '25439b2d-6495-4f5d-9ec6-4fe64686cf46',
+      nicuWard: '17558b82-7275-409c-9f77-0d934ae881cf',
+      picuWard: 'd9aaa6fa-8594-416c-b5da-e50fd3a180b2',
       pediatricWard: '0db2eb63-f0ac-4f22-8d65-766a4828c9ba',
     },
+  },
+  bypassPartographAdmissionChecks: {
+    _type: Type.Boolean,
+    _description:
+      'Demo flag. When true, skip admission and labour-ward tag checks and show partograph for female patients. Set to false for production.',
+    _default: true,
   },
   treatmentChartCardexEncounterTypeUuid: {
     _description: 'Encounter type uuid for the cardex section of the treatment sheet',
@@ -1087,8 +1098,13 @@ export interface WardConfigObject {
   inpatientLocationTags: {
     maternityWard: string;
     labourWard: string;
+    icuWard: string;
+    hduWard: string;
+    nicuWard: string;
+    picuWard: string;
     pediatricWard: string;
   };
+  bypassPartographAdmissionChecks: boolean;
   treatmentChartCardexEncounterTypeUuid: string;
   treatmentChartCardexFormUuid: string;
   treatmentChartMedicationGroupUuid: string;

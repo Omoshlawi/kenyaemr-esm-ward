@@ -1,63 +1,88 @@
-import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
+import { InlineNotification, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
 import { ExtensionSlot, useAssignedExtensions } from '@openmrs/esm-framework';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { EmptyState } from './table-state-components';
-import {
-  WARD_PATIENTS_ADMITTED_SLOT,
-  WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
-  WARD_PATIENTS_DISCHARGE_IN_SLOT,
-  WARD_PATIENTS_DISCHARGED_SLOT,
-  WARD_PATIENTS_UNASSIGNED_SLOT,
-} from './ward-patients-slots';
 
-import styles from './ward-patient.scss';
+import { useCriticalCareWardTab } from '../hooks/useCriticalCareWardTab';
+import AdmittedPatients from './admitted-patients';
+import AwaitingAdmissionPatients from './awaiting-admission-patients';
+import DischargeInPatients from './discharge-in-patients';
+import DischargePatients from './discharge-patients';
 
-const WardPatientsTabPanel: React.FC<{ slotName: string }> = ({ slotName }) => {
+export const WARD_PATIENTS_CRITICAL_CARE_SLOT = 'ward-patients-critical-care-slot';
+
+const CriticalCareTabPanel: React.FC<{
+  locationUuid?: string;
+  wardKind: string;
+  label: string;
+}> = ({ locationUuid, wardKind, label }) => {
   const { t } = useTranslation();
-  const assignedExtensions = useAssignedExtensions(slotName);
+  const assigned = useAssignedExtensions(WARD_PATIENTS_CRITICAL_CARE_SLOT);
 
-  if (!assignedExtensions.length) {
+  if (!assigned.length) {
     return (
-      <EmptyState message={t('noExtensionForWardPatientsTab', 'No component configured for this ward patients tab')} />
+      <InlineNotification
+        kind="info"
+        lowContrast
+        hideCloseButton
+        title={t('criticalCareModuleMissing', '{{label}} dashboard not loaded', { label })}
+        subtitle={t(
+          'criticalCareModuleMissingSubtitle',
+          'Start @kenyaemr/esm-icu-app in the same SPA (openmrs develop --sources for both ward-app and icu-app) so the census and charts can appear here.',
+        )}
+      />
     );
   }
 
-  return <ExtensionSlot name={slotName} />;
+  return (
+    <ExtensionSlot
+      name={WARD_PATIENTS_CRITICAL_CARE_SLOT}
+      state={{
+        locationUuid,
+        wardKind,
+        label,
+      }}
+    />
+  );
 };
 
 const WardPatientsTable = () => {
   const { t } = useTranslation();
+  const { tab: criticalCareTab, locationUuid } = useCriticalCareWardTab();
 
   return (
-    <div className={styles.tabContainer}>
-      <Tabs onTabCloseRequest={() => {}}>
-        <TabList contained scrollDebounceWait={200}>
-          <Tab>{t('awaitingAdmision', 'Awaiting Admission')}</Tab>
-          <Tab>{t('admitted', 'Admitted')}</Tab>
-          <Tab>{t('unassigned', 'Unassigned')}</Tab>
-          <Tab>{t('dischargeIn', 'Discharge In')}</Tab>
-          <Tab>{t('discharged', 'Discharged')}</Tab>
-        </TabList>
-        <TabPanels>
+    <Tabs onTabCloseRequest={() => {}}>
+      <TabList scrollDebounceWait={200}>
+        <Tab>{t('awaitingAdmision', 'Awaiting Admission')}</Tab>
+        <Tab>{t('admitted', 'Admitted')}</Tab>
+        <Tab>{t('dischargeIn', 'Discharge In')}</Tab>
+        <Tab>{t('discharged', 'Discharged')}</Tab>
+        {criticalCareTab ? <Tab>{t(criticalCareTab.kind, criticalCareTab.label)}</Tab> : null}
+      </TabList>
+      <TabPanels>
+        <TabPanel>
+          <AwaitingAdmissionPatients />
+        </TabPanel>
+        <TabPanel>
+          <AdmittedPatients />
+        </TabPanel>
+        <TabPanel>
+          <DischargeInPatients />
+        </TabPanel>
+        <TabPanel>
+          <DischargePatients />
+        </TabPanel>
+        {criticalCareTab ? (
           <TabPanel>
-            <WardPatientsTabPanel slotName={WARD_PATIENTS_AWAITING_ADMISSION_SLOT} />
+            <CriticalCareTabPanel
+              locationUuid={locationUuid}
+              wardKind={criticalCareTab.kind}
+              label={criticalCareTab.label}
+            />
           </TabPanel>
-          <TabPanel>
-            <WardPatientsTabPanel slotName={WARD_PATIENTS_ADMITTED_SLOT} />
-          </TabPanel>
-          <TabPanel>
-            <WardPatientsTabPanel slotName={WARD_PATIENTS_UNASSIGNED_SLOT} />
-          </TabPanel>
-          <TabPanel>
-            <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGE_IN_SLOT} />
-          </TabPanel>
-          <TabPanel>
-            <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGED_SLOT} />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
-    </div>
+        ) : null}
+      </TabPanels>
+    </Tabs>
   );
 };
 
