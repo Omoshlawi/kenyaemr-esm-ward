@@ -6,6 +6,7 @@ import {
   ExtensionSlot,
   useEmrConfiguration,
   usePatient,
+  type Visit,
   Workspace2,
   type Workspace2DefinitionProps,
 } from '@openmrs/esm-framework';
@@ -17,15 +18,22 @@ type PatientDischargeWorkspaceProps = {
   readonly wardPatient: WardPatient;
   readonly formUuid: string;
   readonly dischargePatientOnSuccesfullSubmission?: boolean;
+  readonly onPostResponse?: (encounter: Encounter) => void;
 };
 
-const PatientDischargeWorkspace: React.FC<Workspace2DefinitionProps<PatientDischargeWorkspaceProps>> = (props) => {
+const PatientDischargeWorkspace: React.FC<Workspace2DefinitionProps<PatientDischargeWorkspaceProps>> = ({
+  workspaceProps,
+  closeWorkspace,
+}) => {
   const { t } = useTranslation();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const {
-    workspaceProps: { patientUuid, wardPatient, formUuid, dischargePatientOnSuccesfullSubmission = true },
-    closeWorkspace,
-  } = props;
+    patientUuid,
+    wardPatient,
+    formUuid,
+    dischargePatientOnSuccesfullSubmission = true,
+    onPostResponse,
+  } = workspaceProps ?? {};
   const { visit: currentVisit } = wardPatient ?? {};
   const { patient, isLoading: isLoadingPatient, error: patientError } = usePatient(patientUuid);
   const { emrConfiguration, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useEmrConfiguration();
@@ -46,20 +54,26 @@ const PatientDischargeWorkspace: React.FC<Workspace2DefinitionProps<PatientDisch
       promptBeforeClosing: (func) => setHasUnsavedChanges(func()),
       handlePostResponse: (encounter: Encounter) => {
         if (dischargePatientOnSuccesfullSubmission)
-          handleDischarge(encounter, wardPatient, emrConfiguration as Record<string, unknown>, currentVisit);
+          handleDischarge(
+            encounter,
+            wardPatient as WardPatient,
+            emrConfiguration as Record<string, unknown>,
+            currentVisit as Visit,
+          );
+        onPostResponse?.(encounter);
       },
     }),
     [
-      patientUuid,
+      formUuid,
       currentVisit,
+      patientUuid,
       patient,
       closeWorkspace,
-      setHasUnsavedChanges,
-      emrConfiguration,
-      handleDischarge,
       dischargePatientOnSuccesfullSubmission,
-      formUuid,
+      handleDischarge,
       wardPatient,
+      emrConfiguration,
+      onPostResponse,
     ],
   );
 

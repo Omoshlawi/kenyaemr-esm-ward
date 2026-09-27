@@ -33,6 +33,7 @@ import { bedLayoutToBed, getOpenmrsId } from '../ward-view/ward-view.resource';
 import { HyperLinkPatientCell } from './patient-cells';
 import { EmptyState } from './table-state-components';
 import styles from './ward-patient.scss';
+import DischargePatientAction from './discharge-patient-action.component';
 const AdmittedPatients = () => {
   const [search, setSearch] = useState('');
 
@@ -206,17 +207,7 @@ const AdmittedPatients = () => {
                               })
                             }
                           />
-                          <OverflowMenuItem
-                            itemText={t('discharge', 'Discharge')}
-                            onClick={() => {
-                              launchWorkspace2('patient-discharge-workspace', {
-                                wardPatient: wardPatient,
-                                patientUuid: wardPatient?.patient.uuid,
-                                formUuid: config.inpatientDischargeFormUuid,
-                                dischargePatientOnSuccesfullSubmission: false,
-                              });
-                            }}
-                          />
+                          <DischargePatientAction wardPatient={wardPatient} />
                         </OverflowMenu>
                       </TableCell>
                     </TableRow>
