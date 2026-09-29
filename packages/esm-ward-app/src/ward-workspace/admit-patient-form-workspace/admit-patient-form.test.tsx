@@ -183,6 +183,39 @@ describe.skip('Testing AdmitPatientForm', () => {
     replacedProperty.restore();
   });
 
+  it('should allow admission to empty beds even when their status is stale (OCCUPIED but no patients)', async () => {
+    const staleBedLayouts = [
+      {
+        rowNumber: 1,
+        columnNumber: 1,
+        bedNumber: 'bed3',
+        bedId: 3,
+        bedUuid: '0000-bed3',
+        status: 'OCCUPIED',
+        bedType: null,
+        location: mockLocationInpatientWard.display,
+        patients: [],
+        bedTagMaps: [],
+      },
+    ];
+    const replacedProperty = jest.replaceProperty(
+      mockWardPatientGroupDetails(),
+      'bedLayouts',
+      staleBedLayouts as never,
+    );
+
+    const user = userEvent.setup();
+    renderAdmissionForm();
+
+    expect(screen.queryByText(/All beds are occupied/i)).not.toBeInTheDocument();
+    const bedOption = screen.getByRole('radio', { name: 'bed3 · Empty' });
+    await user.click(bedOption);
+    const admitButton = screen.getByRole('button', { name: 'Admit' });
+    expect(admitButton).toBeEnabled();
+
+    replacedProperty.restore();
+  });
+
   it('should submit the form, create encounter and submit bed', async () => {
     const user = userEvent.setup();
     renderAdmissionForm();
