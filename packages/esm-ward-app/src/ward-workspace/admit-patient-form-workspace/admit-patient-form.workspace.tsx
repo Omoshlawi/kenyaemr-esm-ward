@@ -58,8 +58,8 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     patient.uuid,
   );
   const beds = isLoading ? [] : (wardPatientGroupDetails?.bedLayouts ?? []);
-  // A bed is only assignable if it is not occupied (no patients currently in it).
-  const availableBeds = beds.filter((bed) => bed.status !== 'OCCUPIED' && bed.patients.length === 0);
+ // A bed is only assignable if it is not occupied (no patients currently in it).
+  const availableBeds = beds.filter((bed) => bed.patients.length === 0);
   const hasNoBeds = !isLoading && availableBeds.length === 0;
 
   const {
