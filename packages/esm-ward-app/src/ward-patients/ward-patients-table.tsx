@@ -4,12 +4,31 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useCriticalCareWardTab } from '../hooks/useCriticalCareWardTab';
-import AdmittedPatients from './admitted-patients';
-import AwaitingAdmissionPatients from './awaiting-admission-patients';
-import DischargeInPatients from './discharge-in-patients';
-import DischargePatients from './discharge-patients';
+import { EmptyState } from './table-state-components';
+import {
+  WARD_PATIENTS_ADMITTED_SLOT,
+  WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
+  WARD_PATIENTS_DISCHARGE_IN_SLOT,
+  WARD_PATIENTS_DISCHARGED_SLOT,
+  WARD_PATIENTS_UNASSIGNED_SLOT,
+} from './ward-patients-slots';
+
+import styles from './ward-patient.scss';
 
 export const WARD_PATIENTS_CRITICAL_CARE_SLOT = 'ward-patients-critical-care-slot';
+
+const WardPatientsTabPanel: React.FC<{ slotName: string }> = ({ slotName }) => {
+  const { t } = useTranslation();
+  const assignedExtensions = useAssignedExtensions(slotName);
+
+  if (!assignedExtensions.length) {
+    return (
+      <EmptyState message={t('noExtensionForWardPatientsTab', 'No component configured for this ward patients tab')} />
+    );
+  }
+
+  return <ExtensionSlot name={slotName} />;
+};
 
 const CriticalCareTabPanel: React.FC<{
   locationUuid?: string;
@@ -51,38 +70,44 @@ const WardPatientsTable = () => {
   const { tab: criticalCareTab, locationUuid } = useCriticalCareWardTab();
 
   return (
-    <Tabs onTabCloseRequest={() => {}}>
-      <TabList scrollDebounceWait={200}>
-        <Tab>{t('awaitingAdmision', 'Awaiting Admission')}</Tab>
-        <Tab>{t('admitted', 'Admitted')}</Tab>
-        <Tab>{t('dischargeIn', 'Discharge In')}</Tab>
-        <Tab>{t('discharged', 'Discharged')}</Tab>
-        {criticalCareTab ? <Tab>{t(criticalCareTab.kind, criticalCareTab.label)}</Tab> : null}
-      </TabList>
-      <TabPanels>
-        <TabPanel>
-          <AwaitingAdmissionPatients />
-        </TabPanel>
-        <TabPanel>
-          <AdmittedPatients />
-        </TabPanel>
-        <TabPanel>
-          <DischargeInPatients />
-        </TabPanel>
-        <TabPanel>
-          <DischargePatients />
-        </TabPanel>
-        {criticalCareTab ? (
+    <div className={styles.tabContainer}>
+      <Tabs onTabCloseRequest={() => {}}>
+        <TabList contained scrollDebounceWait={200}>
+          <Tab>{t('awaitingAdmision', 'Awaiting Admission')}</Tab>
+          <Tab>{t('admitted', 'Admitted')}</Tab>
+          <Tab>{t('unassigned', 'Unassigned')}</Tab>
+          <Tab>{t('dischargeIn', 'Discharge In')}</Tab>
+          <Tab>{t('discharged', 'Discharged')}</Tab>
+          {criticalCareTab ? <Tab>{t(criticalCareTab.kind, criticalCareTab.label)}</Tab> : null}
+        </TabList>
+        <TabPanels>
           <TabPanel>
-            <CriticalCareTabPanel
-              locationUuid={locationUuid}
-              wardKind={criticalCareTab.kind}
-              label={criticalCareTab.label}
-            />
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_AWAITING_ADMISSION_SLOT} />
           </TabPanel>
-        ) : null}
-      </TabPanels>
-    </Tabs>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_ADMITTED_SLOT} />
+          </TabPanel>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_UNASSIGNED_SLOT} />
+          </TabPanel>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGE_IN_SLOT} />
+          </TabPanel>
+          <TabPanel>
+            <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGED_SLOT} />
+          </TabPanel>
+          {criticalCareTab ? (
+            <TabPanel>
+              <CriticalCareTabPanel
+                locationUuid={locationUuid}
+                wardKind={criticalCareTab.kind}
+                label={criticalCareTab.label}
+              />
+            </TabPanel>
+          ) : null}
+        </TabPanels>
+      </Tabs>
+    </div>
   );
 };
 
