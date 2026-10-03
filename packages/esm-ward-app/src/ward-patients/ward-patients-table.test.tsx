@@ -4,15 +4,17 @@ import React from 'react';
 import { renderWithSwr } from '../../../../tools/test-utils';
 import { useCriticalCareWardTab } from '../hooks/useCriticalCareWardTab';
 import WardPatientsTable, { WARD_PATIENTS_CRITICAL_CARE_SLOT } from './ward-patients-table';
+import {
+  WARD_PATIENTS_ADMITTED_SLOT,
+  WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
+  WARD_PATIENTS_DISCHARGE_IN_SLOT,
+  WARD_PATIENTS_DISCHARGED_SLOT,
+  WARD_PATIENTS_UNASSIGNED_SLOT,
+} from './ward-patients-slots';
 
 jest.mock('../hooks/useCriticalCareWardTab', () => ({
   useCriticalCareWardTab: jest.fn(),
 }));
-
-jest.mock('./awaiting-admission-patients', () => () => <div>AwaitingAdmissionPatients</div>);
-jest.mock('./admitted-patients', () => () => <div>AdmittedPatients</div>);
-jest.mock('./discharge-in-patients', () => () => <div>DischargeInPatients</div>);
-jest.mock('./discharge-patients', () => () => <div>DischargePatients</div>);
 
 const mockUseCriticalCareWardTab = jest.mocked(useCriticalCareWardTab);
 
@@ -30,14 +32,37 @@ describe('WardPatientsTable', () => {
       .mockImplementation(({ name }: { name: string }) => <div data-testid={`extension-slot-${name}`}>{name}</div>);
   });
 
-  it('renders the four standard admissions tabs', () => {
+  it('renders five tabs with expected labels', () => {
     renderWithSwr(<WardPatientsTable />);
 
     expect(screen.getByText('Awaiting Admission')).toBeInTheDocument();
     expect(screen.getByText('Admitted')).toBeInTheDocument();
+    expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.getByText('Discharge In')).toBeInTheDocument();
     expect(screen.getByText('Discharged')).toBeInTheDocument();
     expect(screen.queryByText('ICU')).not.toBeInTheDocument();
+  });
+
+  it('renders an ExtensionSlot for each tab panel', () => {
+    renderWithSwr(<WardPatientsTable />);
+
+    [
+      WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
+      WARD_PATIENTS_ADMITTED_SLOT,
+      WARD_PATIENTS_UNASSIGNED_SLOT,
+      WARD_PATIENTS_DISCHARGE_IN_SLOT,
+      WARD_PATIENTS_DISCHARGED_SLOT,
+    ].forEach((slotName) => {
+      expect(ExtensionSlot).toHaveBeenCalledWith(expect.objectContaining({ name: slotName }), expect.anything());
+    });
+  });
+
+  it('shows a fallback message when a tab slot has no extensions', () => {
+    jest.mocked(useAssignedExtensions).mockReturnValue([]);
+
+    renderWithSwr(<WardPatientsTable />);
+
+    expect(screen.getAllByText('No component configured for this ward patients tab')).toHaveLength(5);
   });
 
   it('shows a critical-care tab next to Discharged when the selected ward matches', () => {
@@ -49,7 +74,9 @@ describe('WardPatientsTable', () => {
 
     renderWithSwr(<WardPatientsTable />);
 
-    expect(screen.getByText('ICU')).toBeInTheDocument();
+    expect(screen.getByText('Unassigned')).toBeInTheDocument();
+    const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
+    expect(tabs.slice(-2)).toEqual(['Discharged', 'ICU']);
     expect(ExtensionSlot).toHaveBeenCalledWith(
       expect.objectContaining({
         name: WARD_PATIENTS_CRITICAL_CARE_SLOT,
