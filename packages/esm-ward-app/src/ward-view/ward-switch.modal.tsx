@@ -1,19 +1,21 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Button,
-  ComboBox,
-  InlineNotification,
-  DropdownSkeleton,
   InlineLoading,
-  Layer,
+  InlineNotification,
   ModalBody,
   ModalFooter,
   ModalHeader,
+  RadioButton,
+  RadioButtonGroup,
+  RadioButtonSkeleton,
+  Search,
+  Tag,
 } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
 import { useLocationsByTag } from '../hooks/useAdmissionLocation';
+import useWardLocation from '../hooks/useWardLocation';
 import { navigate, setUserProperties, showSnackbar, useSession } from '@openmrs/esm-framework';
-import { type Location } from '@openmrs/esm-emr-api';
 import styles from './materal-ward/ward-switch.scss';
 
 interface WardSwitchModalProps {
@@ -23,12 +25,21 @@ interface WardSwitchModalProps {
 const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
   const { t } = useTranslation();
   const { locations, isLoading, error } = useLocationsByTag('Admission Location');
+  const { location: currentWard } = useWardLocation();
   const { user } = useSession();
-  const [selectedWard, setSelectedWard] = useState<Location | null>(null);
+  const [search, setSearch] = useState('');
+  const [selectedWardUuid, setSelectedWardUuid] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  const wards = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return [...locations]
+      .filter((ward) => !term || ward.display?.toLowerCase().includes(term))
+      .sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
+  }, [locations, search]);
+
   const handleSave = async () => {
-    if (!selectedWard?.uuid) {
+    if (!selectedWardUuid) {
       return;
     }
 
@@ -36,7 +47,7 @@ const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
       setIsSaving(true);
       try {
         await setUserProperties(user.uuid, {
-          defaultWardLocationUuid: selectedWard.uuid,
+          defaultWardLocationUuid: selectedWardUuid,
         });
       } catch {
         showSnackbar({
@@ -53,11 +64,7 @@ const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
       }
     }
 
-    navigate({ to: `${globalThis.spaBase}/home/ward/${selectedWard.uuid}` });
-    closeModal();
-  };
-
-  const handleCancel = () => {
+    navigate({ to: `${globalThis.spaBase}/home/ward/${selectedWardUuid}` });
     closeModal();
   };
 
@@ -81,34 +88,66 @@ const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
         <p className={styles.subtitle}>
           {t('switchWardPrompt', 'Do you want to switch the ward you are currently viewing?')}
         </p>
-        {isLoading ? (
-          <DropdownSkeleton />
-        ) : (
-          <Layer>
-            <div style={{ width: '100%' }}>
-              <ComboBox
-                id="ward-switch-selector"
-                titleText={t('selectWard', 'Select a ward')}
-                placeholder={t('selectWardPlaceholder', 'Choose a ward to view')}
-                items={locations}
-                itemToString={(item: Location | null) => item?.display ?? ''}
-                onChange={({ selectedItem }) => setSelectedWard(selectedItem)}
-                disabled={isLoading || isSaving}
-                size="md"
-                downshiftProps={{ id: 'ward-switch-selector-downshift' }}
-              />
-            </div>
-          </Layer>
-        )}
+        <Search
+          size="md"
+          className={styles.search}
+          labelText={t('searchWards', 'Search wards')}
+          placeholder={t('searchWardsPlaceholder', 'Search wards...')}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          disabled={isLoading || isSaving}
+        />
+        <div className={styles.wardList}>
+          {isLoading ? (
+            <>
+              <RadioButtonSkeleton />
+              <RadioButtonSkeleton />
+              <RadioButtonSkeleton />
+            </>
+          ) : wards.length ? (
+            <RadioButtonGroup
+              name="ward-switch-selector"
+              aria-label={t('selectWard', 'Select a ward')}
+              orientation="vertical"
+              valueSelected={selectedWardUuid ?? ''}
+              onChange={(value) => setSelectedWardUuid(String(value))}
+              disabled={isSaving}>
+              {wards.map((ward) => {
+                const isCurrent = ward.uuid === currentWard?.uuid;
+                return (
+                  <RadioButton
+                    key={ward.uuid}
+                    id={`ward-switch-${ward.uuid}`}
+                    className={styles.wardOption}
+                    value={ward.uuid}
+                    disabled={isCurrent}
+                    labelText={
+                      <span className={styles.wardOptionLabel}>
+                        {ward.display}
+                        {isCurrent ? (
+                          <Tag size="sm" type="teal">
+                            {t('currentWard', 'Current')}
+                          </Tag>
+                        ) : null}
+                      </span>
+                    }
+                  />
+                );
+              })}
+            </RadioButtonGroup>
+          ) : (
+            <p className={styles.emptyMessage}>{t('noWardsFound', 'No wards match your search')}</p>
+          )}
+        </div>
         {isSaving && (
           <InlineLoading status="active" description={t('savingDefaultWard', 'Saving your default ward...')} />
         )}
       </ModalBody>
       <ModalFooter>
-        <Button kind="secondary" onClick={handleCancel} disabled={isSaving}>
+        <Button kind="secondary" onClick={closeModal} disabled={isSaving}>
           {t('cancel', 'Cancel')}
         </Button>
-        <Button kind="primary" onClick={handleSave} disabled={!selectedWard || isSaving || isLoading}>
+        <Button kind="primary" onClick={handleSave} disabled={!selectedWardUuid || isSaving || isLoading}>
           {t('save', 'Save')}
         </Button>
       </ModalFooter>

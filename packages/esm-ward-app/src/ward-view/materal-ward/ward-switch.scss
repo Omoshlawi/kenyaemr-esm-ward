@@ -1,5 +1,8 @@
 @use '@carbon/layout';
 @use '@carbon/type';
+@use '@carbon/colors';
+@use '@openmrs/esm-styleguide/src/vars' as *;
+@use '../ward-theme' as theme;
 
 .wardSwitchModal {
   min-height: calc(layout.$layout-07 * 1.5);
@@ -11,4 +14,67 @@
 
 .subtitle {
   margin-bottom: layout.$spacing-05;
+}
+
+.search {
+  margin-bottom: layout.$spacing-04;
+}
+
+// The ward list scrolls on its own, so every ward stays reachable inside the modal
+// (a ComboBox menu would be clipped by the modal body's overflow).
+.wardList {
+  max-height: min(layout.$spacing-13 * 2.5, 50vh);
+  overflow-y: auto;
+  border: 1px solid theme.$border;
+  border-radius: theme.$radius-sm;
+  background-color: $ui-02;
+
+  :global(.cds--radio-button-group--vertical) {
+    gap: 0;
+  }
+
+  :global(.cds--fieldset) {
+    margin-bottom: 0;
+  }
+}
+
+.wardOption {
+  width: 100%;
+  margin: 0;
+  border-bottom: 1px solid theme.$border;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  :global(.cds--radio-button__label) {
+    width: 100%;
+    padding: layout.$spacing-04 layout.$spacing-05;
+    cursor: pointer;
+  }
+
+  &:hover :global(.cds--radio-button__label) {
+    background-color: colors.$gray-10;
+  }
+
+  :global(.cds--radio-button:checked + .cds--radio-button__label) {
+    background-color: colors.$blue-10;
+  }
+
+  :global(.cds--radio-button:disabled + .cds--radio-button__label) {
+    cursor: not-allowed;
+  }
+}
+
+.wardOptionLabel {
+  @include type.type-style('body-compact-01');
+  display: inline-flex;
+  align-items: center;
+  gap: layout.$spacing-03;
+}
+
+.emptyMessage {
+  @include type.type-style('body-compact-01');
+  padding: layout.$spacing-05;
+  color: $text-02;
 }
