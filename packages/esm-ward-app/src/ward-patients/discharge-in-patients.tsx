@@ -10,9 +10,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
 } from '@carbon/react';
 import {
   type Encounter,
@@ -27,6 +24,7 @@ import {
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
+import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../config-schema';
 import { type WardPatient, type WardViewContext } from '../types';
@@ -43,7 +41,7 @@ import styles from './ward-patient.scss';
 
 const DischargeInPatients = () => {
   const { t } = useTranslation();
-  const [search, setSearch] = useState('');
+  const search = useWardPatientSearch();
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { bedLayouts, wardAdmittedPatientsWithBed, isLoading } = wardPatientGroupDetails ?? {};
   const { emrConfiguration, isLoadingEmrConfiguration } = useEmrConfiguration();
@@ -154,7 +152,6 @@ const DischargeInPatients = () => {
           getRowProps,
           getTableProps,
           getCellProps,
-          getToolbarProps,
           getTableContainerProps,
         }) => (
           <TableContainer
@@ -164,18 +161,6 @@ const DischargeInPatients = () => {
               'Admitted patients marked for discharge. Settle bills to complete discharge.',
             )}
             {...getTableContainerProps()}>
-            <TableToolbar {...getToolbarProps()}>
-              <TableToolbarContent>
-                <TableToolbarSearch
-                  persistent
-                  value={search}
-                  placeholder={t('searchInpatients', 'Search inpatients')}
-                  onChange={(event, value) =>
-                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
-                  }
-                />
-              </TableToolbarContent>
-            </TableToolbar>
             <Table {...getTableProps()} aria-label={t('dischargeIn', 'Discharge In')}>
               <TableHead>
                 <TableRow>

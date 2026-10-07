@@ -11,9 +11,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
 } from '@carbon/react';
 import {
   formatDatetime,
@@ -26,6 +23,7 @@ import {
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
+import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../config-schema';
 import { type WardPatient, type WardViewContext } from '../types';
@@ -40,7 +38,7 @@ import styles from './unassigned-patient.scss';
  * have not been assigned to any bed.
  */
 const UnassignedPatients = () => {
-  const [search, setSearch] = useState('');
+  const search = useWardPatientSearch();
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { wardUnassignedPatientsList, isLoading } = wardPatientGroupDetails ?? {};
   const { t } = useTranslation();
@@ -119,7 +117,6 @@ const UnassignedPatients = () => {
           getRowProps,
           getTableProps,
           getCellProps,
-          getToolbarProps,
           getTableContainerProps,
         }) => (
           <TableContainer
@@ -129,18 +126,6 @@ const UnassignedPatients = () => {
               'Admitted patients without a bed. Assign one to complete admission.',
             )}
             {...getTableContainerProps()}>
-            <TableToolbar {...getToolbarProps()}>
-              <TableToolbarContent>
-                <TableToolbarSearch
-                  persistent
-                  value={search}
-                  placeholder={t('searchPatients', 'Search patients')}
-                  onChange={(event, value) =>
-                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
-                  }
-                />
-              </TableToolbarContent>
-            </TableToolbar>
             <Table {...getTableProps()} aria-label={t('unassignedPatients', 'Unassigned patients')}>
               <TableHead>
                 <TableRow>

@@ -11,12 +11,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
 } from '@carbon/react';
 import { formatDatetime, parseDate, showModal } from '@openmrs/esm-framework';
 import React, { useMemo, useState } from 'react';
+import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { useTranslation } from 'react-i18next';
 import { useIpdDischargeEncounter } from '../hooks/useIpdDischargeEncounter';
 import {
@@ -31,7 +29,7 @@ import styles from './ward-patient.scss';
 
 const DischargePatients = () => {
   const { t } = useTranslation();
-  const [search, setSearch] = useState('');
+  const search = useWardPatientSearch();
 
   const {
     encounters,
@@ -91,25 +89,12 @@ const DischargePatients = () => {
           getRowProps,
           getTableProps,
           getCellProps,
-          getToolbarProps,
           getTableContainerProps,
         }) => (
           <TableContainer
             title={t('dischargedPatientsTitle', 'Discharged patients')}
             description={t('dischargedPatientsDescription', 'Patients discharged from this ward.')}
             {...getTableContainerProps()}>
-            <TableToolbar {...getToolbarProps()}>
-              <TableToolbarContent>
-                <TableToolbarSearch
-                  persistent
-                  value={search}
-                  placeholder={t('searchPatients', 'Search patients')}
-                  onChange={(event, value) =>
-                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
-                  }
-                />
-              </TableToolbarContent>
-            </TableToolbar>
             <Table {...getTableProps()} aria-label={t('discharged', 'Discharged')}>
               <TableHead>
                 <TableRow>

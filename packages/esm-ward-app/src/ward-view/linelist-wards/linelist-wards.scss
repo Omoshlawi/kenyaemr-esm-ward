@@ -2,17 +2,47 @@
 @use '@openmrs/esm-styleguide/src/vars' as *;
 @use '@carbon/type';
 @use '@carbon/colors';
+@use '../ward-theme' as theme;
 
 // ------------Header styles----------------
 
 .pageHeader {
   @include type.type-style('body-compact-02');
-  height: layout.$spacing-12;
+  height: auto;
+  min-height: layout.$spacing-12;
   display: flex;
   justify-content: space-between;
-  padding: layout.$spacing-05;
-  background: colors.$white-0;
-  border-bottom: 1px solid colors.$gray-20;
+  align-items: flex-start;
+  gap: layout.$spacing-05;
+  padding: layout.$spacing-05 layout.$spacing-05 layout.$spacing-03;
+  background: transparent;
+}
+
+.pageHeaderContent {
+  gap: layout.$spacing-04;
+
+  p:first-of-type {
+    @include type.type-style('label-01');
+    color: $text-02;
+  }
+
+  p:last-of-type {
+    @include type.type-style('heading-04');
+    font-weight: type.font-weight('semibold');
+    color: $ui-05;
+  }
+}
+
+.pageIllustration {
+  width: layout.$spacing-09;
+  height: layout.$spacing-09;
+}
+
+.pageHeaderRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: layout.$spacing-03;
 }
 
 .pageHeaderActions {
@@ -22,12 +52,26 @@
   gap: layout.$spacing-02;
 }
 
+.headerLink:global(.cds--btn--ghost) {
+  color: $interactive-01;
+  min-height: layout.$spacing-07;
+  padding-inline: layout.$spacing-03;
+
+  svg {
+    fill: $interactive-01;
+  }
+
+  &:hover {
+    background-color: colors.$blue-10;
+    color: $interactive-01;
+  }
+}
+
 .leftJustifiedItems {
   display: flex;
   flex-direction: row;
   align-items: center;
   cursor: pointer;
-  align-items: center;
 }
 
 .pageLabels {
@@ -50,42 +94,150 @@
 //----------------- Filters styles-----------------
 .filtersContainer {
   display: flex;
-  flex: 1;
   flex-direction: row;
   justify-content: flex-end;
-  gap: layout.$spacing-02;
+  gap: layout.$spacing-03;
   align-items: center;
   margin-bottom: layout.$spacing-05;
   padding: 0 layout.$spacing-05;
+}
+
+.filtersInline {
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.filterIcon {
+  fill: $text-02;
+  flex-shrink: 0;
+}
+
+.datePicker {
+  flex: 0 0 auto;
+  width: auto;
+
+  :global(.cds--date-picker__input) {
+    width: layout.$spacing-13;
+    background-color: $ui-02;
+    border: 1px solid theme.$border;
+    border-radius: theme.$radius-sm;
+  }
 }
 
 // ----------------Metrics styles -------------------
 
 .metricsContainer {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: layout.$spacing-05;
   padding: 0 layout.$spacing-05;
   margin-bottom: layout.$spacing-05;
-}
 
-.metricCard {
-  position: relative;
-  border: colors.$gray-20 solid 1px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: layout.$spacing-05;
+  @media (max-width: $breakpoint-tablet-max) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
-  & > strong {
-    color: colors.$gray-60;
+  @media (max-width: $breakpoint-phone-max) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
+.metricCard {
+  display: flex;
+  align-items: center;
+  gap: layout.$spacing-04;
+  width: 100%;
+  padding: layout.$spacing-05;
+  background-color: $ui-02;
+  border: 1px solid theme.$border;
+  border-radius: theme.$radius;
+  box-shadow: theme.$shadow;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.metricCardButton {
+  cursor: pointer;
+  transition:
+    border-color 110ms ease,
+    box-shadow 110ms ease;
+
+  &:hover {
+    border-color: theme.$border-strong;
+    box-shadow: theme.$shadow-hover;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $interactive-01;
+    outline-offset: 2px;
+  }
+}
+
+.metricIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: layout.$spacing-08;
+  height: layout.$spacing-08;
+  border-radius: 50%;
+}
+
+@mixin tone($background, $foreground) {
+  background-color: $background;
+  color: $foreground;
+
+  svg {
+    fill: $foreground;
+  }
+}
+
+.toneBlue {
+  @include tone(colors.$blue-10, colors.$blue-60);
+}
+
+.toneGreen {
+  @include tone(colors.$green-10, colors.$green-60);
+}
+
+.toneOrange {
+  @include tone(colors.$orange-10, colors.$orange-50);
+}
+
+.tonePurple {
+  @include tone(colors.$purple-10, colors.$purple-60);
+}
+
+.toneTeal {
+  @include tone($brand-primary-10, $brand-01);
+}
+
+.metricBody {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  flex: 1;
+  min-width: 0;
+}
+
+.metricLabel {
+  @include type.type-style('label-01');
+  color: $text-02;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .metricValue {
-  color: colors.$gray-80;
-  margin-bottom: layout.$spacing-03;
-  font-size: x-large;
+  @include type.type-style('heading-04');
+  font-weight: type.font-weight('semibold');
+  color: $ui-05;
+}
+
+.metricChevron {
+  fill: $ui-04;
+  flex-shrink: 0;
 }
 
 // ------------- Data table styles --------------

@@ -11,13 +11,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
 } from '@carbon/react';
 import { formatDatetime, launchWorkspace2, parseDate, useAppContext, usePagination } from '@openmrs/esm-framework';
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
 import React, { useMemo, useState } from 'react';
+import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { useTranslation } from 'react-i18next';
 import { type WardPatient, type WardViewContext } from '../types';
 import { getOpenmrsId } from '../ward-view/ward-view.resource';
@@ -28,7 +26,7 @@ import styles from './ward-patient.scss';
 
 const AwaitingAdmissionPatients = () => {
   const { t } = useTranslation();
-  const [search, setSearch] = useState('');
+  const search = useWardPatientSearch();
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { inpatientRequests, isLoading, error } = wardPatientGroupDetails?.inpatientRequestResponse ?? {};
   const [pageSize, setPageSize] = useState(5);
@@ -102,7 +100,6 @@ const AwaitingAdmissionPatients = () => {
           getRowProps,
           getTableProps,
           getCellProps,
-          getToolbarProps,
           getTableContainerProps,
         }) => (
           <TableContainer
@@ -112,18 +109,6 @@ const AwaitingAdmissionPatients = () => {
               'Patients with a pending request to be admitted to this ward.',
             )}
             {...getTableContainerProps()}>
-            <TableToolbar {...getToolbarProps()}>
-              <TableToolbarContent>
-                <TableToolbarSearch
-                  persistent
-                  value={search}
-                  placeholder={t('searchPatients', 'Search patients')}
-                  onChange={(event, value) =>
-                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
-                  }
-                />
-              </TableToolbarContent>
-            </TableToolbar>
             <Table {...getTableProps()} aria-label={t('awaitingAdmission', 'Awaiting Admission')}>
               <TableHead>
                 <TableRow>

@@ -1,15 +1,16 @@
 import { InlineLoading, OverflowMenuItem, Tag } from '@carbon/react';
 import {
   ConfigurableLink,
+  fetchCurrentPatient,
   formatDatetime,
   parseDate,
   useConfig,
   useEmrConfiguration,
-  usePatient,
 } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import useSWR from 'swr';
 import { type WardConfigObject } from '../config-schema';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
 import { usePatientBills } from '../ward-workspace/kenya-emr-patient-discharge/patient-discharge.resource';
@@ -19,8 +20,19 @@ type CellProps = {
   patientUuid: string;
 };
 
+/**
+ * The framework's `usePatient(uuid)` resets its UUID from the URL path on every single-spa routing event, and the
+ * ward URL has no `/patient/<uuid>` segment, so switching wards would leave these cells with no patient.
+ */
+const usePatientByUuid = (patientUuid: string) => {
+  const { data, error } = useSWR<fhir.Patient | null, Error>(patientUuid ? ['patient', patientUuid] : null, () =>
+    fetchCurrentPatient(patientUuid, {}),
+  );
+  return { patient: data ?? undefined, error, isLoading: Boolean(patientUuid) && !error && data === undefined };
+};
+
 export const PatientAgeCell: FC<CellProps> = ({ patientUuid }) => {
-  const { isLoading, patient, error } = usePatient(patientUuid);
+  const { isLoading, patient, error } = usePatientByUuid(patientUuid);
   const age = useMemo(() => {
     if (!patient?.birthDate) return '--';
     return dayjs().diff(dayjs(patient.birthDate), 'years');
@@ -40,11 +52,11 @@ export const HyperLinkPatientCell: FC<CellProps & { patientName: string }> = ({ 
 };
 
 export const PatientGenderCell: FC<CellProps> = ({ patientUuid }) => {
-  const { isLoading, patient, error } = usePatient(patientUuid);
+  const { isLoading, patient, error } = usePatientByUuid(patientUuid);
 
   if (isLoading) return <InlineLoading />;
   if (error) return <p>--</p>;
-  return <div>{patient.gender}</div>;
+  return <div>{patient?.gender ?? '--'}</div>;
 };
 
 type PatientAdmissionCellProps = CellProps & {

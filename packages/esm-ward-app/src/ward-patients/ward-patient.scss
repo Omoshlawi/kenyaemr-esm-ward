@@ -1,16 +1,57 @@
 @use '@carbon/layout';
+@use '@carbon/type';
 @use '@openmrs/esm-styleguide/src/vars' as *;
 @use '@carbon/colors';
+@use '../ward-view/ward-theme' as theme;
 
 .empty {
   justify-content: center;
   align-items: center;
-  gap: layout.$spacing-03;
+  gap: layout.$spacing-04;
   display: flex;
   flex: 1;
   flex-direction: column;
   color: $text-02;
-  height: 200px;
+  min-height: layout.$spacing-13;
+  padding: layout.$spacing-07 layout.$spacing-05;
+  background-color: theme.$soft-background;
+  border: 1px solid theme.$border;
+  border-radius: theme.$radius;
+}
+
+.emptyIllustration {
+  width: layout.$spacing-12;
+  height: auto;
+}
+
+// Empty-bed illustration parts (see EmptyBedIllustration).
+.illustrationShadow {
+  fill: colors.$blue-10;
+}
+
+.illustrationPrimaryFill {
+  fill: colors.$blue-60;
+}
+
+.illustrationPrimaryStroke {
+  stroke: colors.$blue-60;
+}
+
+.illustrationSoftFill {
+  fill: colors.$blue-20;
+}
+
+.illustrationLineStroke {
+  stroke: colors.$blue-30;
+}
+
+.illustrationWhiteFill {
+  fill: colors.$white-0;
+}
+
+.emptyMessage {
+  @include type.type-style('body-compact-01');
+  color: $text-02;
 }
 
 .error {
@@ -21,15 +62,67 @@
   flex: 1;
   flex-direction: column;
   height: 200px;
+  border-radius: theme.$radius;
 }
 
 .tabContainer {
-  margin-block: layout.$spacing-04;
-  margin-inline: layout.$spacing-03;
+  margin-block: layout.$spacing-03 0;
+
+  :global(.cds--tabs) {
+    min-height: auto;
+    margin-bottom: layout.$spacing-04;
+  }
+
+  :global(.cds--tabs .cds--tab--list) {
+    gap: layout.$spacing-02;
+  }
+
+  // Light, rounded tabs; the selected tab is white with a teal underline.
+  :global(.cds--tabs.cds--tabs--contained .cds--tabs__nav-item) {
+    flex: 0 0 auto;
+    min-width: 0;
+    background-color: colors.$gray-10;
+    border-radius: theme.$radius-sm theme.$radius-sm 0 0;
+    box-shadow: none;
+    border: none;
+  }
+
+  :global(.cds--tabs.cds--tabs--contained .cds--tabs__nav-item + .cds--tabs__nav-item) {
+    box-shadow: none;
+  }
+
+  :global(.cds--tabs.cds--tabs--contained .cds--tabs__nav-link) {
+    @include type.type-style('label-01');
+    padding: layout.$spacing-03 layout.$spacing-05;
+    border: none;
+    color: $text-02;
+    box-shadow: none;
+  }
+
+  :global(.cds--tabs.cds--tabs--contained .cds--tabs__nav-item:hover) {
+    background-color: colors.$gray-20;
+  }
+
+  :global(.cds--tabs.cds--tabs--contained .cds--tabs__nav-item--selected),
+  :global(.cds--tabs.cds--tabs--contained .cds--tabs__nav-item--selected:hover) {
+    background-color: $ui-02;
+    box-shadow: inset 0 -2px 0 $brand-teal-01;
+  }
+
+  :global(.cds--tabs.cds--tabs--contained .cds--tabs__nav-item--selected .cds--tabs__nav-link) {
+    color: $brand-01;
+    font-weight: type.font-weight('semibold');
+  }
+
+  :global(.cds--tab-content) {
+    padding: 0;
+  }
 }
 
 .dataTableContainer {
-  border: 1px solid colors.$gray-20;
+  border: 1px solid theme.$border;
+  border-radius: theme.$radius;
+  overflow: hidden;
 
   :global(.cds--table-toolbar) {
     position: relative !important;

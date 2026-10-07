@@ -11,9 +11,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
 } from '@carbon/react';
 import {
   formatDatetime,
@@ -26,6 +23,7 @@ import {
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
 import dayjs from 'dayjs';
 import React, { useMemo, useState } from 'react';
+import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../config-schema';
 import { type WardPatient, type WardViewContext } from '../types';
@@ -34,7 +32,7 @@ import { HyperLinkPatientCell } from './patient-cells';
 import { EmptyState } from './table-state-components';
 import styles from './ward-patient.scss';
 const AdmittedPatients = () => {
-  const [search, setSearch] = useState('');
+  const search = useWardPatientSearch();
 
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { bedLayouts, wardAdmittedPatientsWithBed, isLoading } = wardPatientGroupDetails ?? {};
@@ -135,7 +133,6 @@ const AdmittedPatients = () => {
           getRowProps,
           getTableProps,
           getCellProps,
-          getToolbarProps,
           getTableContainerProps,
         }) => (
           <TableContainer
@@ -145,18 +142,6 @@ const AdmittedPatients = () => {
               'Patients currently admitted and assigned a bed in this ward.',
             )}
             {...getTableContainerProps()}>
-            <TableToolbar {...getToolbarProps()}>
-              <TableToolbarContent>
-                <TableToolbarSearch
-                  persistent
-                  value={search}
-                  placeholder={t('searchPatients', 'Search patients')}
-                  onChange={(event, value) =>
-                    setSearch(typeof event === 'object' && event?.target ? event.target.value : (value ?? ''))
-                  }
-                />
-              </TableToolbarContent>
-            </TableToolbar>
             <Table {...getTableProps()} aria-label={t('admitted', 'Admitted')}>
               <TableHead>
                 <TableRow>
