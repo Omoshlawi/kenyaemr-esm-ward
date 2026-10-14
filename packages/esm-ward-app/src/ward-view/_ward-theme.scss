@@ -1,0 +1,16 @@
+@use '@carbon/colors';
+@use '@carbon/layout';
+
+// Shared surface tokens for the ward view, built only from Carbon colors and spacing.
+// Carbon ships no radius or elevation tokens, so those are derived from spacing / gray-100 here.
+
+$border: colors.$gray-20;
+$border-strong: colors.$gray-30;
+$page-background: colors.$gray-10;
+$soft-background: colors.$cool-gray-10;
+
+$radius: layout.$spacing-03;
+$radius-sm: layout.$spacing-02;
+
+$shadow: 0 layout.$spacing-01 layout.$spacing-02 rgba(colors.$gray-100, 0.04);
+$shadow-hover: 0 layout.$spacing-01 layout.$spacing-03 rgba(colors.$gray-100, 0.1);

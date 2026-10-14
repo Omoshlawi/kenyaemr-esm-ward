@@ -21,3 +21,13 @@ export const WARD_PATIENTS_TAB_SLOTS = [
   WARD_PATIENTS_DISCHARGE_IN_SLOT,
   WARD_PATIENTS_DISCHARGED_SLOT,
 ] as const;
+
+/** Tab positions in the ward patients table (the optional critical-care tab follows `discharged`). */
+export const WARD_PATIENTS_TAB_INDEX = {
+  awaitingAdmission: 0,
+  admitted: 1,
+  unassigned: 2,
+  dischargeIn: 3,
+  discharged: 4,
+  criticalCare: 5,
+} as const;

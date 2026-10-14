@@ -10,8 +10,10 @@ import {
   WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
   WARD_PATIENTS_DISCHARGE_IN_SLOT,
   WARD_PATIENTS_DISCHARGED_SLOT,
+  WARD_PATIENTS_TAB_INDEX,
   WARD_PATIENTS_UNASSIGNED_SLOT,
 } from './ward-patients-slots';
+import { updateWardViewUi, useWardViewUi } from '../ward-view/ward-view-ui.store';
 
 import styles from './ward-patient.scss';
 
@@ -68,11 +70,17 @@ const CriticalCareTabPanel: React.FC<{
 const WardPatientsTable = () => {
   const { t } = useTranslation();
   const { tab: criticalCareTab, locationUuid } = useCriticalCareWardTab();
+  const storedTab = useWardViewUi((state) => state.selectedTab);
+  const lastTab = criticalCareTab ? WARD_PATIENTS_TAB_INDEX.criticalCare : WARD_PATIENTS_TAB_INDEX.discharged;
+  const selectedIndex = Math.min(storedTab, lastTab);
 
   return (
     <div className={styles.tabContainer}>
-      <Tabs onTabCloseRequest={() => {}}>
-        <TabList contained scrollDebounceWait={200}>
+      <Tabs
+        selectedIndex={selectedIndex}
+        onChange={({ selectedIndex: index }) => updateWardViewUi({ selectedTab: index })}
+        onTabCloseRequest={() => {}}>
+        <TabList contained scrollDebounceWait={200} aria-label={t('wardPatients', 'Ward Patients')}>
           <Tab>{t('awaitingAdmision', 'Awaiting Admission')}</Tab>
           <Tab>{t('admitted', 'Admitted')}</Tab>
           <Tab>{t('unassigned', 'Unassigned')}</Tab>

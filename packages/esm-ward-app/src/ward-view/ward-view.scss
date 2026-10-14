@@ -1,14 +1,19 @@
 @use '@carbon/layout';
+@use '@carbon/type';
 @use '@openmrs/esm-styleguide/src/vars' as *;
 @use '@carbon/colors';
+@use './ward-theme' as theme;
 
 .wardView {
   display: flex;
   flex-direction: column;
+  min-height: calc(100vh - var(--omrs-navbar-height, #{layout.$spacing-09}));
+  padding-bottom: layout.$spacing-07;
+  background-color: theme.$page-background;
 }
 
 .wardViewMain {
-  background-color: #e4e4e4;
+  background-color: colors.$gray-20;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   display: grid;
   gap: layout.$spacing-05;
@@ -17,7 +22,7 @@
     display: block;
     column-width: 280px;
     overflow-x: auto;
-    height: calc(100% - 4rem);
+    height: calc(100% - #{layout.$spacing-10});
 
     >div {
       break-inside: avoid;
@@ -28,12 +33,95 @@
 
 .wrapperContainer {
   margin: 0 layout.$spacing-05;
-  border: colors.$gray-20 solid 1px;
-  padding: 0;
-  background-color: colors.$white;
+  border: 1px solid theme.$border;
+  border-radius: theme.$radius;
+  box-shadow: theme.$shadow;
+  background-color: $ui-02;
+  overflow: hidden;
+}
+
+.wrapperHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: layout.$spacing-04;
+  padding: layout.$spacing-05 layout.$spacing-05 layout.$spacing-03;
+}
+
+.wrapperTitle {
+  @include type.type-style('heading-03');
+  display: flex;
+  align-items: center;
+  gap: layout.$spacing-03;
+  font-weight: type.font-weight('semibold');
+  color: $ui-05;
+}
+
+.wrapperTitleIcon {
+  fill: $brand-01;
+}
+
+.wrapperActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: layout.$spacing-04;
+}
+
+.search {
+  width: layout.$spacing-13 * 2;
+  max-width: 100%;
+
+  :global(.cds--search-input) {
+    background-color: $ui-02;
+    border: 1px solid theme.$border;
+    border-radius: theme.$radius-sm;
+  }
 }
 
 .switcher {
-  width: 150px;
-  margin-right: layout.$spacing-03;
+  width: auto;
+
+  :global(.cds--content-switcher-btn) {
+    min-width: layout.$spacing-12;
+    border-color: theme.$border;
+    background-color: $ui-02;
+    color: $ui-05;
+  }
+
+  :global(.cds--content-switcher-btn:first-child) {
+    border-radius: theme.$radius-sm 0 0 theme.$radius-sm;
+  }
+
+  :global(.cds--content-switcher-btn:last-child) {
+    border-radius: 0 theme.$radius-sm theme.$radius-sm 0;
+  }
+
+  // The KenyaEMR theme styles selected switches (light blue) with !important, so this scoped override needs it too.
+  &#{&} :global(.cds--content-switcher-btn.cds--content-switcher--selected),
+  &#{&} :global(.cds--content-switcher-btn.cds--content-switcher--selected:hover) {
+    background-color: $interactive-01 !important;
+    border-color: $interactive-01 !important;
+    color: $ui-02 !important;
+
+    &::after {
+      background-color: $interactive-01;
+    }
+
+    svg {
+      fill: $ui-02 !important;
+    }
+  }
+}
+
+.switchLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: layout.$spacing-03;
+}
+
+.wrapperBody {
+  padding: 0 layout.$spacing-05 layout.$spacing-05;
 }
