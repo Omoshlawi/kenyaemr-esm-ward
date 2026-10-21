@@ -21,7 +21,6 @@ type InpatientTabsProps = {
 };
 const INPATIENT_TABS_EXTENSION_SLOT = 'inpatient-dashboard-tabs-slot';
 
-
 const InpatientTabs: FC<InpatientTabsProps> = ({ patientUuid }) => {
   const { t } = useTranslation();
   const { admissionRequest } = useAdmissionRequest(patientUuid);
@@ -64,7 +63,6 @@ const InpatientTabs: FC<InpatientTabsProps> = ({ patientUuid }) => {
     );
   }, [assignedExtensions]);
 
-
   if (isLoading || isLoadingAdmission || isLoadingTags) {
     return <TabsSkeleton />;
   }
@@ -94,7 +92,6 @@ const InpatientTabs: FC<InpatientTabsProps> = ({ patientUuid }) => {
                     extensionId: ext.id,
                     extensionSlotName: INPATIENT_TABS_EXTENSION_SLOT,
                     extensionSlotModuleName: ext.moduleName,
-                    extensionMeta: ext.meta,
                   },
                 }}>
                 <Extension state={state} />
