@@ -73,36 +73,3 @@ export const useAdmissionLocationTags = (locationUuid?: string) => {
     mutate,
   };
 };
-/**
- * Show partography when the patient is female and admitted to a maternity or labour ward.
- * For demos, set bypassPartographAdmissionChecks to skip admission and ward-tag checks.
- */
-export const useShowPatography = (patient: fhir.Patient) => {
-  const isFemale = patient?.gender?.toLowerCase() === 'female';
-  const { inpatientLocationTags, bypassPartographAdmissionChecks } = useConfig<WardConfigObject>();
-
-  const {
-    admissionEncounter,
-    error: admissionError,
-    isLoading: isloadingAdmission,
-    isPatientAdmitted,
-  } = useCurrentPatientAdmissionEncounter(patient?.id);
-  const {
-    error: tagsError,
-    isLoading: isloadingTags,
-    tags,
-  } = useAdmissionLocationTags(admissionEncounter?.location?.uuid);
-
-  const admissionLocationIsAllowedWard = useMemo(() => {
-    const allowedWardTags = [inpatientLocationTags?.labourWard, inpatientLocationTags?.maternityWard].filter(Boolean);
-    return allowedWardTags.some((tagUuid) => tags.some((tag) => tag.uuid === tagUuid));
-  }, [inpatientLocationTags, tags]);
-
-  return {
-    isLoading: isloadingAdmission || isloadingTags,
-    error: admissionError ?? tagsError,
-    showPartography: bypassPartographAdmissionChecks
-      ? isFemale
-      : isFemale && isPatientAdmitted && admissionLocationIsAllowedWard,
-  };
-};
