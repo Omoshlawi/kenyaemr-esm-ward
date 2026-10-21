@@ -639,6 +639,11 @@ export const configSchema: ConfigSchema = {
     _type: Type.String,
     _default: '49f3686d-b83c-4263-a5a1-89040f643a78',
   },
+  cifFormUuid: {
+    _description: 'Case Identification finding form uuid',
+    _type: Type.String,
+    _default: '49f3686d-b83c-4263-a5a1-89040f643a78',
+  },
   conceptUuidForWardAdmission: {
     _description: 'Concept UUID for ward admission',
     _type: Type.Object,
@@ -924,6 +929,7 @@ export const configSchema: ConfigSchema = {
     _default: {
       maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
       labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
+      isolationWard: 'cc5cb426-5433-4e9a-ad22-456e6b627b05',
       // Official KenyaEMR critical-care location tag UUIDs (same at every facility).
       icuWard: '770f6a93-8e59-48ad-ba7d-98d5652db240',
       hduWard: '25439b2d-6495-4f5d-9ec6-4fe64686cf46',
@@ -1044,6 +1050,7 @@ export interface WardConfigObject {
   doctorsNoteEncounterType: string;
   admissionRequestFormUuid: string;
   admissionFormUuid: string;
+  cifFormUuid: string;
   inPatientForms: Array<{
     label: string;
     uuid: string;
@@ -1103,6 +1110,7 @@ export interface WardConfigObject {
     nicuWard: string;
     picuWard: string;
     pediatricWard: string;
+    isolationWard: string;
   };
   bypassPartographAdmissionChecks: boolean;
   treatmentChartCardexEncounterTypeUuid: string;

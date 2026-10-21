@@ -2,8 +2,6 @@ import { type Encounter, type FetchResponse, openmrsFetch, restBaseUrl, useConfi
 import useSWR from 'swr';
 import type { WardConfigObject } from '../config-schema';
 import type { InpatientRequest as AdmissionRequest } from '../types';
-import useCurrentPatientAdmissionEncounter from '../hooks/useCurrentPatientAdmissionEncounter';
-import { useMemo } from 'react';
 
 export const usePatientEncounters = (patientUuid: string) => {
   const { inPatientForms } = useConfig<WardConfigObject>();

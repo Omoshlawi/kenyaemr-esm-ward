@@ -9,6 +9,7 @@ import { configSchema } from './config-schema';
 import { moduleName } from './constant';
 import { createDashboardLink } from './createDashboardLink.component';
 import { inPatientMeta } from './in-patient/in-patient.meta';
+export * from './in-patient/ebola';
 
 export const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 

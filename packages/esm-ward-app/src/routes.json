@@ -194,6 +194,39 @@
       "order": 0,
       "online": true,
       "offline": false
+    },
+    {
+      "name": "case-identification-finding",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "caseIdentificationFinding",
+      "meta":{
+          "title": "cif"
+       },
+      "order": 0,
+      "online": true,
+      "offline": false
+    },
+    {
+      "name": "contact-listing",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "contactListing",
+      "meta":{
+          "title": "contactListing"
+       },
+      "order": 0,
+      "online": true,
+      "offline": false
+    },
+    {
+      "name": "case-followup",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "caseFollowUp",
+      "meta":{
+          "title": "caseFollowup"
+       },
+      "order": 0,
+      "online": true,
+      "offline": false
     }
   ],
   "modals": [
