@@ -237,6 +237,13 @@
   min-width: 0;
 }
 
+.doseProgressText {
+  margin: layout.$spacing-02 0 0;
+  color: colors.$gray-70;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
 .orderNameCell :global(.cds--checkbox-label),
 .orderNameCell :global(.cds--checkbox-label-text),
 .orderNameCell :global(.bx--checkbox-label),

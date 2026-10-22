@@ -7,16 +7,21 @@ type UuidDisplayResource = {
   display?: string;
 };
 
+type OrderFrequency = (Order['frequency'] | UuidDisplayResource) & {
+  frequencyPerDay?: number | string | null;
+};
+
 export type MedicationOrder = Pick<Order, 'uuid'> &
   Partial<Pick<Order, 'display' | 'dose' | 'quantity' | 'duration'>> & {
     dateActivated?: string | null;
     scheduledDate?: string | null;
     dateStopped?: string | null;
     autoExpireDate?: string | null;
+    asNeeded?: boolean | null;
     drug?: Order['drug'] | UuidDisplayResource | null;
     doseUnits?: Order['doseUnits'] | UuidDisplayResource | null;
     route?: Order['route'] | UuidDisplayResource | null;
-    frequency?: Order['frequency'] | UuidDisplayResource | null;
+    frequency?: OrderFrequency | null;
     quantityUnits?: Order['quantityUnits'] | UuidDisplayResource | null;
     durationUnits?: Order['durationUnits'] | UuidDisplayResource | null;
     orderer?:
@@ -40,6 +45,21 @@ const drugOrderTypeUuid = '131168f4-15f5-102d-96e4-000c29c2a5d7';
 
 export const getOrderLabel = (order: MedicationOrder) => order?.drug?.display?.trim() || order?.display?.trim() || '';
 
+export const getOrderAdministrationSummary = (order?: MedicationOrder | null) => {
+  if (!order) {
+    return '';
+  }
+
+  const dose = [order.dose, order.doseUnits?.display]
+    .map((value) => (value ?? '').toString().trim())
+    .filter(Boolean)
+    .join(' ');
+  const route = order.route?.display?.trim() ?? '';
+  const frequency = order.frequency?.display?.trim() ?? '';
+
+  return [dose, route, frequency].filter(Boolean).join(' · ');
+};
+
 const parseValidDate = (value?: string | null) => {
   if (!value) {
     return null;
@@ -49,8 +69,7 @@ const parseValidDate = (value?: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const isActiveMedicationOrder = (order: MedicationOrder) => {
-  const now = new Date();
+export const isActiveMedicationOrder = (order: MedicationOrder, now = new Date()) => {
   const autoExpireDate = parseValidDate(order.autoExpireDate);
   const dateStopped = parseValidDate(order.dateStopped);
 
@@ -65,6 +84,12 @@ const isActiveMedicationOrder = (order: MedicationOrder) => {
   return true;
 };
 
+const byNewestActivated = (left: MedicationOrder, right: MedicationOrder) => {
+  const leftTime = parseValidDate(left.dateActivated)?.getTime() ?? 0;
+  const rightTime = parseValidDate(right.dateActivated)?.getTime() ?? 0;
+  return rightTime - leftTime;
+};
+
 export function useActiveMedicationOrders(patientUuid?: string) {
   const medicationOrdersUrl = patientUuid
     ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&status=active&orderType=${drugOrderTypeUuid}&v=full`
@@ -72,7 +97,10 @@ export function useActiveMedicationOrders(patientUuid?: string) {
 
   const { data, isLoading } = useSWR<FetchResponse<MedicationOrderResponse>>(medicationOrdersUrl, openmrsFetch);
 
-  const orders = useMemo(() => (data?.data?.results ?? []).filter(isActiveMedicationOrder), [data]);
+  const orders = useMemo(
+    () => (data?.data?.results ?? []).filter((order) => isActiveMedicationOrder(order)).sort(byNewestActivated),
+    [data],
+  );
 
   const options = useMemo<Array<OrderOption>>(() => {
     const seen = new Set<string>();
@@ -100,13 +128,16 @@ export function useActiveMedicationOrders(patientUuid?: string) {
 
   const byUuid = useMemo(() => new Map(orders.map((order) => [order.uuid, order])), [orders]);
 
-  const byName = useMemo(
-    () =>
-      new Map(
-        orders.map((order) => [getOrderLabel(order).toLowerCase(), order] as const).filter(([label]) => Boolean(label)),
-      ),
-    [orders],
-  );
+  const byName = useMemo(() => {
+    const map = new Map<string, MedicationOrder>();
+    orders.forEach((order) => {
+      const label = getOrderLabel(order).toLowerCase();
+      if (label && !map.has(label)) {
+        map.set(label, order);
+      }
+    });
+    return map;
+  }, [orders]);
 
   return {
     isLoading,

@@ -28,9 +28,20 @@ import { useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useSWRConfig } from 'swr';
 import { type WardConfigObject } from '../../config-schema';
-import { saveNursingCardexEncounter, useActiveMedicationOrders } from './nursing-cardex-plan.resource';
+import {
+  getOrderAdministrationSummary,
+  saveNursingCardexEncounter,
+  useActiveMedicationOrders,
+  type MedicationOrder,
+  type OrderOption,
+} from './nursing-cardex-plan.resource';
 import { buildNursingCardexEncounterPayload } from './nursing-cardex-payload-builder';
-import { isTreatmentChartOrderLocked, useNursingTreatmentSheet } from './nursing-treatment-sheet.resource';
+import {
+  getDailyAdministrationLimit,
+  getTodayAdministrationCount,
+  isTreatmentChartOrderLocked,
+  useNursingTreatmentSheet,
+} from './nursing-treatment-sheet.resource';
 import { useNursingCardexFormSchema, type CardexFormValues } from './use-nursing-cardex-form-schema';
 import styles from './nursing-cardex-plan.workspace.scss';
 
@@ -112,9 +123,51 @@ const NursingCardexPlanWorkspace: React.FC<
     isLoading: isLoadingTreatmentSheetHistory,
   } = useNursingTreatmentSheet(patientUuid ?? '');
 
+  const resolveOrderForOption = useCallback(
+    (option: OrderOption, row?: AdministrationRow): MedicationOrder | undefined => {
+      if (option.id) {
+        const byId = medicationOrdersByUuid.get(option.id);
+        if (byId) {
+          return byId;
+        }
+      }
+
+      const fallbackName = (row?.name ?? option.label).trim().toLowerCase();
+      return fallbackName ? medicationOrdersByName.get(fallbackName) : undefined;
+    },
+    [medicationOrdersByName, medicationOrdersByUuid],
+  );
+
+  const getOrderDailyLimit = useCallback(
+    (option: OrderOption, row?: AdministrationRow) => {
+      const order = resolveOrderForOption(option, row);
+      if (order?.asNeeded) {
+        return Number.POSITIVE_INFINITY;
+      }
+
+      return getDailyAdministrationLimit(order?.frequency);
+    },
+    [resolveOrderForOption],
+  );
+
   const isOrderOptionLocked = useCallback(
-    (option: { id: string; label: string }, fieldName: 'medicationRows' | 'fluidRows') =>
-      isTreatmentChartOrderLocked(option, fieldName, administeredMedicationOrders, administeredFluidOrders),
+    (option: OrderOption, fieldName: 'medicationRows' | 'fluidRows', row?: AdministrationRow) =>
+      isTreatmentChartOrderLocked(
+        option,
+        fieldName,
+        administeredMedicationOrders,
+        administeredFluidOrders,
+        getOrderDailyLimit(option, row),
+      ),
+    [administeredFluidOrders, administeredMedicationOrders, getOrderDailyLimit],
+  );
+
+  const getGivenTodayCount = useCallback(
+    (option: OrderOption, fieldName: 'medicationRows' | 'fluidRows') =>
+      getTodayAdministrationCount(
+        option,
+        fieldName === 'medicationRows' ? administeredMedicationOrders : administeredFluidOrders,
+      ),
     [administeredFluidOrders, administeredMedicationOrders],
   );
 
@@ -243,29 +296,19 @@ const NursingCardexPlanWorkspace: React.FC<
       });
 
       const lockedMedicationRow = values.medicationRows.find((row) =>
-        isTreatmentChartOrderLocked(
-          resolveOrderOption(row),
-          'medicationRows',
-          administeredMedicationOrders,
-          administeredFluidOrders,
-        ),
+        isOrderOptionLocked(resolveOrderOption(row), 'medicationRows', row),
       );
       const lockedFluidRow = values.fluidRows.find((row) =>
-        isTreatmentChartOrderLocked(
-          resolveOrderOption(row),
-          'fluidRows',
-          administeredMedicationOrders,
-          administeredFluidOrders,
-        ),
+        isOrderOptionLocked(resolveOrderOption(row), 'fluidRows', row),
       );
 
       if (lockedMedicationRow || lockedFluidRow) {
         showSnackbar({
-          title: t('duplicateMedicationNotAllowed', 'Duplicate medication'),
+          title: t('dailyDoseExhausted', 'Daily dose complete'),
           kind: 'error',
           subtitle: t(
-            'duplicateMedicationNotAllowedDescription',
-            'One or more selected items were already recorded in this section on the treatment sheet.',
+            'dailyDoseExhaustedDescription',
+            'One or more selected items have already been given the allowed number of times today.',
           ),
         });
         return;
@@ -322,8 +365,7 @@ const NursingCardexPlanWorkspace: React.FC<
       closeWorkspace,
       clearErrors,
       setIsSubmittingEncounter,
-      administeredFluidOrders,
-      administeredMedicationOrders,
+      isOrderOptionLocked,
       medicationOrderOptions,
       mutateCache,
       t,
@@ -436,14 +478,18 @@ const NursingCardexPlanWorkspace: React.FC<
           {medicationOrderOptions.map((option) => {
             const selectedRowIndex = rows.findIndex((row) => row.orderUuid === option.id || row.name === option.label);
             const selectedRow = selectedRowIndex >= 0 ? rows[selectedRowIndex] : undefined;
-            const isLocked = isOrderOptionLocked(option, fieldName);
+            const dailyLimit = getOrderDailyLimit(option, selectedRow);
+            const givenToday = getGivenTodayCount(option, fieldName);
+            const isLocked = isOrderOptionLocked(option, fieldName, selectedRow);
+            const orderSummary = getOrderAdministrationSummary(resolveOrderForOption(option, selectedRow));
             const rowClassName =
               isLocked && !selectedRow
                 ? `${styles.orderCheckboxRow} ${styles.orderCheckboxRowLocked}`
                 : styles.orderCheckboxRow;
             const lockedTitle = t(
-              'medicationAlreadyRecorded',
-              'Already recorded on the treatment sheet and cannot be selected again.',
+              'dailyDoseComplete',
+              "Today's doses are complete ({{given}} of {{limit}}). This can be given again tomorrow.",
+              { given: givenToday, limit: dailyLimit },
             );
 
             return (
@@ -476,6 +522,18 @@ const NursingCardexPlanWorkspace: React.FC<
                       );
                     }}
                   />
+                  {(orderSummary || Number.isFinite(dailyLimit)) && (
+                    <p className={styles.doseProgressText}>
+                      {orderSummary}
+                      {orderSummary && Number.isFinite(dailyLimit) ? ' · ' : ''}
+                      {Number.isFinite(dailyLimit)
+                        ? t('dailyDoseProgress', '{{given}} of {{limit}} given today', {
+                            given: givenToday,
+                            limit: dailyLimit,
+                          })
+                        : ''}
+                    </p>
+                  )}
                 </div>
                 {selectedRow && (
                   <Layer className={styles.checkboxTimeField}>
