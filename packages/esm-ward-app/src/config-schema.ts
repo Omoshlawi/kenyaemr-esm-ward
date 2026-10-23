@@ -642,7 +642,7 @@ export const configSchema: ConfigSchema = {
   cifFormUuid: {
     _description: 'Case Identification finding form uuid',
     _type: Type.String,
-    _default: '49f3686d-b83c-4263-a5a1-89040f643a78',
+    _default: '47352c6c-af86-4996-81fe-bb9c224fe80b',
   },
   conceptUuidForWardAdmission: {
     _description: 'Concept UUID for ward admission',
@@ -942,7 +942,7 @@ export const configSchema: ConfigSchema = {
     _type: Type.Boolean,
     _description:
       'Demo flag. When true, skip admission and labour-ward tag checks and show partograph for female patients. Set to false for production.',
-    _default: true,
+    _default: false,
   },
   treatmentChartCardexEncounterTypeUuid: {
     _description: 'Encounter type uuid for the cardex section of the treatment sheet',
