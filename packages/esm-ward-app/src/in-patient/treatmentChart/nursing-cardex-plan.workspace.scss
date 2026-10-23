@@ -244,6 +244,18 @@
   line-height: 1.25;
 }
 
+.addAnotherTimeButton {
+  margin-top: layout.$spacing-02;
+  min-height: 1.75rem;
+  padding-inline: 0;
+}
+
+.selectedTimesColumn {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-03;
+}
+
 .orderNameCell :global(.cds--checkbox-label),
 .orderNameCell :global(.cds--checkbox-label-text),
 .orderNameCell :global(.bx--checkbox-label),

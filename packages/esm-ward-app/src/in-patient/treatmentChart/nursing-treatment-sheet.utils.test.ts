@@ -3,6 +3,7 @@ import { extractAdministeredOrderKeys } from './nursing-treatment-sheet.resource
 import {
   createEmptyAdministeredOrderKeys,
   getDailyAdministrationLimit,
+  getRemainingAdministrationsToday,
   getTodayAdministrationCount,
   getTodayDateKey,
   incrementAdministeredOrderCount,
@@ -32,6 +33,29 @@ describe('getDailyAdministrationLimit', () => {
     expect(getDailyAdministrationLimit('3 times a day')).toBe(3);
     expect(getDailyAdministrationLimit('Every 8 hours')).toBe(3);
     expect(getDailyAdministrationLimit('Q6H')).toBe(4);
+    expect(getDailyAdministrationLimit('Deux fois par jour')).toBe(2);
+    expect(getDailyAdministrationLimit('2 fois par jour')).toBe(2);
+  });
+
+  it('prefers frequencyPerDay over a once-daily looking display name', () => {
+    expect(
+      getDailyAdministrationLimit({
+        display: 'Once daily, in the morning',
+        frequencyPerDay: 2,
+      }),
+    ).toBe(2);
+  });
+
+  it('uses a countable prescribed dose as the daily limit, e.g. 2 Application once daily', () => {
+    expect(getDailyAdministrationLimit('Once daily, in the morning', null, 2, 'Application')).toBe(2);
+    expect(getDailyAdministrationLimit('Once daily, in the morning', null, 3, 'Tablet')).toBe(3);
+    expect(getDailyAdministrationLimit({ display: 'Once daily', frequencyPerDay: 1 }, null, 2, 'Application')).toBe(2);
+  });
+
+  it('does not treat mass or volume amounts as times per day', () => {
+    expect(getDailyAdministrationLimit('Once daily', null, 500, 'mg')).toBe(1);
+    expect(getDailyAdministrationLimit('Three times daily', null, 1, 'g')).toBe(3);
+    expect(getDailyAdministrationLimit({ frequencyPerDay: 3 }, null, 1, 'g')).toBe(3);
   });
 
   it('does not cap PRN administrations', () => {
@@ -58,6 +82,15 @@ describe('asNeeded orders', () => {
   });
 });
 
+describe('getRemainingAdministrationsToday', () => {
+  it('subtracts already given and currently selected times from the daily limit', () => {
+    expect(getRemainingAdministrationsToday(1, 0, 3)).toBe(2);
+    expect(getRemainingAdministrationsToday(1, 1, 3)).toBe(1);
+    expect(getRemainingAdministrationsToday(2, 1, 3)).toBe(0);
+    expect(getRemainingAdministrationsToday(1, 0, Number.POSITIVE_INFINITY)).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
 describe('toLocalDateKey', () => {
   it('reads a leading calendar date from stored observation values', () => {
     expect(toLocalDateKey('2026-10-21 08:15:00')).toBe('2026-10-21');
@@ -80,21 +113,23 @@ describe('isTreatmentChartOrderLocked', () => {
     expect(isTreatmentChartOrderLocked(option, 'medicationRows', administered, emptyFluids, 3)).toBe(true);
   });
 
-  it('uses the revised order uuid so a dose change can be given again the same day', () => {
+  it('applies a revised dose as the new daily cap minus doses already given today', () => {
     const administered = createEmptyAdministeredOrderKeys();
     incrementAdministeredOrderCount(administered, 'panadol-old', 'Panadol');
     incrementAdministeredOrderCount(administered, 'panadol-old', 'Panadol');
-    incrementAdministeredOrderCount(administered, 'panadol-old', 'Panadol');
 
-    expect(
-      isTreatmentChartOrderLocked(
-        { id: 'panadol-new', label: 'Panadol' },
-        'medicationRows',
-        administered,
-        emptyFluids,
-        2,
-      ),
-    ).toBe(false);
+    const revised = { id: 'panadol-new', label: 'Panadol' };
+
+    expect(getTodayAdministrationCount(revised, administered)).toBe(2);
+    expect(getRemainingAdministrationsToday(2, 0, 4)).toBe(2);
+    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, 4)).toBe(false);
+
+    incrementAdministeredOrderCount(administered, 'panadol-new', 'Panadol');
+    incrementAdministeredOrderCount(administered, 'panadol-new', 'Panadol');
+
+    expect(getTodayAdministrationCount(revised, administered)).toBe(4);
+    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, 4)).toBe(true);
+    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, 6)).toBe(false);
   });
 
   it('does not lock PRN orders after they have already been given', () => {
@@ -210,7 +245,8 @@ describe('extractAdministeredOrderKeys', () => {
     );
 
     expect(getTodayAdministrationCount({ id: 'panadol-order', label: 'Panadol' }, administered)).toBe(2);
-    expect(getTodayAdministrationCount({ id: 'other-order', label: 'Panadol' }, administered)).toBe(0);
+    expect(getTodayAdministrationCount({ id: 'revised-order', label: 'Panadol' }, administered)).toBe(2);
+    expect(getTodayAdministrationCount({ id: 'other-drug', label: 'Ibuprofen' }, administered)).toBe(0);
   });
 });
 

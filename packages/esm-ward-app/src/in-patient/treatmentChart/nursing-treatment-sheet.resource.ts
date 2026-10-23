@@ -14,6 +14,7 @@ import { t } from 'i18next';
 
 export {
   getDailyAdministrationLimit,
+  getRemainingAdministrationsToday,
   getTodayAdministrationCount,
   isTreatmentChartOrderLocked,
   type AdministeredOrderKeys,

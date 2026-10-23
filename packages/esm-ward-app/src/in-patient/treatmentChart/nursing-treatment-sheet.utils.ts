@@ -79,19 +79,57 @@ export function incrementAdministeredOrderCount(
   }
 }
 
+const MASS_OR_VOLUME_UNITS =
+  /\b(mg|mcg|µg|ug|microgram|gram|kg|ml|millilitre|milliliter|litre|liter|iu|mmol|meq)\b/i;
+const COUNTABLE_DOSE_UNITS =
+  /\b(application|tablet|tab|capsule|cap|caplet|drop|puff|spray|dose|suppositor|ampoule|ampule|vial|lozenge|sachet|times?)\b/i;
+
 /**
- * Daily administrations allowed by the current order frequency.
- * PRN / as-needed orders are unlimited. Unknown frequencies default to once daily.
+ * When the prescribed dose is a whole number of applications/tablets (e.g. "2 Application"),
+ * that number is how many times the drug may be given today.
  */
-export function getDailyAdministrationLimit(frequency?: FrequencyLike): number {
-  if (frequency == null || frequency === '') {
-    return 1;
+export function getCountableDailyDoses(dose?: number | string | null, doseUnits?: string | null): number | null {
+  const amount = Number(dose);
+  if (!Number.isFinite(amount) || amount < 1 || amount > 24) {
+    return null;
   }
 
-  const display = typeof frequency === 'string' ? frequency : (frequency.display ?? '');
-  const normalized = display.trim().toLowerCase();
+  const rounded = Math.round(amount);
+  if (Math.abs(amount - rounded) > 0.01) {
+    return null;
+  }
+
+  const units = (doseUnits ?? '').trim();
+  if (!units) {
+    return null;
+  }
+
+  if (units === '%' || units.toLowerCase() === 'g' || MASS_OR_VOLUME_UNITS.test(units)) {
+    return null;
+  }
+
+  if (COUNTABLE_DOSE_UNITS.test(units)) {
+    return rounded;
+  }
+
+  return null;
+}
+
+/**
+ * Daily administrations allowed for an order.
+ * Uses the prescribed dose count when it is a countable number of applications/tablets,
+ * otherwise the frequency (e.g. TDS). PRN is unlimited.
+ */
+export function getDailyAdministrationLimit(
+  frequency?: FrequencyLike,
+  extraText?: string | null,
+  dose?: number | string | null,
+  doseUnits?: string | null,
+): number {
+  const display = typeof frequency === 'string' ? frequency : (frequency?.display ?? '');
+  const normalized = [display, extraText ?? ''].join(' ').trim().toLowerCase();
   const frequencyPerDay =
-    typeof frequency === 'object' && frequency.frequencyPerDay != null && frequency.frequencyPerDay !== ''
+    typeof frequency === 'object' && frequency?.frequencyPerDay != null && frequency.frequencyPerDay !== ''
       ? Number(frequency.frequencyPerDay)
       : Number.NaN;
 
@@ -99,53 +137,62 @@ export function getDailyAdministrationLimit(frequency?: FrequencyLike): number {
     return Number.POSITIVE_INFINITY;
   }
 
-  if (Number.isFinite(frequencyPerDay) && frequencyPerDay > 0) {
-    return Math.max(1, Math.round(frequencyPerDay));
-  }
+  let frequencyLimit = 1;
 
-  const everyHoursMatch = normalized.match(/(?:every\s+(\d+(?:\.\d+)?)\s*hours?|\bq(\d+)h\b)/i);
-  if (everyHoursMatch) {
-    const hours = Number(everyHoursMatch[1] ?? everyHoursMatch[2]);
-    if (hours > 0 && hours <= 24) {
-      return Math.max(1, Math.round(24 / hours));
+  if (Number.isFinite(frequencyPerDay) && frequencyPerDay > 0) {
+    frequencyLimit = Math.max(1, Math.round(frequencyPerDay));
+  } else {
+    const everyHoursMatch = normalized.match(/(?:every\s+(\d+(?:\.\d+)?)\s*hours?|\bq(\d+)h\b)/i);
+    if (everyHoursMatch) {
+      const hours = Number(everyHoursMatch[1] ?? everyHoursMatch[2]);
+      if (hours > 0 && hours <= 24) {
+        frequencyLimit = Math.max(1, Math.round(24 / hours));
+      }
+    } else {
+      const timesADayMatch = normalized.match(
+        /(\d+(?:\.\d+)?)\s*(?:times?|x|fois)\s*(?:a|per|par)?\s*(?:day|jour|siku)?/,
+      );
+      if (timesADayMatch) {
+        frequencyLimit = Math.max(1, Math.round(Number(timesADayMatch[1])));
+      } else if (/\b(qds|qid|four times|quatre fois)\b/.test(normalized)) {
+        frequencyLimit = 4;
+      } else if (/\b(tds|tid|three times|trois fois)\b/.test(normalized)) {
+        frequencyLimit = 3;
+      } else if (/\b(bd|bid|twice|deux fois)\b/.test(normalized)) {
+        frequencyLimit = 2;
+      } else if (/\b(stat|immediately|od|once daily|once a day|once per day|once|daily|une fois)\b/.test(normalized)) {
+        frequencyLimit = 1;
+      }
     }
   }
 
-  const timesADayMatch = normalized.match(/(\d+(?:\.\d+)?)\s*times?\s*(?:a|per)?\s*day/);
-  if (timesADayMatch) {
-    return Math.max(1, Math.round(Number(timesADayMatch[1])));
+  const doseCount = getCountableDailyDoses(dose, doseUnits);
+  if (doseCount != null) {
+    return Math.max(frequencyLimit, doseCount);
   }
 
-  if (/\b(qds|qid|four times)\b/.test(normalized)) {
-    return 4;
-  }
-  if (/\b(tds|tid|three times)\b/.test(normalized)) {
-    return 3;
-  }
-  if (/\b(bd|bid|twice)\b/.test(normalized)) {
-    return 2;
-  }
-  if (/\b(stat|immediately|od|once daily|once a day|once per day|once|daily)\b/.test(normalized)) {
-    return 1;
+  return frequencyLimit;
+}
+
+export function getRemainingAdministrationsToday(givenToday: number, selectedCount: number, dailyLimit: number) {
+  if (!Number.isFinite(dailyLimit)) {
+    return Number.POSITIVE_INFINITY;
   }
 
-  return 1;
+  return Math.max(0, dailyLimit - givenToday - selectedCount);
 }
 
 export function getTodayAdministrationCount(
   option: TreatmentChartOrderOption,
   administered: AdministeredOrderKeys,
 ): number {
-  if (option.id) {
-    return administered.todayCountsByOrderUuid.get(option.id) ?? 0;
-  }
-
+  const byOrder = option.id ? (administered.todayCountsByOrderUuid.get(option.id) ?? 0) : 0;
   const labelKey = option.label.trim().toLowerCase();
-  if (!labelKey) {
-    return 0;
-  }
+  const byLabel = labelKey ? (administered.todayCountsByLabel.get(labelKey) ?? 0) : 0;
 
-  return administered.todayCountsByLabel.get(labelKey) ?? 0;
+  // Count the same drug across a revised order (dose 2 → 4) so remaining is
+  // newLimit - already given today, not newLimit added on top of the old dose.
+  return Math.max(byOrder, byLabel);
 }
 
 export function isTreatmentChartOrderLocked(

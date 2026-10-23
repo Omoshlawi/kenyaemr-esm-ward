@@ -101,7 +101,7 @@ export function createAndGetWardPatientGrouping(
   let wardPatientPendingCount = 0;
   bedLayouts?.map((bedLayout) => {
     const { patients } = bedLayout;
-    patients.map((patient) => {
+    (patients ?? []).map((patient) => {
       const admission = inpatientAdmissionsByPatientUuid.get(patient.uuid);
       allWardPatientUuids.add(patient.uuid);
       if (admission?.currentInpatientLocation?.uuid == currentWardLocation.uuid) {

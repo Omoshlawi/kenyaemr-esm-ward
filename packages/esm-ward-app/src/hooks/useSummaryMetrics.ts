@@ -2,7 +2,9 @@ import { type OpenmrsResource, restBaseUrl, useConfig, useOpenmrsFetchAll } from
 import { useMemo } from 'react';
 import type { WardConfigObject } from '../config-schema';
 import type { AdmissionLocationFetchResponse } from '../types';
+import { excludeAdmittedIsolationSuspects, useEbolaIsolationSuspects } from './useEbolaIsolationSuspects';
 import { useIpdDischargeEncounter } from './useIpdDischargeEncounter';
+import { useIsIsolationWard } from './useIsIsolationWard';
 import { useWardPatientGrouping } from './useWardPatientGrouping';
 
 export const useWardsSummaryMetrics = () => {
@@ -91,10 +93,18 @@ export const useWardSummaryMetrics = () => {
     });
     return { admittedPatients, dischargeInPatients };
   }, [wardPatientGroupDetails, config]);
-  const awaitingAdmissionPatient = useMemo(
-    () => wardPatientGroupDetails.inpatientRequestResponse?.inpatientRequests?.length ?? 0,
-    [wardPatientGroupDetails],
-  );
+  const { isIsolationWard } = useIsIsolationWard();
+  const { suspects } = useEbolaIsolationSuspects(isIsolationWard);
+  const awaitingAdmissionPatient = useMemo(() => {
+    if (isIsolationWard) {
+      return excludeAdmittedIsolationSuspects(
+        suspects,
+        wardPatientGroupDetails?.wardAdmittedPatientsWithBed?.keys(),
+        wardPatientGroupDetails?.wardUnassignedPatientsList,
+      ).length;
+    }
+    return wardPatientGroupDetails.inpatientRequestResponse?.inpatientRequests?.length ?? 0;
+  }, [isIsolationWard, suspects, wardPatientGroupDetails]);
   return {
     dischargedPatients,
     admittedPatients,

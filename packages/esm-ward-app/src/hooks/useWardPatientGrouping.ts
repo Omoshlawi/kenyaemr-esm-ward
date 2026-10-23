@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { createAndGetWardPatientGrouping } from '../ward-view/ward-view.resource';
 import { useAdmissionLocation } from './useAdmissionLocation';
 import { useInpatientAdmission } from './useInpatientAdmission';
-import { useInpatientRequest } from './useInpatientRequest';
 import { useInpatientAdmissionByPatients } from './useInpatientAdmissionByPatients';
+import { useInpatientRequest } from './useInpatientRequest';
 import useWardLocation from './useWardLocation';
 
 export function useWardPatientGrouping(overrideLocation?: string) {
@@ -24,8 +24,8 @@ export function useWardPatientGrouping(overrideLocation?: string) {
     if (admissionLocation && inpatientAdmissions && inpatientRequests) {
       const _patientsNotInCurrentWard = new Set<string>();
 
-      for (const bedLayout of admissionLocation.bedLayouts) {
-        for (const bedPatient of bedLayout.patients) {
+      for (const bedLayout of admissionLocation.bedLayouts ?? []) {
+        for (const bedPatient of bedLayout.patients ?? []) {
           _patientsNotInCurrentWard.add(bedPatient.uuid);
         }
       }

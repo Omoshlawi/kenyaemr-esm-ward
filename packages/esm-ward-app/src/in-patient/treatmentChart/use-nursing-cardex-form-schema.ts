@@ -35,13 +35,7 @@ export function useNursingCardexFormSchema(currentTimeMax: string, t: Translator
       })
       .superRefine((values, context) => {
         if (values.medicationAdministered === 'yes') {
-          if (!values.medicationRows.length) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['medicationRows'],
-              message: t('medicationRowRequired', 'Add at least one medication row.'),
-            });
-          } else if (values.medicationRows.some((row) => !row.name?.trim() || !row.time?.trim())) {
+          if (values.medicationRows.some((row) => !row.name?.trim() || !row.time?.trim())) {
             context.addIssue({
               code: z.ZodIssueCode.custom,
               path: ['medicationRows'],
@@ -57,13 +51,7 @@ export function useNursingCardexFormSchema(currentTimeMax: string, t: Translator
         }
 
         if (values.fluidsAdministered === 'yes') {
-          if (!values.fluidRows.length) {
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['fluidRows'],
-              message: t('fluidRowRequired', 'Add at least one fluid row.'),
-            });
-          } else if (values.fluidRows.some((row) => !row.name?.trim() || !row.time?.trim())) {
+          if (values.fluidRows.some((row) => !row.name?.trim() || !row.time?.trim())) {
             context.addIssue({
               code: z.ZodIssueCode.custom,
               path: ['fluidRows'],

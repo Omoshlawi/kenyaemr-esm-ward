@@ -38,6 +38,7 @@ import {
 import { buildNursingCardexEncounterPayload } from './nursing-cardex-payload-builder';
 import {
   getDailyAdministrationLimit,
+  getRemainingAdministrationsToday,
   getTodayAdministrationCount,
   isTreatmentChartOrderLocked,
   useNursingTreatmentSheet,
@@ -94,6 +95,7 @@ const NursingCardexPlanWorkspace: React.FC<
     control,
     handleSubmit,
     setValue,
+    setError,
     clearErrors,
     formState: { errors },
   } = useForm<CardexFormValues>({
@@ -145,7 +147,12 @@ const NursingCardexPlanWorkspace: React.FC<
         return Number.POSITIVE_INFINITY;
       }
 
-      return getDailyAdministrationLimit(order?.frequency);
+      return getDailyAdministrationLimit(
+        order?.frequency,
+        order?.dosingInstructions,
+        order?.dose,
+        order?.doseUnits?.display,
+      );
     },
     [resolveOrderForOption],
   );
@@ -294,13 +301,54 @@ const NursingCardexPlanWorkspace: React.FC<
         id: row.orderUuid ?? medicationOrderOptions.find((option) => option.label === row.name)?.id ?? '',
         label: row.name,
       });
+      const countRowsForOption = (rows: AdministrationRow[], option: OrderOption) =>
+        rows.filter((row) => row.orderUuid === option.id || row.name === option.label).length;
+      const exceedsDailyLimit = (rows: AdministrationRow[], fieldName: 'medicationRows' | 'fluidRows') =>
+        rows.some((row) => {
+          const option = resolveOrderOption(row);
+          const dailyLimit = getOrderDailyLimit(option, row);
+          const givenToday = getGivenTodayCount(option, fieldName);
+          return Number.isFinite(dailyLimit) && givenToday + countRowsForOption(rows, option) > dailyLimit;
+        });
 
-      const lockedMedicationRow = values.medicationRows.find((row) =>
-        isOrderOptionLocked(resolveOrderOption(row), 'medicationRows', row),
-      );
-      const lockedFluidRow = values.fluidRows.find((row) =>
-        isOrderOptionLocked(resolveOrderOption(row), 'fluidRows', row),
-      );
+      if (values.medicationAdministered === 'yes' && values.medicationRows.length === 0) {
+        const allLocked =
+          medicationOrderOptions.length > 0 &&
+          medicationOrderOptions.every((option) => isOrderOptionLocked(option, 'medicationRows'));
+        setError('medicationRows', {
+          type: 'manual',
+          message: allLocked
+            ? t(
+                'allMedicationDosesComplete',
+                "Today's doses are complete for all listed medications. Choose No if you are not giving another dose.",
+              )
+            : t('medicationRowRequired', 'Add at least one medication row.'),
+        });
+        return;
+      }
+
+      if (values.fluidsAdministered === 'yes' && values.fluidRows.length === 0) {
+        const allLocked =
+          medicationOrderOptions.length > 0 &&
+          medicationOrderOptions.every((option) => isOrderOptionLocked(option, 'fluidRows'));
+        setError('fluidRows', {
+          type: 'manual',
+          message: allLocked
+            ? t(
+                'allFluidDosesComplete',
+                "Today's doses are complete for all listed fluids. Choose No if you are not giving another dose.",
+              )
+            : t('fluidRowRequired', 'Add at least one fluid row.'),
+        });
+        return;
+      }
+
+      const lockedMedicationRow =
+        values.medicationRows.find((row) => isOrderOptionLocked(resolveOrderOption(row), 'medicationRows', row)) ||
+        (exceedsDailyLimit(values.medicationRows, 'medicationRows') ? values.medicationRows[0] : undefined);
+      const lockedFluidRow =
+        values.fluidRows.find((row) => isOrderOptionLocked(resolveOrderOption(row), 'fluidRows', row)) ||
+        (exceedsDailyLimit(values.fluidRows, 'fluidRows') ? values.fluidRows[0] : undefined);
 
       if (lockedMedicationRow || lockedFluidRow) {
         showSnackbar({
@@ -364,8 +412,11 @@ const NursingCardexPlanWorkspace: React.FC<
       ENCOUNTER_ROLE_UUID,
       closeWorkspace,
       clearErrors,
+      setError,
       setIsSubmittingEncounter,
       isOrderOptionLocked,
+      getGivenTodayCount,
+      getOrderDailyLimit,
       medicationOrderOptions,
       mutateCache,
       t,
@@ -476,14 +527,21 @@ const NursingCardexPlanWorkspace: React.FC<
       ) : (
         <Stack gap={3}>
           {medicationOrderOptions.map((option) => {
-            const selectedRowIndex = rows.findIndex((row) => row.orderUuid === option.id || row.name === option.label);
-            const selectedRow = selectedRowIndex >= 0 ? rows[selectedRowIndex] : undefined;
+            const matchingRowIndexes = rows.reduce<number[]>((indexes, row, index) => {
+              if (row.orderUuid === option.id || row.name === option.label) {
+                indexes.push(index);
+              }
+              return indexes;
+            }, []);
+            const selectedRows = matchingRowIndexes.map((index) => rows[index]);
+            const selectedRow = selectedRows[0];
             const dailyLimit = getOrderDailyLimit(option, selectedRow);
             const givenToday = getGivenTodayCount(option, fieldName);
-            const isLocked = isOrderOptionLocked(option, fieldName, selectedRow);
+            const remainingToday = getRemainingAdministrationsToday(givenToday, selectedRows.length, dailyLimit);
+            const isLocked = givenToday >= dailyLimit && Number.isFinite(dailyLimit);
             const orderSummary = getOrderAdministrationSummary(resolveOrderForOption(option, selectedRow));
             const rowClassName =
-              isLocked && !selectedRow
+              isLocked && selectedRows.length === 0
                 ? `${styles.orderCheckboxRow} ${styles.orderCheckboxRowLocked}`
                 : styles.orderCheckboxRow;
             const lockedTitle = t(
@@ -498,11 +556,11 @@ const NursingCardexPlanWorkspace: React.FC<
                   <Checkbox
                     id={`${idPrefix}-order-${option.id}`}
                     labelText={option.label}
-                    checked={Boolean(selectedRow)}
-                    disabled={isLocked && !selectedRow}
-                    title={isLocked && !selectedRow ? lockedTitle : undefined}
+                    checked={selectedRows.length > 0}
+                    disabled={isLocked && selectedRows.length === 0}
+                    title={isLocked && selectedRows.length === 0 ? lockedTitle : undefined}
                     onChange={(event) => {
-                      if (isLocked && !selectedRow) {
+                      if (isLocked && selectedRows.length === 0) {
                         return;
                       }
 
@@ -527,28 +585,49 @@ const NursingCardexPlanWorkspace: React.FC<
                       {orderSummary}
                       {orderSummary && Number.isFinite(dailyLimit) ? ' · ' : ''}
                       {Number.isFinite(dailyLimit)
-                        ? t('dailyDoseProgress', '{{given}} of {{limit}} given today', {
-                            given: givenToday,
+                        ? t('dailyDoseProgress', '{{given}} of {{limit}} times today', {
+                            given: givenToday + selectedRows.length,
                             limit: dailyLimit,
                           })
                         : ''}
                     </p>
                   )}
-                </div>
-                {selectedRow && (
-                  <Layer className={styles.checkboxTimeField}>
-                    {renderTimeSelector({
-                      idPrefix,
-                      row: selectedRow,
-                      onChange: (time) => {
+                  {selectedRows.length > 0 && Number.isFinite(dailyLimit) && remainingToday > 0 && (
+                    <Button
+                      className={styles.addAnotherTimeButton}
+                      kind="ghost"
+                      size="sm"
+                      onClick={() => {
                         clearError();
-                        setAdministrationRows(
-                          fieldName,
-                          rows.map((row, index) => (index === selectedRowIndex ? { ...row, time } : row)),
-                        );
-                      },
-                    })}
-                  </Layer>
+                        setAdministrationRows(fieldName, [
+                          ...rows,
+                          { name: option.label, time: currentTimeMax, orderUuid: option.id },
+                        ]);
+                      }}>
+                      {t('addAnotherAdministrationTime', 'Add another time ({{remaining}} remaining today)', {
+                        remaining: remainingToday,
+                      })}
+                    </Button>
+                  )}
+                </div>
+                {selectedRows.length > 0 && (
+                  <div className={styles.selectedTimesColumn}>
+                    {matchingRowIndexes.map((rowIndex, slotIndex) => (
+                      <Layer key={`${option.id}-${rowIndex}`} className={styles.checkboxTimeField}>
+                        {renderTimeSelector({
+                          idPrefix: `${idPrefix}-${slotIndex}`,
+                          row: rows[rowIndex],
+                          onChange: (time) => {
+                            clearError();
+                            setAdministrationRows(
+                              fieldName,
+                              rows.map((row, index) => (index === rowIndex ? { ...row, time } : row)),
+                            );
+                          },
+                        })}
+                      </Layer>
+                    ))}
+                  </div>
                 )}
               </div>
             );

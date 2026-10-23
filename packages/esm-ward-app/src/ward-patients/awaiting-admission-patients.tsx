@@ -15,16 +15,29 @@ import {
 import { formatDatetime, launchWorkspace2, parseDate, useAppContext, usePagination } from '@openmrs/esm-framework';
 import { usePaginationInfo } from '@openmrs/esm-patient-common-lib';
 import React, { useMemo, useState } from 'react';
-import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { useTranslation } from 'react-i18next';
+import { useIsIsolationWard } from '../hooks/useIsIsolationWard';
 import { type WardPatient, type WardViewContext } from '../types';
+import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { getOpenmrsId } from '../ward-view/ward-view.resource';
 import AdmitPatientButton from '../ward-workspace/admit-patient-button.component';
+import EbolaAwaitingAdmissionPatients from './ebola-awaiting-admission-patients';
 import { HyperLinkPatientCell } from './patient-cells';
 import { EmptyState, ErrorState } from './table-state-components';
 import styles from './ward-patient.scss';
 
 const AwaitingAdmissionPatients = () => {
+  const { isIsolationWard, isLoading } = useIsIsolationWard();
+  if (isLoading) {
+    return <DataTableSkeleton />;
+  }
+  if (isIsolationWard) {
+    return <EbolaAwaitingAdmissionPatients />;
+  }
+  return <StandardAwaitingAdmissionPatients />;
+};
+
+const StandardAwaitingAdmissionPatients = () => {
   const { t } = useTranslation();
   const search = useWardPatientSearch();
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
@@ -93,15 +106,7 @@ const AwaitingAdmissionPatients = () => {
   return (
     <div className={styles.dataTableContainer}>
       <DataTable size="sm" rows={tableRows} headers={headers} isSortable useZebraStyles>
-        {({
-          rows,
-          headers,
-          getHeaderProps,
-          getRowProps,
-          getTableProps,
-          getCellProps,
-          getTableContainerProps,
-        }) => (
+        {({ rows, headers, getHeaderProps, getRowProps, getTableProps, getCellProps, getTableContainerProps }) => (
           <TableContainer
             title={t('awaitingAdmissionTitle', 'Patients awaiting admission')}
             description={t(

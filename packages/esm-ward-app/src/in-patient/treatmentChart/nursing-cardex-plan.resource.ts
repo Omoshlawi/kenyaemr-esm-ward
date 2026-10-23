@@ -18,6 +18,7 @@ export type MedicationOrder = Pick<Order, 'uuid'> &
     dateStopped?: string | null;
     autoExpireDate?: string | null;
     asNeeded?: boolean | null;
+    dosingInstructions?: string | null;
     drug?: Order['drug'] | UuidDisplayResource | null;
     doseUnits?: Order['doseUnits'] | UuidDisplayResource | null;
     route?: Order['route'] | UuidDisplayResource | null;
@@ -34,6 +35,20 @@ export type MedicationOrder = Pick<Order, 'uuid'> &
 export type MedicationOrderResponse = {
   results: Array<MedicationOrder>;
 };
+
+type OrderFrequencyResponse = {
+  results: Array<{
+    uuid?: string;
+    display?: string;
+    frequencyPerDay?: number | string | null;
+  }>;
+};
+
+const ORDER_REP =
+  'custom:(uuid,display,dose,quantity,duration,dateActivated,scheduledDate,dateStopped,autoExpireDate,asNeeded,dosingInstructions,' +
+  'drug:(uuid,display),doseUnits:(uuid,display),route:(uuid,display),' +
+  'frequency:(uuid,display,frequencyPerDay),quantityUnits:(uuid,display),durationUnits:(uuid,display),' +
+  'orderer:(uuid,display,person:(uuid,display)))';
 
 export type OrderOption = {
   id: string;
@@ -90,16 +105,57 @@ const byNewestActivated = (left: MedicationOrder, right: MedicationOrder) => {
   return rightTime - leftTime;
 };
 
+const mergeFrequency = (
+  frequency: MedicationOrder['frequency'],
+  frequencyByUuid: Map<string, { display?: string; frequencyPerDay?: number | string | null }>,
+): MedicationOrder['frequency'] => {
+  const uuid = frequency && typeof frequency === 'object' ? frequency.uuid : undefined;
+  const fromDictionary = uuid ? frequencyByUuid.get(uuid) : undefined;
+  if (!frequency && !fromDictionary) {
+    return frequency;
+  }
+
+  return {
+    ...(typeof frequency === 'object' && frequency ? frequency : {}),
+    display: frequency?.display || fromDictionary?.display,
+    frequencyPerDay: frequency?.frequencyPerDay ?? fromDictionary?.frequencyPerDay ?? null,
+  };
+};
+
 export function useActiveMedicationOrders(patientUuid?: string) {
   const medicationOrdersUrl = patientUuid
-    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&status=active&orderType=${drugOrderTypeUuid}&v=full`
+    ? `${restBaseUrl}/order?patient=${patientUuid}&careSetting=${inpatientCareSettingUuid}&status=active&orderType=${drugOrderTypeUuid}&v=${encodeURIComponent(
+        ORDER_REP,
+      )}`
     : null;
+  const orderFrequenciesUrl = `${restBaseUrl}/orderfrequency?v=custom:(uuid,display,frequencyPerDay)&limit=200`;
 
   const { data, isLoading } = useSWR<FetchResponse<MedicationOrderResponse>>(medicationOrdersUrl, openmrsFetch);
+  const { data: frequencyData, isLoading: isLoadingFrequencies } = useSWR<FetchResponse<OrderFrequencyResponse>>(
+    orderFrequenciesUrl,
+    openmrsFetch,
+  );
+
+  const frequencyByUuid = useMemo(() => {
+    const map = new Map<string, { display?: string; frequencyPerDay?: number | string | null }>();
+    (frequencyData?.data?.results ?? []).forEach((frequency) => {
+      if (frequency?.uuid) {
+        map.set(frequency.uuid, frequency);
+      }
+    });
+    return map;
+  }, [frequencyData]);
 
   const orders = useMemo(
-    () => (data?.data?.results ?? []).filter((order) => isActiveMedicationOrder(order)).sort(byNewestActivated),
-    [data],
+    () =>
+      (data?.data?.results ?? [])
+        .filter((order) => isActiveMedicationOrder(order))
+        .map((order) => ({
+          ...order,
+          frequency: mergeFrequency(order.frequency, frequencyByUuid),
+        }))
+        .sort(byNewestActivated),
+    [data, frequencyByUuid],
   );
 
   const options = useMemo<Array<OrderOption>>(() => {
@@ -140,7 +196,7 @@ export function useActiveMedicationOrders(patientUuid?: string) {
   }, [orders]);
 
   return {
-    isLoading,
+    isLoading: isLoading || isLoadingFrequencies,
     options,
     byUuid,
     byName,
