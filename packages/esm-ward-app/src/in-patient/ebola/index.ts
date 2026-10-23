@@ -13,6 +13,8 @@ export const caseIdentificationFinding = getAsyncLifecycle(
 );
 
 // t("contactListing", "Contact listing")
-export const contactListing = getAsyncLifecycle(() => import('./contact-listing.component'), options);
+export const contactListing = getAsyncLifecycle(() => import('./contact-list/contact-listing.component'), options);
 // t("caseFollowup", "Followup")
 export const caseFollowUp = getAsyncLifecycle(() => import('./case-followup.component'), options);
+
+export const addContactFormWorkspace = getAsyncLifecycle(() => import('./contact-list/add-contact-form.workspace'), options);

@@ -353,6 +353,11 @@
       "name": "create-ward-bill-workspace",
       "component": "createWardBillWorkspace",
       "window": "kenyaemr-esm-ward-window"
+    },
+    {
+      "name": "add-contact-form-workspace",
+      "component": "addContactFormWorkspace",
+      "window": "contact-list-window"
     }
   ],
   "workspaceWindows2": [
@@ -382,6 +387,12 @@
       "group": "patient-chart",
       "width": "extra-wide",
       "canMaximize": true
+    },
+    {
+      "name": "contact-list-window",
+      "canMaximize": true,
+      "width":"wider",
+      "group":"patient-chart"
     }
   ],
   "workspaceGroups2": [

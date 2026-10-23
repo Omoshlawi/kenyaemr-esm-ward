@@ -999,6 +999,58 @@ export const configSchema: ConfigSchema = {
     _description: 'Whether to show the CR ID on the patient summary',
     _default: true,
   },
+  openmrsIdentifierSourceUuid: {
+    _type: Type.String,
+    _description: 'OpenMRS Identifier Source UUID (Identifier Generator for OpenMRS ID)',
+    _default: 'fb034aac-2353-4940-abe2-7bc94e7c1e71',
+  },
+  openmrsIDUuid: {
+    _type: Type.String,
+    _description: 'OpenMRS Identifier  UUID',
+    _default: 'dfacd928-0370-4315-99d7-6ec1c9f7ae76',
+  },
+  contactPersonAttributesUuid: {
+    _type: Type.Object,
+    _description: 'Contact created patient attributes UUID',
+    _default: {
+      telephone: 'b2c38640-2603-4629-aebd-3b54f33f1e3a',
+      contactCreated: '7c94bd35-fba7-4ef7-96f5-29c89a318fcf',
+      contactTypeAttributeType: '4608a605-60f0-44cf-a6eb-7bc537e41925',
+      healthCareWorkerFacilityAttributetype: '3a5c6d85-e460-4ca4-a3fd-8ac62653a13f',
+      headOfHouseholdAttributeType: 'e4230abb-57f5-43d1-9190-fa248c5b2437',
+    },
+  },
+  contactTypesConceptUuids: {
+    _type: Type.Object,
+    _description: 'Uuids of Contacts types to case for ebola',
+    _default: {
+      // TODO: Replace with proper concepts from BA
+      hadDirectPhysicalContactWithCase: '162632AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      sleptOrAteAtTheSameHouseHoldAsCase: '159818AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      touchedBodyFluidsOfCase: 'dcf31ffa-36a1-4673-9a04-34a62e94edc4',
+      touchedOrCleanedLinensOrDishesOfCase: '161917AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+  },
+  contactTracingFormUuid: {
+    _type: Type.UUID,
+    _description: 'Contact tracing form Uuid',
+    _default: '15ed03d2-c972-11e9-a32f-2a2ae2dbcce4',
+  },
+  contactTracingConceptsUuids: {
+    _type: Type.Object,
+    _description: 'Concept Uuids for hts contact tracing',
+    _default: {
+      modeOfClienttracingConceptUuid: 'a55f9516-ddb6-47ec-b10d-cb99d1d0bd41',
+      reasonNotContactedConceptUuid: '1779AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      tracingStatusConceptUuid: '159811AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      remarksConceptUuid: '163042AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+  },
+  htsEcounterUuid: {
+    _type: Type.UUID,
+    _description: 'HTS Encounter uuid used in contact tracing',
+    _default: '9c0a7a57-62ff-4f75-babe-5835b0e921b7',
+  },
 } as const;
 
 export interface WardConfigObject {
@@ -1124,6 +1176,29 @@ export interface WardConfigObject {
   nationIdIdentifierTypeUuid: string;
   crIdentifierTypeUuid: string;
   showCrIdentifierOnSummary: boolean;
+  openmrsIdentifierSourceUuid: string;
+  openmrsIDUuid: string;
+  contactPersonAttributesUuid: {
+    telephone: string;
+    contactCreated: string;
+    contactTypeAttributeType: string;
+    healthCareWorkerFacilityAttributetype: string;
+    headOfHouseholdAttributeType: string;
+  };
+  contactTypesConceptUuids: {
+    hadDirectPhysicalContactWithCase: string;
+    sleptOrAteAtTheSameHouseHoldAsCase: string;
+    touchedBodyFluidsOfCase: string;
+    touchedOrCleanedLinensOrDishesOfCase: string;
+  };
+  contactTracingFormUuid: string;
+  contactTracingConceptsUuids: {
+    modeOfClienttracingConceptUuid: string;
+    reasonNotContactedConceptUuid: string;
+    tracingStatusConceptUuid: string;
+    remarksConceptUuid: string;
+  };
+  htsEcounterUuid: string;
 }
 export interface PendingItemsElementConfig {
   id: string;
