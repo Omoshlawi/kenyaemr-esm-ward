@@ -36,7 +36,7 @@ type TraceEncounter = Encounter & {
     display: string;
     concept: {
       uuid: string;
-      displat: string;
+      display: string;
     };
     value:
       | string
@@ -46,24 +46,6 @@ type TraceEncounter = Encounter & {
         };
   }>;
 };
-const mapConcepts = (conceptUuid: string) => {
-  const mapping = {
-    '0c112728-17b5-4342-b603-ac6dd2acf9cd': 'Incorrect locator information',
-    'ac1fcb25-f443-4a32-b638-193f04d897a9': 'No locator information',
-    '1567AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Calls not going through',
-    '1706AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Not found at home',
-    '160415AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Migrated',
-    '160034AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Died',
-    '5622AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Others',
-    '1118AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Not contacted',
-    '1066AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Contacted but not linked',
-    '1065AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Contacted and linked',
-    'eb113c76-aef8-4890-a611-fe22ba003123': 'Physical tracing',
-    '1650AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA': 'Phone tracing',
-  } as Record<string, string>;
-  return mapping[conceptUuid];
-};
-
 const useEncounters = (
   patientUuid: string,
   encounterTypeUuid: string,
@@ -71,13 +53,13 @@ const useEncounters = (
   todate?: string,
   v?: string,
 ) => {
-  const customeRepresntation = v ?? 'custom:(uuid,display,encounterDatetime,obs:(uuid,display,value:(uuid,display)))';
+  const customRepresentation = v ?? 'custom:(uuid,display,encounterDatetime,obs:(uuid,display,value:(uuid,display)))';
 
   const params = new URLSearchParams(
     pickBy(
-      { patient: patientUuid, encounterType: encounterTypeUuid, v: customeRepresntation, fromdate, todate },
-      (value, key) => value,
-    ),
+      { patient: patientUuid, encounterType: encounterTypeUuid, v: customRepresentation, fromdate, todate },
+      (value) => Boolean(value),
+    ) as Record<string, string>,
   );
 
   const url = `${restBaseUrl}/encounter?${params.toString()}`;
@@ -92,12 +74,12 @@ const useEncounters = (
 };
 
 const getObsValueByConceptUuid = (obs: TraceEncounter['obs'], conceptUuid: string) => {
-  const obsValue = (obs ?? []).find((obs) => obs.concept?.uuid === conceptUuid)?.value;
+  const obsValue = (obs ?? []).find((item) => item.concept?.uuid === conceptUuid)?.value;
   if (typeof obsValue === 'string') {
     return obsValue;
   }
-  if (typeof obsValue === 'object') {
-    return mapConcepts(obsValue.uuid);
+  if (obsValue && typeof obsValue === 'object') {
+    return obsValue.display;
   }
 };
 export const useContactTraceHistory = (patientUuid: string) => {

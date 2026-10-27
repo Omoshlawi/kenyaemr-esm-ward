@@ -6,7 +6,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 2rem;
+  gap: layout.$spacing-07;
   background-color: colors.$white;
 }
 
@@ -33,5 +33,5 @@
 }
 
 .middot {
-  margin: 0 0.25rem;
+  margin: 0 layout.$spacing-02;
 }

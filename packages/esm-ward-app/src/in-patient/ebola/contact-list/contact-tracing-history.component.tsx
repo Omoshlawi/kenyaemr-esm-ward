@@ -11,8 +11,8 @@ import {
   TableRow,
 } from '@carbon/react';
 import { Edit } from '@carbon/react/icons';
-import { launchWorkspace2, useConfig, usePagination } from '@openmrs/esm-framework';
-import { CardHeader, EmptyState, ErrorState } from '@openmrs/esm-patient-common-lib';
+import { launchWorkspace2, restBaseUrl, useConfig, usePagination } from '@openmrs/esm-framework';
+import { EmptyState, ErrorState } from '@openmrs/esm-patient-common-lib';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
@@ -38,9 +38,11 @@ const ContactTracingHistory: React.FC<ContactTracingHistoryProps> = ({ patientUu
         patientUuid,
         encounterUuid,
         mutateForm: () => {
-          mutate((key) => true, undefined, {
-            revalidate: true,
-          });
+          mutate(
+            (key) => typeof key === 'string' && key.includes(`${restBaseUrl}/encounter`) && key.includes(patientUuid),
+            undefined,
+            { revalidate: true },
+          );
         },
       });
     },
@@ -79,7 +81,7 @@ const ContactTracingHistory: React.FC<ContactTracingHistoryProps> = ({ patientUu
   ];
 
   const headerTitle = t('contactTraceHistory', 'Contact Trace History');
-  const tablerows = useMemo(
+  const tableRows = useMemo(
     () =>
       results.map((row) => ({
         ...row,
@@ -97,23 +99,22 @@ const ContactTracingHistory: React.FC<ContactTracingHistoryProps> = ({ patientUu
     [handleLaunchContactTracingForm, results, t],
   );
 
-  if (contactTracesHistory.length === 0) {
-    return <EmptyState headerTitle={headerTitle} displayText={t('traceHistory', 'trace history')} />;
-  }
   if (error) {
     return <ErrorState headerTitle={headerTitle} error={error} />;
+  }
+  if (contactTracesHistory.length === 0) {
+    return <EmptyState headerTitle={headerTitle} displayText={t('traceHistory', 'trace history')} />;
   }
 
   return (
     <div>
-      <CardHeader title={headerTitle}>
-        <></>
-      </CardHeader>
       <DataTable
-        rows={tablerows ?? []}
+        rows={tableRows}
         headers={headers}
+        size="sm"
+        useZebraStyles
         render={({ rows, headers, getHeaderProps, getTableProps, getTableContainerProps }) => (
-          <TableContainer {...getTableContainerProps()}>
+          <TableContainer title={headerTitle} {...getTableContainerProps()}>
             <Table {...getTableProps()}>
               <TableHead>
                 <TableRow>

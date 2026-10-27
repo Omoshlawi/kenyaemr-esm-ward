@@ -1,12 +1,21 @@
 import { Tag, Tile } from '@carbon/react';
-import { type Patient, PatientPhoto } from '@openmrs/esm-framework';
+import { type Patient, PatientPhoto, useConfig } from '@openmrs/esm-framework';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { type WardConfigObject } from '../config-schema';
 import styles from './patient-search-info.scss';
+
 type PatientSearchInfoProps = {
   patient: Patient;
 };
 
 const PatientSearchInfo: React.FC<PatientSearchInfoProps> = ({ patient }) => {
+  const { t } = useTranslation();
+  const { openmrsIDUuid } = useConfig<WardConfigObject>();
+  const openmrsId = patient.identifiers.find(
+    (identifier) => identifier.identifierType?.uuid === openmrsIDUuid || identifier.preferred,
+  )?.identifier;
+
   return (
     <Tile className={styles.patientInfo}>
       <div className={styles.patientAvatar} role="img">
@@ -17,9 +26,11 @@ const PatientSearchInfo: React.FC<PatientSearchInfoProps> = ({ patient }) => {
         <div className={styles.demographics}>
           {patient?.person?.gender} <span className={styles.middot}>&middot;</span> {patient?.person?.age}
           <span className={styles.middot}>&middot;</span>
-          <Tag>
-            OpenmrsId:{patient.identifiers.find((id) => id.identifierType.display === 'OpenMRS ID')?.identifier}
-          </Tag>
+          {openmrsId ? (
+            <Tag>
+              {t('openMrsId', 'ID')}: {openmrsId}
+            </Tag>
+          ) : null}
         </div>
       </div>
     </Tile>

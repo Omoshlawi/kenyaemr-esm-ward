@@ -2,6 +2,7 @@ import {
   Button,
   DataTable,
   DataTableSkeleton,
+  Layer,
   OverflowMenu,
   OverflowMenuItem,
   Pagination,
@@ -28,49 +29,69 @@ import {
 import { EmptyState, usePatientChartStore } from '@openmrs/esm-patient-common-lib';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { deleteRelationship, handleLaunchContactTracingForm, useRelationships } from './use-contact-mapping';
 import { type WardConfigObject } from '../../../config-schema';
+import useCurrentPatientAdmissionEncounter from '../../../hooks/useCurrentPatientAdmissionEncounter';
+import { useIsIsolationAdmission } from '../../../hooks/useIsIsolationWard';
 import ContactTracingHistory from './contact-tracing-history.component';
+import styles from './contact-listing.scss';
+import { deleteRelationship, handleLaunchContactTracingForm, useRelationships } from './use-contact-mapping';
 
 const ContactListing: React.FC<{ patientUuid: string }> = ({ patientUuid }) => {
   const { mutateVisitContext, patient, visitContext } = usePatientChartStore(patientUuid);
-  const { contacts, error, isLoading, headers } = useRelationships(patientUuid);
+  const { contacts, error, isLoading, headers, mutate: mutateRelationships } = useRelationships(patientUuid);
   const { contactTracingFormUuid } = useConfig<WardConfigObject>();
   const { t } = useTranslation();
+  const { admissionEncounter, isLoading: isLoadingAdmission } = useCurrentPatientAdmissionEncounter(patientUuid);
+  const {
+    isIsolationAdmission,
+    hasAdmissionLocation,
+    isLoading: isLoadingIsolation,
+  } = useIsIsolationAdmission(admissionEncounter?.location?.uuid);
   const [pageSize, setPageSize] = useState(10);
   const { results, totalPages, currentPage, goTo } = usePagination(contacts, pageSize);
   const { pageSizes } = usePaginationInfo(pageSize, totalPages, currentPage, results.length);
 
   const tableRows = useMemo(
     () =>
-      contacts.map((c) => ({
-        id: c.uuid,
-        ...Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v ? v : '--'])),
+      results.map((contact) => ({
+        id: contact.uuid,
+        ...Object.fromEntries(Object.entries(contact).map(([key, value]) => [key, value ? value : '--'])),
         actions: (
-          <OverflowMenu aria-label="overflow-menu" iconDescription={t('actions', 'Actions')} size="md">
+          <OverflowMenu
+            flipped
+            size="sm"
+            aria-label={t('actions', 'Actions')}
+            iconDescription={t('actions', 'Actions')}>
             <OverflowMenuItem
               itemText={t('traceContact', 'Trace contact')}
-              onClick={() => handleLaunchContactTracingForm(c.uuid, contactTracingFormUuid)}
+              onClick={() => handleLaunchContactTracingForm(contact.uuid, contactTracingFormUuid)}
             />
             <OverflowMenuItem
+              hasDivider
+              isDelete
               itemText={t('delete', 'Delete')}
-              onClick={() => deleteRelationship(c.relationShipUuid, t)}
+              onClick={() => deleteRelationship(contact.relationShipUuid, t)}
             />
           </OverflowMenu>
         ),
       })),
-    [contactTracingFormUuid, contacts, t],
+    [contactTracingFormUuid, results, t],
   );
+
   const handleAddContact = () => {
     launchWorkspace2(
       'add-contact-form-workspace',
-      { patientUuid },
+      { patientUuid, onContactAdded: () => void mutateRelationships?.() },
       { patient, patientUuid, visitContext, mutateVisitContext },
     );
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingAdmission || isLoadingIsolation) {
     return <DataTableSkeleton />;
+  }
+
+  if (hasAdmissionLocation && !isIsolationAdmission) {
+    return null;
   }
 
   if (error) {
@@ -88,16 +109,16 @@ const ContactListing: React.FC<{ patientUuid: string }> = ({ patientUuid }) => {
   }
 
   return (
-    <div>
+    <Layer className={styles.container}>
       <CardHeader title={t('contactListing', 'Contact Listing')}>
-        <Button onClick={handleAddContact} renderIcon={Add} kind="ghost">
+        <Button onClick={handleAddContact} renderIcon={Add} kind="ghost" size="sm">
           {t('add', 'Add')}
         </Button>
       </CardHeader>
-      <DataTable rows={tableRows ?? []} headers={headers}>
+      <DataTable rows={tableRows} headers={headers} size="sm" useZebraStyles>
         {({
           rows,
-          headers,
+          headers: tableHeaders,
           getHeaderProps,
           getTableProps,
           getTableContainerProps,
@@ -108,8 +129,8 @@ const ContactListing: React.FC<{ patientUuid: string }> = ({ patientUuid }) => {
             <Table {...getTableProps()}>
               <TableHead>
                 <TableRow>
-                  <TableExpandHeader aria-label="expand row" />
-                  {headers.map((header) => (
+                  <TableExpandHeader aria-label={t('expandRow', 'Expand row')} />
+                  {tableHeaders.map((header) => (
                     <TableHeader
                       {...getHeaderProps({
                         header,
@@ -123,22 +144,16 @@ const ContactListing: React.FC<{ patientUuid: string }> = ({ patientUuid }) => {
               <TableBody>
                 {rows.map((row) => (
                   <React.Fragment key={row.id}>
-                    <TableExpandRow
-                      {...getRowProps({
-                        row,
-                      })}>
+                    <TableExpandRow {...getRowProps({ row })}>
                       {row.cells.map((cell) => (
                         <TableCell key={cell.id}>{cell.value}</TableCell>
                       ))}
                     </TableExpandRow>
-
                     <TableExpandedRow
-                      colSpan={headers.length + 1}
-                      className="demo-expanded-td"
-                      {...getExpandedRowProps({
-                        row,
-                      })}>
-                      <ContactTracingHistory patientUuid={results.find((r) => r.uuid === row.id)?.uuid} />
+                      colSpan={tableHeaders.length + 1}
+                      className={styles.expandedRow}
+                      {...getExpandedRowProps({ row })}>
+                      <ContactTracingHistory patientUuid={results.find((item) => item.uuid === row.id)?.uuid ?? ''} />
                     </TableExpandedRow>
                   </React.Fragment>
                 ))}
@@ -152,12 +167,12 @@ const ContactListing: React.FC<{ patientUuid: string }> = ({ patientUuid }) => {
         pageSize={pageSize}
         pageSizes={pageSizes}
         totalItems={contacts.length}
-        onChange={({ page, pageSize }) => {
+        onChange={({ page, pageSize: nextPageSize }) => {
           goTo(page);
-          setPageSize(pageSize);
+          setPageSize(nextPageSize);
         }}
       />
-    </div>
+    </Layer>
   );
 };
 

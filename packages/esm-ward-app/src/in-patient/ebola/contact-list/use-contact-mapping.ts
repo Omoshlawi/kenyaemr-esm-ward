@@ -79,17 +79,29 @@ const mapContact = (
   };
 };
 
+export const isRelationshipCacheKey = (key: unknown) => typeof key === 'string' && /\/relationship(\?|\/|$)/.test(key);
+
+export const revalidateRelationships = () =>
+  mutate(isRelationshipCacheKey, undefined, {
+    revalidate: true,
+  });
+
 export const useRelationships = (patientUuid: string) => {
   const person =
     '(uuid,preferredName,age,display,dead,causeOfDeath,gender,attributes:(uuid,display,value,attributeType:(uuid,display)),preferredAddress)';
-  const customeRepresentation =
+  const customRepresentation =
     `custom:(display,uuid,personA:(person:${person})` +
     `,personB:(person:${person}),` +
     'relationshipType:(uuid,display,description,aIsToB,bIsToA,displayAIsToB,displayBIsToA),startDate)';
 
-  const url = `/ws/rest/v1/relationship?v=${customeRepresentation}&person=${patientUuid}`;
+  const url = patientUuid ? `${restBaseUrl}/relationship?v=${customRepresentation}&person=${patientUuid}` : null;
   const config = useConfig<WardConfigObject>();
-  const { data, error, isLoading } = useSWR<FetchResponse<{ results: Array<Relationship> }>>(url, openmrsFetch);
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: mutateRelationships,
+  } = useSWR<FetchResponse<{ results: Array<Relationship> }>>(url, openmrsFetch);
   const { t } = useTranslation();
   const headers = useMemo(
     () => [
@@ -185,6 +197,7 @@ export const useRelationships = (patientUuid: string) => {
     relationships: data?.data?.results ?? [],
     contacts,
     headers,
+    mutate: mutateRelationships,
   };
 };
 
@@ -200,7 +213,7 @@ export const deleteRelationship = async (relationshipUuid: string, t: TFunction)
             'Content-Type': 'application/json',
           },
         });
-        mutate((key) => typeof key === 'string' && key.startsWith(`${restBaseUrl}/relationship`));
+        revalidateRelationships();
         dispose();
         showSnackbar({
           title: t('success', 'Success'),
@@ -224,9 +237,11 @@ export const handleLaunchContactTracingForm = (contactUuid: string, formUuid: st
     patientUuid: contactUuid,
     encounterUuid: '',
     mutateForm: () => {
-      mutate((key) => true, undefined, {
-        revalidate: true,
-      });
+      mutate(
+        (key) => typeof key === 'string' && key.includes(`${restBaseUrl}/encounter`) && key.includes(contactUuid),
+        undefined,
+        { revalidate: true },
+      );
     },
   });
 };

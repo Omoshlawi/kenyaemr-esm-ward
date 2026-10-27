@@ -7,6 +7,7 @@ import {
   type Session,
   showSnackbar,
 } from '@openmrs/esm-framework';
+import dayjs from 'dayjs';
 import { type TFunction } from 'react-i18next';
 import useSWR from 'swr';
 import useSWRImmutable from 'swr/immutable';
@@ -14,7 +15,7 @@ import { z } from 'zod';
 import { type WardConfigObject } from '../../../config-schema';
 import { type RelationshipType } from './contact-list.types';
 
-const personShema = z.object({
+export const personSchema = z.object({
   givenName: z.string().min(1, 'Given name required'),
   middleName: z.string().optional(),
   familyName: z.string().min(1, 'Family name required'),
@@ -37,7 +38,7 @@ export const contactListSchema = z
     headOfHouseHold: z.string().optional(),
     isHealthCareWorker: z.enum(['Y', 'N']),
     facility: z.string().optional(),
-    person: z.union([z.string().nonempty('Required').uuid(), personShema]),
+    person: z.union([z.string().nonempty('Required').uuid(), personSchema]),
     caseId: z.string().uuid(),
   })
   .superRefine((arg, ctx) => {
@@ -47,12 +48,13 @@ export const contactListSchema = z
   });
 
 export type ContactListFormValues = z.infer<typeof contactListSchema>;
-export type ContactListPersonFormValues = z.infer<typeof personShema>;
+export type ContactListPersonFormValues = z.infer<typeof personSchema>;
 
 async function fetchPerson(query: string, abortController: AbortController) {
-  const customREp = 'custom:(uuid,identifiers,person:(uuid,display,gender,age,birthdate,attributes))';
+  const customRep =
+    'custom:(uuid,identifiers:(identifier,preferred,identifierType:(uuid,display)),person:(uuid,display,gender,age,birthdate,attributes))';
   const patientsRes = await openmrsFetch<{ results: Array<Patient> }>(
-    `${restBaseUrl}/patient?q=${query}&v=${customREp}`,
+    `${restBaseUrl}/patient?q=${query}&v=${customRep}`,
     {
       signal: abortController.signal,
     },
@@ -62,6 +64,18 @@ async function fetchPerson(query: string, abortController: AbortController) {
 export const searchPatient = async (query: string) => {
   const abortController = new AbortController();
   return await fetchPerson(query, abortController);
+};
+
+const getRestErrorMessage = (error: unknown) => {
+  const body = (
+    error as {
+      responseBody?: { error?: { message?: string; fieldErrors?: Record<string, Array<{ message?: string }>> } };
+    }
+  )?.responseBody?.error;
+  const fieldError = Object.values(body?.fieldErrors ?? {})
+    .flat()
+    .find((item) => item?.message)?.message;
+  return fieldError || body?.message || (error as { message?: string })?.message;
 };
 
 export const useAddressHierachy = (search: string) => {
@@ -108,88 +122,130 @@ async function generateOpenmrsIdentifier(source: string, t: TFunction) {
     showSnackbar({
       kind: 'error',
       title: t('errorCreatingIdentifier', 'Error creating identifier'),
-      subtitle: (error as any)?.message,
+      subtitle: getRestErrorMessage(error),
     });
   }
 }
 
+const toPersonAttributeValue = (value?: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const toIsoDate = (value?: Date | string | null) => {
+  if (!value) {
+    return undefined;
+  }
+  const date = dayjs(value);
+  return date.isValid() ? date.format('YYYY-MM-DD') : undefined;
+};
+
+const personAttributeTypeExists = async (uuid?: string) => {
+  if (!uuid) {
+    return false;
+  }
+  try {
+    const res = await openmrsFetch<{ uuid?: string }>(`${restBaseUrl}/personattributetype/${uuid}`);
+    return Boolean(res?.data?.uuid);
+  } catch {
+    return false;
+  }
+};
+
+const filterExistingPersonAttributes = async (attributes: Array<{ attributeType: string; value: string }>) => {
+  const existing = await Promise.all(
+    attributes.map(async (attribute) =>
+      (await personAttributeTypeExists(attribute.attributeType)) ? attribute : null,
+    ),
+  );
+  return existing.filter((attribute): attribute is { attributeType: string; value: string } => Boolean(attribute));
+};
+
+const getPersonAttributeTypeUuid = (attribute: { attributeType?: string | { uuid?: string } }) =>
+  typeof attribute.attributeType === 'string' ? attribute.attributeType : attribute.attributeType?.uuid;
+
+const joinContactTypes = (typeOfContact?: string[]) =>
+  Array.isArray(typeOfContact) && typeOfContact.length ? typeOfContact.filter(Boolean).join(',') : undefined;
+
+type ContactPersonAttributeSource = {
+  phoneNumber?: string;
+  typeOfContact?: string[];
+  headOfHouseHold?: string;
+  facility?: string;
+  isHealthCareWorker?: ContactListFormValues['isHealthCareWorker'];
+};
+
+const buildPersonAttributes = (patientData: ContactPersonAttributeSource, config: WardConfigObject) =>
+  [
+    {
+      attributeType: config.contactPersonAttributesUuid.telephone,
+      value: toPersonAttributeValue(patientData.phoneNumber),
+    },
+    {
+      attributeType: config.contactPersonAttributesUuid.contactTypeAttributeType,
+      value: toPersonAttributeValue(joinContactTypes(patientData.typeOfContact)),
+    },
+    {
+      attributeType: config.contactPersonAttributesUuid.headOfHouseholdAttributeType,
+      value: toPersonAttributeValue(patientData.headOfHouseHold),
+    },
+    {
+      attributeType: config.contactPersonAttributesUuid.healthCareWorkerFacilityAttributetype,
+      value: patientData.isHealthCareWorker === 'Y' ? toPersonAttributeValue(patientData.facility) : undefined,
+    },
+  ].filter((attribute): attribute is { attributeType: string; value: string } =>
+    Boolean(attribute.attributeType && attribute.value),
+  );
+
 async function createPatient(
-  patientData: ContactListPersonFormValues &
-    Pick<ContactListFormValues, 'typeOfContact' | 'headOfHouseHold' | 'facility' | 'isHealthCareWorker'>,
+  patientData: ContactListPersonFormValues,
   identifier: string,
   config: WardConfigObject,
   session: Session,
   t: TFunction,
 ) {
   try {
-    const response = await openmrsFetch<Patient>(`/ws/rest/v1/patient`, {
+    const middleName = toPersonAttributeValue(patientData.middleName);
+    const attributes = await filterExistingPersonAttributes(
+      buildPersonAttributes({ phoneNumber: patientData.phoneNumber }, config),
+    );
+    const response = await openmrsFetch<Patient>(`${restBaseUrl}/patient`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: {
         identifiers: [
           {
-            identifier: identifier,
+            identifier,
             identifierType: config.openmrsIDUuid,
             location: session.sessionLocation?.uuid,
+            preferred: true,
           },
         ],
         person: {
           names: [
             {
-              givenName: patientData.givenName,
-              middleName: patientData.middleName,
-              familyName: patientData.familyName,
+              givenName: patientData.givenName.trim(),
+              familyName: patientData.familyName.trim(),
+              preferred: true,
+              ...(middleName ? { middleName } : {}),
             },
           ],
           gender: patientData.gender,
-          birthdate: patientData.birthdate,
+          birthdate: toIsoDate(patientData.birthdate),
           addresses: [
             {
               preferred: true,
-              address1: patientData.address,
-              countyDistrict: patientData.county,
-              stateProvince: patientData.subcounty,
+              address1: toPersonAttributeValue(patientData.address),
+              countyDistrict: toPersonAttributeValue(patientData.county),
+              stateProvince: toPersonAttributeValue(patientData.subcounty),
             },
           ],
           dead: false,
-          attributes: [
-            ...(patientData.phoneNumber
-              ? [
-                  {
-                    attributeType: config.contactPersonAttributesUuid.telephone,
-                    value: patientData.phoneNumber,
-                  },
-                ]
-              : []),
-            ...(patientData.typeOfContact
-              ? [
-                  {
-                    attributeType: config.contactPersonAttributesUuid.contactTypeAttributeType,
-                    value: patientData.typeOfContact.join(','),
-                  },
-                ]
-              : []),
-            ...(patientData.headOfHouseHold
-              ? [
-                  {
-                    attributeType: config.contactPersonAttributesUuid.headOfHouseholdAttributeType,
-                    value: patientData.headOfHouseHold,
-                  },
-                ]
-              : []),
-            ...(patientData.isHealthCareWorker && patientData.facility
-              ? [
-                  {
-                    attributeType: config.contactPersonAttributesUuid.healthCareWorkerFacilityAttributetype,
-                    value: patientData.facility,
-                  },
-                ]
-              : []),
-          ],
+          attributes,
         },
-      }),
+      },
     });
     showSnackbar({
       title: t('patient', 'Patient'),
@@ -201,24 +257,24 @@ async function createPatient(
     showSnackbar({
       kind: 'error',
       title: t('errorCreatingPatient', 'Error creating patient'),
-      subtitle: (error as any)?.message,
+      subtitle: getRestErrorMessage(error),
     });
   }
 }
 
 async function createRelationship(contactData: ContactListFormValues, contactPatient: string, t: TFunction) {
   try {
-    const res = await openmrsFetch(`/ws/rest/v1/relationship`, {
+    const res = await openmrsFetch(`${restBaseUrl}/relationship`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        startDate: contactData.dateofLastContact,
+      body: {
+        startDate: toIsoDate(contactData.dateofLastContact),
         personA: contactData.caseId,
         relationshipType: contactData.relationToCase,
         personB: contactPatient,
-      }),
+      },
     });
     showSnackbar({
       title: t('relationship', 'Relationship'),
@@ -229,40 +285,62 @@ async function createRelationship(contactData: ContactListFormValues, contactPat
     showSnackbar({
       kind: 'error',
       title: t('errorCreatingRelationship', 'Error creating relationship'),
-      subtitle: (error as any)?.message,
+      subtitle: getRestErrorMessage(error),
     });
   }
 }
 
-async function updateAttribute<T = string>(
-  person: string,
-  atrributeType: string,
-  value: (currentAttributeValue?: T) => T,
-) {
-  const url = `${restBaseUrl}/person/${person}/attribute`;
+async function updateAttribute(person: string, attributeType: string | undefined, value?: string | null) {
+  const nextValue = toPersonAttributeValue(value);
+  if (!person || !attributeType || !nextValue) {
+    return;
+  }
+
+  const url = `${restBaseUrl}/person/${person}/attribute?v=custom:(uuid,value,attributeType:(uuid))`;
   const res = await openmrsFetch<{ results: Person['attributes'] }>(url);
-  const attribute = (res.data.results ?? []).find((attr) => attr.attributeType?.uuid === atrributeType);
+  const attribute = (res.data.results ?? []).find((attr) => getPersonAttributeTypeUuid(attr) === attributeType);
+  const headers = { 'Content-Type': 'application/json' };
+
   if (attribute) {
-    const _value = value(attribute.value as T);
-    if (_value === undefined || _value === null) return;
-    return await openmrsFetch(`${url}/${attribute.uuid}`, {
-      body: JSON.stringify({ attributeType: atrributeType, value: _value }),
+    return await openmrsFetch(`${restBaseUrl}/person/${person}/attribute/${attribute.uuid}`, {
+      body: { value: nextValue },
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
   }
-  const _value = value();
-  if (_value === undefined || _value === null) return;
-  return await openmrsFetch(url, {
-    body: JSON.stringify({ attributeType: atrributeType, value: _value }),
+
+  return await openmrsFetch(`${restBaseUrl}/person/${person}/attribute`, {
+    body: { attributeType, value: nextValue },
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
   });
 }
+
+const saveExistingPatientAttributes = async (person: string, data: ContactListFormValues, config: WardConfigObject) => {
+  const attributes = await filterExistingPersonAttributes(
+    buildPersonAttributes(
+      {
+        typeOfContact: data.typeOfContact,
+        headOfHouseHold: data.headOfHouseHold,
+        facility: data.facility,
+        isHealthCareWorker: data.isHealthCareWorker,
+      },
+      config,
+    ),
+  );
+
+  let firstError: unknown;
+  for (const attribute of attributes) {
+    try {
+      await updateAttribute(person, attribute.attributeType, attribute.value);
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  if (firstError) {
+    throw firstError;
+  }
+};
 
 export const createContact = async (
   data: ContactListFormValues,
@@ -274,40 +352,20 @@ export const createContact = async (
   if (data.mode === 'create') {
     const identifier = await generateOpenmrsIdentifier(config.openmrsIdentifierSourceUuid, t);
     if (!identifier) return;
-    const personPayload: ContactListPersonFormValues &
-      Pick<ContactListFormValues, 'typeOfContact' | 'headOfHouseHold' | 'facility' | 'isHealthCareWorker'> = {
-      ...(data.person as ContactListPersonFormValues),
-      typeOfContact: data.typeOfContact,
-      headOfHouseHold: data.headOfHouseHold,
-      facility: data.facility,
-      isHealthCareWorker: data.isHealthCareWorker,
-    };
-    const patient_ = await createPatient(personPayload, identifier, config, session, t);
+    const patient_ = await createPatient(data.person as ContactListPersonFormValues, identifier, config, session, t);
     if (!patient_) return;
     patient = patient_.uuid;
   }
-  if (data.mode === 'search') {
-    await updateAttribute<string | undefined>(
-      patient,
-      config.contactPersonAttributesUuid.contactTypeAttributeType,
-      (attr) => {
-        return data.typeOfContact.join(',');
-      },
-    );
-    await updateAttribute<string | undefined>(
-      patient,
-      config.contactPersonAttributesUuid.headOfHouseholdAttributeType,
-      (attr) => {
-        return data.headOfHouseHold;
-      },
-    );
-    await updateAttribute<string | undefined>(
-      patient,
-      config.contactPersonAttributesUuid.healthCareWorkerFacilityAttributetype,
-      (attr) => {
-        return data.isHealthCareWorker ? data.facility : undefined;
-      },
-    );
-  }
+
   await createRelationship(data, patient, t);
+
+  try {
+    await saveExistingPatientAttributes(patient, data, config);
+  } catch (error) {
+    showSnackbar({
+      kind: 'warning',
+      title: t('errorSavingContactDetails', 'Error saving contact details'),
+      subtitle: getRestErrorMessage(error),
+    });
+  }
 };

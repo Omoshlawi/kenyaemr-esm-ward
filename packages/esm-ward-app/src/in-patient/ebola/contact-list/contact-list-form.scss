@@ -1,7 +1,6 @@
-@use '@carbon/type';
-@use '@carbon/layout';
 @use '@carbon/colors';
-
+@use '@carbon/layout';
+@use '@carbon/type';
 
 .form {
   display: flex;
@@ -12,12 +11,19 @@
 }
 
 .grid {
-  margin: layout.$spacing-05 layout.$spacing-05;
-  padding: layout.$spacing-05 0 0 0;
+  margin: layout.$spacing-05;
+  padding-top: layout.$spacing-05;
+}
+
+.modeHint {
+  @include type.type-style('helper-text-01');
+  margin-top: layout.$spacing-03;
+  color: colors.$gray-70;
 }
 
 .btnSet {
-  & > button {
-    min-width: 50%;
+  :global(.cds--btn) {
+    max-width: none;
+    width: 50%;
   }
 }

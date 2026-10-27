@@ -1051,6 +1051,49 @@ export const configSchema: ConfigSchema = {
     _description: 'HTS Encounter uuid used in contact tracing',
     _default: '9c0a7a57-62ff-4f75-babe-5835b0e921b7',
   },
+  ebolaContactFollowup: {
+    _type: Type.Object,
+    _description: 'Encounter settings used to persist Ebola contact follow-up details',
+    _default: {
+      encounterRoleUuid: 'a0b03050-c99b-11e0-9572-0800200c9a66',
+      encounterType: '465a92f2-baf8-42e9-9612-53064be868e8',
+      payloadConcept: '164231AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      dailyMarkConcept: '140238AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      markYesConcept: '1065AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      markNoConcept: '1066AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+    encounterRoleUuid: {
+      _type: Type.UUID,
+      _description: 'Encounter role used when saving contact follow-up',
+      _default: 'a0b03050-c99b-11e0-9572-0800200c9a66',
+    },
+    encounterType: {
+      _type: Type.UUID,
+      _description: 'Encounter type used when saving contact follow-up',
+      _default: '465a92f2-baf8-42e9-9612-53064be868e8',
+    },
+    payloadConcept: {
+      _type: Type.UUID,
+      _description: 'Text concept used to store the serialized follow-up payload',
+      _default: '164231AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+    dailyMarkConcept: {
+      _type: Type.UUID,
+      _description:
+        'Coded question stored for each follow-up day so charts can plot the result. Value Yes means 0 (no fever or bleeding); value No means X (died or fever/bleeding).',
+      _default: '140238AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+    markYesConcept: {
+      _type: Type.UUID,
+      _description: 'Coded value for a 0 mark (no fever or bleeding). Defaults to CIEL Yes.',
+      _default: '1065AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+    markNoConcept: {
+      _type: Type.UUID,
+      _description: 'Coded value for an X mark (died or fever/bleeding). Defaults to CIEL No.',
+      _default: '1066AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+  },
 } as const;
 
 export interface WardConfigObject {
@@ -1199,6 +1242,14 @@ export interface WardConfigObject {
     remarksConceptUuid: string;
   };
   htsEcounterUuid: string;
+  ebolaContactFollowup: {
+    encounterRoleUuid: string;
+    encounterType: string;
+    payloadConcept: string;
+    dailyMarkConcept: string;
+    markYesConcept: string;
+    markNoConcept: string;
+  };
 }
 export interface PendingItemsElementConfig {
   id: string;

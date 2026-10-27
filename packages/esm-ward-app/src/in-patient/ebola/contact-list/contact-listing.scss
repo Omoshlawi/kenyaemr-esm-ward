@@ -1,0 +1,15 @@
+@use '@carbon/layout';
+
+.container {
+  :global(.cds--data-table-container) {
+    padding: 0;
+  }
+
+  :global(.cds--pagination) {
+    width: 100%;
+  }
+}
+
+.expandedRow {
+  padding-inline-start: layout.$spacing-05;
+}

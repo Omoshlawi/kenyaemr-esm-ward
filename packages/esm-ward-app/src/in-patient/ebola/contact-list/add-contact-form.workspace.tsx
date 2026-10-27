@@ -17,7 +17,6 @@ import {
   OpenmrsDatePicker,
   type Patient,
   ResponsiveWrapper,
-  restBaseUrl,
   showModal,
   showSnackbar,
   useConfig,
@@ -42,25 +41,41 @@ import {
   searchPatient,
 } from './contact-list.resource';
 import RelationshipTypeInput from './relationship-type.component';
-import { useContactTypeMapping } from './use-contact-mapping';
-import { mutate } from 'swr';
+import { revalidateRelationships, useContactTypeMapping } from './use-contact-mapping';
+
+const emptyCreatePerson: ContactListPersonFormValues = {
+  givenName: '',
+  middleName: '',
+  familyName: '',
+  gender: undefined as unknown as ContactListPersonFormValues['gender'],
+  birthdate: undefined as unknown as Date,
+  address: '',
+  county: '',
+  subcounty: '',
+  phoneNumber: '',
+};
+
 type ContactListFormProps = {
   patientUuid: string;
+  initialMode?: ContactListFormValues['mode'];
+  onContactAdded?: () => void;
 };
 const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, object, object>> = ({
   closeWorkspace,
   workspaceProps,
 }) => {
-  const { patientUuid } = workspaceProps ?? {};
+  const { patientUuid, initialMode = 'search', onContactAdded } = workspaceProps ?? {};
   const { t } = useTranslation();
   const session = useSession();
   const config = useConfig<WardConfigObject>();
   const { ContactTypeMapping, DisplayMapping } = useContactTypeMapping();
   const form = useForm<ContactListFormValues>({
     defaultValues: {
-      mode: 'search',
-      person: '',
+      mode: initialMode,
+      person: initialMode === 'create' ? emptyCreatePerson : '',
       relationToCase: '',
+      typeOfContact: [],
+      headOfHouseHold: '',
       isHealthCareWorker: 'N',
       caseId: patientUuid,
     },
@@ -81,22 +96,26 @@ const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, o
   const handleSubmit: SubmitHandler<ContactListFormValues> = async (data) => {
     try {
       await createContact(data, config, t, session);
-      mutate((key) => typeof key === 'string' && key.startsWith(`${restBaseUrl}/relationship`), undefined, {
-        revalidate: true,
-      });
+      await revalidateRelationships();
+      onContactAdded?.();
       showSnackbar({
         kind: 'success',
         title: t('success', 'Success'),
-        subtitle: t('contactAddeddSuccessfully', 'Contact added successfully!'),
+        subtitle: t('contactAddedSuccessfully', 'Contact added successfully!'),
       });
       closeWorkspace?.();
     } catch (error) {
-      showSnackbar({ kind: 'error', title: t('error', 'Error'), subtitle: (error as any)?.message });
+      showSnackbar({
+        kind: 'error',
+        title: t('error', 'Error'),
+        subtitle:
+          error instanceof Error ? error.message : t('unexpectedError', 'An unexpected error occurred while saving.'),
+      });
     }
   };
   return (
     <Workspace2 title={t('contactListForm', 'Contact List Form')} hasUnsavedChanges={false}>
-      <Form className={styles.form} onSubmit={form.handleSubmit(handleSubmit, (e) => console.error(e))}>
+      <Form className={styles.form} onSubmit={form.handleSubmit(handleSubmit)}>
         <Stack gap={4} className={styles.grid}>
           <Column>
             <Controller
@@ -106,14 +125,22 @@ const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, o
                 <ContentSwitcher
                   size="md"
                   selectedIndex={field.value == 'search' ? 0 : 1}
-                  onChange={({ index, name, text }) => {
+                  onChange={({ name }) => {
                     field.onChange(name);
+                    form.setValue('person', name === 'create' ? emptyCreatePerson : '');
+                    form.clearErrors('person');
                   }}>
                   <Switch name="search" text={t('searchPatient', 'Search patient')} />
                   <Switch name="create" text={t('createPatient', 'Create patient')} />
                 </ContentSwitcher>
               )}
             />
+            <p className={styles.modeHint}>
+              {t(
+                'addContactModeHint',
+                'Search if this person is already registered. Choose Create patient to enter details for someone who is not yet in the system.',
+              )}
+            </p>
           </Column>
           {mode === 'search' && (
             <Column>
@@ -135,7 +162,11 @@ const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, o
                       <SearchEmptyState
                         searchValue={value}
                         message={t('patientNotFound', 'Patient Not Found')}
-                        onAdd={() => form.setValue('mode', 'create')}
+                        onAdd={() => {
+                          form.setValue('mode', 'create');
+                          form.setValue('person', emptyCreatePerson);
+                          form.clearErrors('person');
+                        }}
                       />
                     )}
                     onClear={() => field.onChange('')}
@@ -226,7 +257,6 @@ const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, o
                         id="person-birdthdate"
                         labelText={t('dateOfBirth', 'Date of birth')}
                         value={field.value as Date}
-                        // minDate={oneYearAgo()}
                         maxDate={new Date()}
                         invalid={Boolean(error?.message)}
                         invalidText={error?.message}
@@ -337,7 +367,6 @@ const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, o
                     id="date-of-last-contact"
                     labelText={t('dateOfLastContact', 'Date of last contact')}
                     value={field.value as Date}
-                    // minDate={oneYearAgo()}
                     maxDate={new Date()}
                     invalid={Boolean(error?.message)}
                     invalidText={error?.message}
@@ -391,7 +420,7 @@ const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, o
               name="isHealthCareWorker"
               render={({ field, fieldState: { error } }) => (
                 <RadioButtonGroup
-                  legendText={t('isHeathCareWorker', 'Is healthcare worker')}
+                  legendText={t('isHealthCareWorker', 'Is healthcare worker')}
                   {...field}
                   invalid={!!error?.message}
                   invalidText={error?.message}>
@@ -422,10 +451,10 @@ const AddContactForm: React.FC<Workspace2DefinitionProps<ContactListFormProps, o
         </Stack>
         <ButtonSet className={styles.btnSet}>
           <Button kind="secondary" onClick={() => closeWorkspace()}>
-            Cancel
+            {t('cancel', 'Cancel')}
           </Button>
           <Button kind="primary" type="submit">
-            Submit
+            {t('submit', 'Submit')}
           </Button>
         </ButtonSet>
       </Form>
