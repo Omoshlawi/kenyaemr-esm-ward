@@ -1,0 +1,39 @@
+@use '@carbon/layout';
+
+.container {
+  :global(.cds--pagination) {
+    width: 100%;
+  }
+}
+
+.tableContainer {
+  padding: 0;
+
+  :global(tbody td.cds--table-expand) {
+    padding-inline-start: layout.$spacing-03 !important;
+  }
+
+  &:global(.cds--data-table-container) {
+    background: none !important;
+  }
+}
+
+.menuItem {
+  max-width: none;
+}
+
+.expandedRow {
+  padding-inline: 3.5rem;
+
+  > td {
+    padding: inherit !important;
+
+    > div {
+      max-height: max-content !important;
+    }
+  }
+}
+
+.hiddenRow {
+  display: none;
+}

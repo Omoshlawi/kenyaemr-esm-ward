@@ -8,7 +8,7 @@ const options = {
 
 // t("cif", "CIF")
 export const caseIdentificationFinding = getAsyncLifecycle(
-  () => import('./case-identification-finding.component'),
+  () => import('./case-identification-finding/case-identification-finding.component'),
   options,
 );
 
