@@ -1,0 +1,40 @@
+name: Auto Create Draft PR
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - main
+      - master
+
+jobs:
+  create-draft-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Draft PR to Specific Branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          TARGET_BRANCH: "release" # Replace with your target branch name
+          PR_TITLE: "[Draft] Sync: ${{ github.event.pull_request.title }}"
+        run: |
+          # Verify that the source branch isn't the same as the target branch to prevent loops
+          if [ "$SOURCE_BRANCH" = "$TARGET_BRANCH" ]; then
+            echo "Source and target branches are identical. Skipping PR creation."
+            exit 0
+          fi
+
+          # Use GitHub CLI to create the draft pull request
+          gh pr create \
+            --base "$TARGET_BRANCH" \
+            --head "$SOURCE_BRANCH" \
+            --title "$PR_TITLE" \
+            --body "This is an automated draft PR targeting \`$TARGET_BRANCH\` created because a new PR was opened against main/master." \
+            --draft
