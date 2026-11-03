@@ -196,6 +196,10 @@ export const inPatientTreatmentChart = getAsyncLifecycle(
   () => import('./in-patient/treatmentChart/treatment-chart-dashboard.component'),
   options,
 );
+export const inPatientBloodTransfusion = getAsyncLifecycle(
+  () => import('./in-patient/bloodTransfusion/blood-transfusion-dashboard.component'),
+  options,
+);
 export const labourCareGuide = getAsyncLifecycle(
   () => import('./in-patient/labourCareGuide/labour-care-guide.component'),
   options,

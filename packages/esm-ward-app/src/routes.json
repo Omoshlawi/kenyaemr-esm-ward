@@ -174,7 +174,18 @@
       "meta": {
         "fullWidth": false,
         "title": "treatmentChart"
-      }
+      },
+      "order": 10
+    },
+    {
+      "name": "in-patient-blood-transfusion",
+      "component": "inPatientBloodTransfusion",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "meta": {
+        "fullWidth": false,
+        "title": "bloodTransfusion"
+      },
+      "order": 11
     },
         {
       "name": "global-cds-alert-banner",

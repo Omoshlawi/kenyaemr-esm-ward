@@ -1094,6 +1094,19 @@ export const configSchema: ConfigSchema = {
       _default: '1066AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     },
   },
+  bloodTransfusion: {
+    _type: Type.Object,
+    _description: 'Blood transfusion observation chart; one encounter per transfusion.',
+    _default: {
+      encounterTypeUuid: '465a92f2-baf8-42e9-9612-53064be868e8',
+    },
+    encounterTypeUuid: {
+      _type: Type.UUID,
+      _default: '465a92f2-baf8-42e9-9612-53064be868e8',
+      _description:
+        'Encounter type used to save and fetch blood transfusions (defaults to Clinical Consultation).',
+    },
+  },
 } as const;
 
 export interface WardConfigObject {
@@ -1249,6 +1262,9 @@ export interface WardConfigObject {
     dailyMarkConcept: string;
     markYesConcept: string;
     markNoConcept: string;
+  };
+  bloodTransfusion: {
+    encounterTypeUuid: string;
   };
 }
 export interface PendingItemsElementConfig {

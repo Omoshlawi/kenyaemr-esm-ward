@@ -1,0 +1,741 @@
+@use '@carbon/colors';
+@use '@carbon/layout';
+@use '@carbon/type';
+
+$card-border: 1px solid colors.$gray-20;
+$grid-line: colors.$gray-30;
+
+/* ---------- shared ---------- */
+
+.blueBtn {
+  background-color: colors.$teal-60 !important;
+  border-color: colors.$teal-60 !important;
+  border-radius: 0;
+
+  &:hover {
+    background-color: colors.$teal-70 !important;
+    border-color: colors.$teal-70 !important;
+  }
+
+  &:disabled {
+    background-color: colors.$gray-30 !important;
+    border-color: colors.$gray-30 !important;
+  }
+}
+
+.requiredMark {
+  color: colors.$red-60;
+}
+
+/* ---------- list ---------- */
+
+.listCard {
+  background: colors.$white;
+  border: $card-border;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-04;
+  padding: layout.$spacing-04;
+}
+
+.listHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: layout.$spacing-04;
+  justify-content: space-between;
+}
+
+.listTitle {
+  @include type.type-style('heading-03');
+  align-items: center;
+  color: colors.$gray-100;
+  display: inline-flex;
+  gap: layout.$spacing-03;
+  margin: 0;
+
+  svg {
+    fill: colors.$teal-60;
+  }
+}
+
+.listTableWrap {
+  overflow-x: auto;
+}
+
+.listTable {
+  min-width: 60rem;
+
+  th,
+  td {
+    border: 1px solid $grid-line;
+    font-size: type.type-scale(2);
+  }
+}
+
+.numberCell {
+  font-variant-numeric: tabular-nums;
+  font-weight: type.font-weight('semibold');
+  white-space: nowrap;
+}
+
+.reactionText {
+  align-items: center;
+  color: colors.$red-60;
+  display: inline-flex;
+  font-weight: type.font-weight('semibold');
+  gap: layout.$spacing-02;
+
+  svg {
+    fill: colors.$red-60;
+    flex-shrink: 0;
+  }
+}
+
+.actionsCell {
+  white-space: nowrap;
+}
+
+.emptyList {
+  @include type.type-style('body-compact-01');
+  border: 1px dashed colors.$gray-30;
+  border-radius: 0;
+  color: colors.$gray-60;
+  margin: 0;
+  padding: layout.$spacing-07;
+  text-align: center;
+}
+
+/* ---------- form ---------- */
+
+.formCard {
+  background: colors.$white;
+  border: $card-border;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-04;
+  overflow: hidden;
+  padding-bottom: layout.$spacing-04;
+
+  > :not(.formHeader) {
+    margin-inline: layout.$spacing-05;
+  }
+}
+
+.formHeader {
+  align-items: flex-start;
+  background: colors.$white;
+  border-bottom: $card-border;
+  color: colors.$gray-100;
+  display: flex;
+  flex-wrap: wrap;
+  gap: layout.$spacing-05;
+  justify-content: space-between;
+  padding: layout.$spacing-05;
+}
+
+.formHeading {
+  align-items: flex-start;
+  display: flex;
+  flex: 1 1 28rem;
+  gap: layout.$spacing-04;
+  min-width: 0;
+}
+
+.headerIcon {
+  align-items: center;
+  background: colors.$red-10;
+  border-radius: 50%;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: layout.$spacing-09;
+  justify-content: center;
+  width: layout.$spacing-09;
+
+  svg {
+    fill: colors.$red-60;
+  }
+}
+
+.formHeadingText {
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-02;
+  min-width: 0;
+}
+
+.formTitle {
+  @include type.type-style('heading-03');
+  margin: 0;
+}
+
+.formSubtitle {
+  @include type.type-style('body-compact-01');
+  color: colors.$gray-70;
+  margin: 0;
+}
+
+.formHeaderMeta {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: layout.$spacing-03;
+  margin-top: layout.$spacing-02;
+}
+
+.headerDate {
+  border-left: $card-border;
+  flex: 0 0 14rem;
+  padding-left: layout.$spacing-05;
+
+  @media (max-width: 50rem) {
+    border-left: 0;
+    flex-basis: 100%;
+    padding-left: 0;
+  }
+}
+
+.numberPill {
+  @include type.type-style('label-01');
+  align-items: center;
+  background: colors.$gray-10;
+  border: 1px solid colors.$gray-20;
+  border-radius: layout.$spacing-05;
+  color: colors.$gray-100;
+  display: inline-flex;
+  font-weight: type.font-weight('semibold');
+  gap: layout.$spacing-02;
+  padding: layout.$spacing-02 layout.$spacing-04;
+
+  svg {
+    fill: colors.$teal-60;
+  }
+}
+
+.block {
+  border: $card-border;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-04;
+  padding: layout.$spacing-04;
+}
+
+.blockTitle {
+  @include type.type-style('heading-compact-01');
+  align-items: center;
+  color: colors.$gray-100;
+  display: inline-flex;
+  gap: layout.$spacing-03;
+  margin: 0;
+}
+
+.blockIcon {
+  align-items: center;
+  background: colors.$teal-60;
+  border-radius: 50%;
+  display: inline-flex;
+  height: 1.75rem;
+  justify-content: center;
+  width: 1.75rem;
+
+  svg {
+    fill: colors.$white;
+  }
+}
+
+.grid3 {
+  align-items: start;
+  display: grid;
+  gap: layout.$spacing-04;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  @media (max-width: 66rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.blockHint {
+  @include type.type-style('helper-text-01');
+  color: colors.$gray-60;
+  margin: layout.$spacing-02 0 0 calc(1.75rem + #{layout.$spacing-03});
+}
+
+.bloodTypeRadios {
+  margin: layout.$spacing-04 0 0 calc(1.75rem + #{layout.$spacing-03});
+}
+
+.otherTypeInput {
+  max-width: 20rem;
+}
+
+.rateField {
+  align-items: end;
+  display: grid;
+  gap: layout.$spacing-03;
+  grid-template-columns: minmax(0, 1fr) 9rem;
+}
+
+/* ---------- observations table ---------- */
+
+.obsTableWrap {
+  border: 1px solid $grid-line;
+  border-radius: 0;
+  overflow-x: auto;
+}
+
+.obsTable {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+
+  th,
+  td {
+    border: 1px solid $grid-line;
+    padding: layout.$spacing-01 layout.$spacing-02;
+    vertical-align: middle;
+  }
+
+  thead th {
+    @include type.type-style('label-01');
+    background: colors.$gray-10;
+    color: colors.$gray-100;
+    font-weight: type.font-weight('semibold');
+    padding-block: layout.$spacing-02;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  /* Observation | Due | Exact Time | Temp | PR | RR | BP | Remarks */
+  th:nth-child(1),
+  td:nth-child(1) {
+    width: 6rem;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    width: 4rem;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 10.5rem;
+    white-space: nowrap;
+  }
+
+  th:nth-child(4),
+  td:nth-child(4),
+  th:nth-child(5),
+  td:nth-child(5),
+  th:nth-child(6),
+  td:nth-child(6) {
+    width: 5.75rem;
+  }
+
+  th:nth-child(7),
+  td:nth-child(7) {
+    width: 8rem;
+  }
+
+  th:nth-child(8),
+  td:nth-child(8) {
+    width: 6.5rem;
+  }
+
+  :global(.cds--text-input),
+  :global(.cds--text-input__field-wrapper) {
+    max-width: 100%;
+  }
+
+  :global(.cds--text-input) {
+    background: colors.$white;
+    border: 1px solid colors.$gray-30;
+    border-radius: 0;
+    min-width: 0;
+  }
+
+  .unit {
+    display: none;
+  }
+
+  .unitInput {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bpInputs {
+    gap: layout.$spacing-01;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
+.obsLabel {
+  @include type.type-style('label-01');
+  font-weight: type.font-weight('semibold');
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.baselineRow {
+  background: colors.$gray-10;
+}
+
+.rowSync {
+  @include type.type-style('label-01');
+  align-items: center;
+  display: inline-flex;
+  font-weight: type.font-weight('regular');
+  gap: layout.$spacing-01;
+  margin-inline-start: layout.$spacing-01;
+  white-space: nowrap;
+
+  :global(.cds--inline-loading) {
+    min-height: auto;
+  }
+
+  :global(.cds--inline-loading__text) {
+    display: none;
+  }
+}
+
+.rowSyncText {
+  @include type.type-style('label-01');
+  clip: rect(0 0 0 0);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.rowSyncSaved {
+  color: colors.$green-60;
+
+  svg {
+    fill: colors.$green-60;
+  }
+}
+
+.rowSyncError {
+  color: colors.$red-60;
+
+  svg {
+    fill: colors.$red-60;
+  }
+}
+
+.rowSyncSaving {
+  color: colors.$gray-60;
+}
+
+.dueCell {
+  @include type.type-style('label-01');
+  color: colors.$gray-60;
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+}
+
+.flagCell {
+  background: colors.$red-10;
+
+  :global(.cds--text-input) {
+    border-color: colors.$red-60 !important;
+    color: colors.$red-70;
+    font-weight: type.font-weight('semibold');
+  }
+}
+
+.unitInput {
+  align-items: center;
+  display: grid;
+  gap: layout.$spacing-02;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.unit {
+  @include type.type-style('label-01');
+  color: colors.$gray-60;
+  min-width: 1.75rem;
+}
+
+.bpInputs {
+  align-items: center;
+  display: grid;
+  gap: layout.$spacing-02;
+  grid-template-columns: minmax(3.5rem, 1fr) auto minmax(3.5rem, 1fr);
+}
+
+.bpSlash {
+  color: colors.$gray-60;
+  font-weight: type.font-weight('semibold');
+}
+
+.endRow {
+  display: grid;
+  gap: layout.$spacing-04;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  @media (max-width: 50rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.endField {
+  border: $card-border;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-03;
+  padding: layout.$spacing-03 layout.$spacing-04;
+}
+
+.endLabel {
+  @include type.type-style('label-01');
+  align-items: center;
+  color: colors.$gray-100;
+  display: inline-flex;
+  font-weight: type.font-weight('semibold');
+  gap: layout.$spacing-03;
+
+  svg {
+    fill: colors.$teal-60;
+  }
+}
+
+.endInputs {
+  display: grid;
+  gap: layout.$spacing-03;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* ---------- reactions ---------- */
+
+.reactionBlock {
+  background: colors.$red-10;
+  border: 1px solid colors.$red-20;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: layout.$spacing-04;
+  padding: layout.$spacing-04;
+}
+
+.reactionTitle {
+  @include type.type-style('heading-compact-01');
+  align-items: center;
+  color: colors.$red-70;
+  display: inline-flex;
+  gap: layout.$spacing-03;
+  margin: 0;
+
+  svg {
+    fill: colors.$red-60;
+  }
+}
+
+.reactionGrid {
+  display: grid;
+  gap: layout.$spacing-04;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  @media (max-width: 50rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.reactionGroup {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+
+  legend {
+    @include type.type-style('label-01');
+    color: colors.$gray-100;
+    font-weight: type.font-weight('semibold');
+    margin-bottom: layout.$spacing-02;
+  }
+}
+
+.noteBar {
+  @include type.type-style('body-compact-01');
+  align-items: center;
+  background: colors.$blue-10;
+  border-radius: 0;
+  color: colors.$blue-80;
+  display: flex;
+  gap: layout.$spacing-03;
+  margin-block: 0;
+  padding: layout.$spacing-03 layout.$spacing-04;
+
+  svg {
+    fill: colors.$blue-60;
+    flex-shrink: 0;
+  }
+}
+
+.formFooter {
+  align-items: center;
+  border-top: $card-border;
+  display: flex;
+  flex-wrap: wrap;
+  gap: layout.$spacing-04;
+  justify-content: space-between;
+  padding-top: layout.$spacing-04;
+}
+
+.footerActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: layout.$spacing-03;
+}
+
+/* ---------- save state & progress ---------- */
+
+.savedStamp {
+  @include type.type-style('label-01');
+  color: colors.$gray-70;
+}
+
+.progressBar {
+  @include type.type-style('body-compact-01');
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: layout.$spacing-04;
+}
+
+.progressTrack {
+  background: colors.$gray-20;
+  border-radius: layout.$spacing-05;
+  flex: 1;
+  height: 0.5rem;
+  max-width: 16rem;
+  min-width: 6rem;
+  overflow: hidden;
+}
+
+.progressFill {
+  background: colors.$green-50;
+  display: block;
+  height: 100%;
+  transition: width 0.2s ease;
+}
+
+.overdueText {
+  @include type.type-style('label-01');
+  align-items: center;
+  color: colors.$red-60;
+  display: inline-flex;
+  font-weight: type.font-weight('semibold');
+  gap: layout.$spacing-02;
+
+  svg {
+    fill: colors.$red-60;
+  }
+}
+
+.nextDueText {
+  @include type.type-style('label-01');
+  color: colors.$blue-70;
+  font-weight: type.font-weight('semibold');
+}
+
+.overdueRow .obsLabel {
+  box-shadow: inset 3px 0 0 colors.$red-60;
+}
+
+.notNeededRow {
+  opacity: 0.55;
+}
+
+.rowState {
+  @include type.type-style('label-01');
+  border-radius: layout.$spacing-05;
+  display: inline-block;
+  font-weight: type.font-weight('semibold');
+  margin-top: layout.$spacing-01;
+  padding: 0 layout.$spacing-03;
+}
+
+.rowStateRecorded {
+  background: colors.$green-10;
+  color: colors.$green-70;
+}
+
+.rowStateOverdue {
+  background: colors.$red-10;
+  color: colors.$red-70;
+}
+
+.rowStateDue {
+  background: colors.$yellow-20;
+  color: colors.$gray-100;
+}
+
+.rowStateNotApplicable {
+  background: colors.$gray-10;
+  color: colors.$gray-60;
+}
+
+.discardActions {
+  display: inline-flex;
+  gap: layout.$spacing-03;
+  margin-top: layout.$spacing-03;
+}
+
+/* ---------- list extras ---------- */
+
+.runningBanner {
+  align-items: center;
+  background: colors.$blue-10;
+  border-left: 4px solid colors.$blue-60;
+  border-radius: 0;
+  display: flex;
+  gap: layout.$spacing-04;
+  padding: layout.$spacing-03 layout.$spacing-04;
+
+  > svg {
+    fill: colors.$blue-60;
+    flex-shrink: 0;
+  }
+}
+
+.runningOverdue {
+  background: colors.$red-10;
+  border-left-color: colors.$red-60;
+
+  > svg {
+    fill: colors.$red-60;
+  }
+}
+
+.runningText {
+  @include type.type-style('body-compact-01');
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: layout.$spacing-01;
+}
+
+.listFilters {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dayRow td {
+  background: colors.$gray-10 !important;
+}
+
+.dayCount {
+  @include type.type-style('label-01');
+  color: colors.$gray-60;
+  margin-left: layout.$spacing-04;
+}
+
+.subText {
+  @include type.type-style('label-01');
+  color: colors.$gray-60;
+  font-weight: type.font-weight('regular');
+}

@@ -1,0 +1,49 @@
+@use '@carbon/colors';
+@use '@carbon/layout';
+@use '@carbon/type';
+
+.wrapper {
+  position: relative;
+}
+
+.results {
+  background: colors.$white;
+  border: 1px solid colors.$gray-30;
+  box-shadow: 0 2px 6px rgba(colors.$black, 0.15);
+  left: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 1000;
+}
+
+.option {
+  @include type.type-style('body-compact-01');
+  background: none;
+  border: 0;
+  border-bottom: 1px solid colors.$gray-20;
+  color: colors.$gray-100;
+  cursor: pointer;
+  display: block;
+  padding: layout.$spacing-03 layout.$spacing-04;
+  text-align: left;
+  width: 100%;
+
+  &:hover,
+  &:focus-visible {
+    background: colors.$gray-10;
+    outline: none;
+  }
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.status {
+  @include type.type-style('label-01');
+  color: colors.$gray-60;
+  padding: layout.$spacing-03 layout.$spacing-04;
+}
