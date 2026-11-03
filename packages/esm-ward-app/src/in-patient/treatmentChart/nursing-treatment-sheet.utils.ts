@@ -79,53 +79,11 @@ export function incrementAdministeredOrderCount(
   }
 }
 
-const MASS_OR_VOLUME_UNITS =
-  /\b(mg|mcg|µg|ug|microgram|gram|kg|ml|millilitre|milliliter|litre|liter|iu|mmol|meq)\b/i;
-const COUNTABLE_DOSE_UNITS =
-  /\b(application|tablet|tab|capsule|cap|caplet|drop|puff|spray|dose|suppositor|ampoule|ampule|vial|lozenge|sachet|times?)\b/i;
-
 /**
- * When the prescribed dose is a whole number of applications/tablets (e.g. "2 Application"),
- * that number is how many times the drug may be given today.
+ * Daily administrations allowed for an order, based on frequency only
+ * (e.g. BD → 2, TDS → 3). Dose / quantity is not used. PRN is unlimited.
  */
-export function getCountableDailyDoses(dose?: number | string | null, doseUnits?: string | null): number | null {
-  const amount = Number(dose);
-  if (!Number.isFinite(amount) || amount < 1 || amount > 24) {
-    return null;
-  }
-
-  const rounded = Math.round(amount);
-  if (Math.abs(amount - rounded) > 0.01) {
-    return null;
-  }
-
-  const units = (doseUnits ?? '').trim();
-  if (!units) {
-    return null;
-  }
-
-  if (units === '%' || units.toLowerCase() === 'g' || MASS_OR_VOLUME_UNITS.test(units)) {
-    return null;
-  }
-
-  if (COUNTABLE_DOSE_UNITS.test(units)) {
-    return rounded;
-  }
-
-  return null;
-}
-
-/**
- * Daily administrations allowed for an order.
- * Uses the prescribed dose count when it is a countable number of applications/tablets,
- * otherwise the frequency (e.g. TDS). PRN is unlimited.
- */
-export function getDailyAdministrationLimit(
-  frequency?: FrequencyLike,
-  extraText?: string | null,
-  dose?: number | string | null,
-  doseUnits?: string | null,
-): number {
+export function getDailyAdministrationLimit(frequency?: FrequencyLike, extraText?: string | null): number {
   const display = typeof frequency === 'string' ? frequency : (frequency?.display ?? '');
   const normalized = [display, extraText ?? ''].join(' ').trim().toLowerCase();
   const frequencyPerDay =
@@ -166,11 +124,6 @@ export function getDailyAdministrationLimit(
     }
   }
 
-  const doseCount = getCountableDailyDoses(dose, doseUnits);
-  if (doseCount != null) {
-    return Math.max(frequencyLimit, doseCount);
-  }
-
   return frequencyLimit;
 }
 
@@ -190,8 +143,8 @@ export function getTodayAdministrationCount(
   const labelKey = option.label.trim().toLowerCase();
   const byLabel = labelKey ? (administered.todayCountsByLabel.get(labelKey) ?? 0) : 0;
 
-  // Count the same drug across a revised order (dose 2 → 4) so remaining is
-  // newLimit - already given today, not newLimit added on top of the old dose.
+  // Count the same drug across a revised order (e.g. BD → TDS) so remaining is
+  // newFrequencyLimit - already given today, not a full new day's worth.
   return Math.max(byOrder, byLabel);
 }
 

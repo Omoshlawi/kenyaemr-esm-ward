@@ -46,16 +46,11 @@ describe('getDailyAdministrationLimit', () => {
     ).toBe(2);
   });
 
-  it('uses a countable prescribed dose as the daily limit, e.g. 2 Application once daily', () => {
-    expect(getDailyAdministrationLimit('Once daily, in the morning', null, 2, 'Application')).toBe(2);
-    expect(getDailyAdministrationLimit('Once daily, in the morning', null, 3, 'Tablet')).toBe(3);
-    expect(getDailyAdministrationLimit({ display: 'Once daily', frequencyPerDay: 1 }, null, 2, 'Application')).toBe(2);
-  });
-
-  it('does not treat mass or volume amounts as times per day', () => {
-    expect(getDailyAdministrationLimit('Once daily', null, 500, 'mg')).toBe(1);
-    expect(getDailyAdministrationLimit('Three times daily', null, 1, 'g')).toBe(3);
-    expect(getDailyAdministrationLimit({ frequencyPerDay: 3 }, null, 1, 'g')).toBe(3);
+  it('ignores prescribed dose / quantity — only frequency sets the daily admin count', () => {
+    // Payload example: dose 3, quantity 3, but frequency is twice daily → 2 admins, not 3.
+    expect(getDailyAdministrationLimit({ display: 'Twice daily (BD)', frequencyPerDay: 2 })).toBe(2);
+    expect(getDailyAdministrationLimit({ display: 'Once daily (OD)', frequencyPerDay: 1 })).toBe(1);
+    expect(getDailyAdministrationLimit({ display: 'Three times daily (TDS)', frequencyPerDay: 3 })).toBe(3);
   });
 
   it('does not cap PRN administrations', () => {
@@ -113,23 +108,24 @@ describe('isTreatmentChartOrderLocked', () => {
     expect(isTreatmentChartOrderLocked(option, 'medicationRows', administered, emptyFluids, 3)).toBe(true);
   });
 
-  it('applies a revised dose as the new daily cap minus doses already given today', () => {
+  it('applies a revised frequency as the new daily cap minus admins already given today', () => {
+    // Was BD (2×): both given. Revised to TDS (3×) → only 1 extra admin today, not 3.
     const administered = createEmptyAdministeredOrderKeys();
     incrementAdministeredOrderCount(administered, 'panadol-old', 'Panadol');
     incrementAdministeredOrderCount(administered, 'panadol-old', 'Panadol');
 
     const revised = { id: 'panadol-new', label: 'Panadol' };
+    const revisedLimit = getDailyAdministrationLimit({ display: 'Three times daily (TDS)', frequencyPerDay: 3 });
 
+    expect(revisedLimit).toBe(3);
     expect(getTodayAdministrationCount(revised, administered)).toBe(2);
-    expect(getRemainingAdministrationsToday(2, 0, 4)).toBe(2);
-    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, 4)).toBe(false);
+    expect(getRemainingAdministrationsToday(2, 0, revisedLimit)).toBe(1);
+    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, revisedLimit)).toBe(false);
 
     incrementAdministeredOrderCount(administered, 'panadol-new', 'Panadol');
-    incrementAdministeredOrderCount(administered, 'panadol-new', 'Panadol');
 
-    expect(getTodayAdministrationCount(revised, administered)).toBe(4);
-    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, 4)).toBe(true);
-    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, 6)).toBe(false);
+    expect(getTodayAdministrationCount(revised, administered)).toBe(3);
+    expect(isTreatmentChartOrderLocked(revised, 'medicationRows', administered, emptyFluids, revisedLimit)).toBe(true);
   });
 
   it('does not lock PRN orders after they have already been given', () => {

@@ -147,12 +147,7 @@ const NursingCardexPlanWorkspace: React.FC<
         return Number.POSITIVE_INFINITY;
       }
 
-      return getDailyAdministrationLimit(
-        order?.frequency,
-        order?.dosingInstructions,
-        order?.dose,
-        order?.doseUnits?.display,
-      );
+      return getDailyAdministrationLimit(order?.frequency, order?.dosingInstructions);
     },
     [resolveOrderForOption],
   );
