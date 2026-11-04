@@ -32,6 +32,10 @@ export type AdmissionDetailsFormProps = {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: AdmissionDetailsFormData) => void;
+  initialValues?: Partial<AdmissionDetailsFormData> | null;
+  editMode?: boolean;
+  /** When true, only risk-factor fields are editable; other admission fields stay read-only. */
+  riskFactorsOnly?: boolean;
   patient?: {
     uuid: string;
     name: string;
@@ -78,11 +82,20 @@ const resolvePatientAge = (patient?: AdmissionDetailsFormProps['patient']): numb
   return age;
 };
 
-const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onClose, onSubmit, patient }) => {
+const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  initialValues,
+  editMode = false,
+  riskFactorsOnly = false,
+  patient,
+}) => {
   const { t } = useTranslation();
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
+  const lockNonRiskFields = editMode && riskFactorsOnly;
 
   const { control, handleSubmit, reset, watch, clearErrors } = useForm<AdmissionDetailsFormData>({
     defaultValues,
@@ -119,12 +132,17 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
 
   React.useEffect(() => {
     if (isOpen) {
-      reset(defaultValues);
+      reset({
+        ...defaultValues,
+        ...initialValues,
+        riskFactors: initialValues?.riskFactors ?? defaultValues.riskFactors,
+        riskFactorOtherText: initialValues?.riskFactorOtherText ?? defaultValues.riskFactorOtherText,
+      });
       clearErrors();
       setSaveError(null);
       setSaveSuccess(false);
     }
-  }, [isOpen, reset, clearErrors]);
+  }, [isOpen, initialValues, reset, clearErrors]);
 
   const handleFormSubmit = async (data: AdmissionDetailsFormData) => {
     setSaveError(null);
@@ -137,12 +155,21 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
         return;
       }
       const payload: AdmissionDetailsFormData = {
-        ...data,
+        ...(lockNonRiskFields
+          ? {
+              labourOnset: initialValues?.labourOnset || data.labourOnset,
+              activeLabourDiagnosisDate: initialValues?.activeLabourDiagnosisDate || data.activeLabourDiagnosisDate,
+              rupturedMembranes: initialValues?.rupturedMembranes || data.rupturedMembranes,
+              rupturedMembranesDate: initialValues?.rupturedMembranesDate || data.rupturedMembranesDate,
+              rupturedMembranesTime: initialValues?.rupturedMembranesTime || data.rupturedMembranesTime,
+            }
+          : data),
         riskFactors: canSelectAdolescentPregnancy
           ? data.riskFactors
           : (data.riskFactors || []).filter(
               (riskFactor) => riskFactor !== LCG_ADMISSION_RISK_FACTOR_CODE.adolescentPregnancy,
             ),
+        riskFactorOtherText: data.riskFactorOtherText,
       };
       const result = await saveAdmissionDetails(patientUuid, payload, t);
       if (!result.success) {
@@ -166,7 +193,11 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
     <Modal
       open={isOpen}
       onRequestClose={onClose}
-      modalHeading={t('admissionDetails', 'Admission Details')}
+      modalHeading={
+        editMode
+          ? t('editAdmissionDetails', 'Edit Admission Details')
+          : t('admissionDetails', 'Admission Details')
+      }
       primaryButtonText={isSaving ? t('saving', 'Saving...') : t('save', 'Save')}
       primaryButtonDisabled={isSaving}
       secondaryButtonText={t('cancel', 'Cancel')}
@@ -185,6 +216,14 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
           onCloseButtonClick={() => setSaveError(null)}
         />
       )}
+      {editMode && riskFactorsOnly ? (
+        <InlineNotification
+          kind="info"
+          lowContrast
+          hideCloseButton
+          title={t('riskFactorEditWindow', 'Risk factors can be edited within the allowed time window')}
+        />
+      ) : null}
 
       <Grid className={styles.formGrid} style={{ overflow: 'visible' }}>
         {/* ROW 1: Labour Onset & Diagnosis Date */}
@@ -199,6 +238,7 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
                   id="labour-onset"
                   labelText={t('labourOnset', 'Labour Onset *')}
                   {...field}
+                  disabled={lockNonRiskFields}
                   invalid={!!fieldState.error}
                   invalidText={fieldState.error?.message}>
                   <SelectItem value="" text={t('selectOption', 'Select option')} />
@@ -224,11 +264,18 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
                 <DatePicker
                   datePickerType="single"
                   dateFormat="Y-m-d"
-                  onChange={([date]) => field.onChange(date?.toISOString().split('T')[0])}>
+                  value={field.value || undefined}
+                  onChange={([date]) => {
+                    if (lockNonRiskFields) {
+                      return;
+                    }
+                    field.onChange(date?.toISOString().split('T')[0]);
+                  }}>
                   <DatePickerInput
                     id="diagnosis-date"
                     placeholder="YYYY-MM-DD"
                     labelText={t('activeLabourDate', 'Diagnosis Date *')}
+                    disabled={lockNonRiskFields}
                     invalid={!!fieldState.error}
                     invalidText={fieldState.error?.message}
                   />
@@ -298,7 +345,11 @@ const AdmissionDetailsForm: React.FC<AdmissionDetailsFormProps> = ({ isOpen, onC
               name="rupturedMembranes"
               control={control}
               render={({ field }) => (
-                <Select id="ruptured-membranes" labelText={t('rupturedMembranes', 'Ruptured Membranes')} {...field}>
+                <Select
+                  id="ruptured-membranes"
+                  labelText={t('rupturedMembranes', 'Ruptured Membranes')}
+                  {...field}
+                  disabled={lockNonRiskFields}>
                   <SelectItem value="yes" text={t('yes', 'Yes')} />
                   <SelectItem value="no" text={t('no', 'No')} />
                   <SelectItem value="unknown" text={t('unknown', 'Unknown')} />

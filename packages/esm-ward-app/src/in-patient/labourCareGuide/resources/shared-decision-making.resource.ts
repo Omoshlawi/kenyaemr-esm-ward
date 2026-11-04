@@ -7,11 +7,13 @@ import {
   LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID,
   LCG_EMERGENCY_REASON_CONCEPT_UUID,
   LCG_TERMINATION_REASON_TYPE_CONCEPT_UUID,
+  LCG_WRITE_ENCOUNTER_TYPE_UUID,
   PARTOGRAPHY_CONCEPTS,
   SHARED_DECISION_MAKING_CONCEPTS,
   SHARED_DECISION_MAKING_ACTIONS,
   ENCOUNTER_ROLE,
 } from '../types';
+import { fetchLabourCareEncountersAsResults } from './lcg-encounter-fetch';
 
 const CODED_YES = '1065AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -150,7 +152,7 @@ export async function saveSharedDecisionMakingData(
     const obsDatetime = getValidEncounterDatetime();
     const encounterPayload = {
       patient: patientUuid,
-      encounterType: '022d62af-e2a5-4282-953b-52dd5cba3296',
+      encounterType: LCG_WRITE_ENCOUNTER_TYPE_UUID,
       location: finalLocationUuid,
       encounterDatetime: obsDatetime,
       obs: [
@@ -255,12 +257,12 @@ export async function saveSharedDecisionMakingData(
 export function useSharedDecisionMakingData(patientUuid: string, enabled = true) {
   const encounterRepresentation =
     'custom:(uuid,encounterDatetime,encounterType:(uuid),obs:(uuid,concept:(uuid),value,obsDatetime))';
-  const fetcher = (url: string) => openmrsFetch(url).then((res) => res.json());
   const { data, error, isLoading, mutate } = useSWR(
     patientUuid && enabled
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=022d62af-e2a5-4282-953b-52dd5cba3296&v=${encounterRepresentation}&limit=40&order=desc`
+      ? (['labour-care-encounters', 'shared-decision', patientUuid, encounterRepresentation] as const)
       : null,
-    fetcher,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     { revalidateOnFocus: false, revalidateIfStale: false },
   );
   const normalizeObsValue = (value: unknown) => {

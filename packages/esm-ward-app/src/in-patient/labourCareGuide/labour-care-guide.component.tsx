@@ -60,7 +60,6 @@ import {
   type LcgEmergencySectionKey,
 } from './types';
 import {
-  addStepsToHHMM,
   formatHHMM,
   getSlotIndexForTime,
   resolveStageAwareStopSlots,
@@ -242,6 +241,7 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
   const session = useSession();
   const { admissionEncounter } = useCurrentPatientAdmissionEncounter(patientUuid);
   const [isCorrectionWizardOpen, setIsCorrectionWizardOpen] = React.useState(false);
+  const [isEditingAdmissionDetails, setIsEditingAdmissionDetails] = React.useState(false);
   const { broadcastAlert: broadcastAlertToGlobalContext } = useGlobalCdsAlert();
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = React.useState(false);
   const [emergencyReason, setEmergencyReason] = React.useState<string | null>(null);
@@ -321,6 +321,8 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
     admissionDetails,
     setAdmissionDetails,
     admissionDetailsFilled,
+    admissionData,
+    canEditAdmissionDetails,
     mutateAdmissionDetails,
     mutateLabourTimeSetData,
     mutateBabyData,
@@ -1370,40 +1372,13 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
       return new Date(left.encounterDatetime).getTime() - new Date(right.encounterDatetime).getTime();
     });
 
+    // Second stage starts only when cervical dilatation of 10 cm is documented.
+    // Urge to push, gravida/parity, and labour duration are not transition criteria.
     if (transitionCandidates.length > 0) {
       return transitionCandidates[0];
     }
 
-    const thresholdHours = gravidaValue === 1 ? 12 : 10;
-    const thresholdMinutes = thresholdHours * LCG_TIME_INCREMENT_MINUTES;
-
-    const baseMinutes = (() => {
-      const parts = baseTime.split(':');
-      if (parts.length !== 2) return null;
-      const h = Number(parts[0]);
-      const m = Number(parts[1]);
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-      return h * 60 + m;
-    })();
-
-    if (baseMinutes === null) return null;
-
-    const MINUTES_IN_DAY = 24 * 60;
-    const elapsedMinutes = (nowMinutes - baseMinutes + MINUTES_IN_DAY) % MINUTES_IN_DAY;
-
-    if (elapsedMinutes < thresholdMinutes) {
-      return null;
-    }
-
-    const thresholdCell = thresholdHours;
-    const thresholdSlotIndex = Math.max(0, Math.min(activeFirstStageHours.length - 1, thresholdCell - 1));
-    const secondStageStartStepIndex = thresholdSlotIndex + 1;
-
-    return {
-      time: addStepsToHHMM(baseTime, secondStageStartStepIndex) ?? baseTime,
-      encounterDatetime: '',
-      slotIndex: thresholdSlotIndex,
-    };
+    return null;
   })();
 
   const stageAwareWorkflowStopState = React.useMemo(() => {
@@ -1893,7 +1868,15 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
           riskFactors={admissionDetails.riskFactors}
           gravidaValue={gravidaValue}
           admissionDetailsFilled={admissionDetailsFilled}
-          onAddAdmissionDetails={() => setIsAdmissionDetailsFormOpen(true)}
+          canEditAdmissionDetails={canEditAdmissionDetails}
+          onAddAdmissionDetails={() => {
+            setIsEditingAdmissionDetails(false);
+            setIsAdmissionDetailsFormOpen(true);
+          }}
+          onEditAdmissionDetails={() => {
+            setIsEditingAdmissionDetails(true);
+            setIsAdmissionDetailsFormOpen(true);
+          }}
         />
 
         <LabourCareGuideHeader
@@ -2144,6 +2127,9 @@ const LabourCareGuideWorkspace: React.FC<LabourCareGuideWorkspaceProps> = ({
         setLocalMedicationEntries={setLocalMedicationEntries}
         setLocalSharedDecisionMakingEntries={setLocalSharedDecisionMakingEntries}
         setAdmissionDetails={setAdmissionDetails}
+        admissionInitialValues={admissionData}
+        isEditingAdmissionDetails={isEditingAdmissionDetails}
+        setIsEditingAdmissionDetails={setIsEditingAdmissionDetails}
         sharedDecisionAutoPromptSummary={sharedDecisionAutoPromptSummary}
         setSharedDecisionAutoPromptSummary={setSharedDecisionAutoPromptSummary}
         sharedDecisionAutoPromptItems={sharedDecisionAutoPromptItems}

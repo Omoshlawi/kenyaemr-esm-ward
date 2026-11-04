@@ -5,13 +5,14 @@ import type { TFunction } from 'react-i18next';
 import {
   LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID,
   LCG_EMERGENCY_REASON_CONCEPT_UUID,
-  MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+  LCG_WRITE_ENCOUNTER_TYPE_UUID,
   MEDICATION_CODED_VALUES,
   MEDICATION_FORM_CONCEPTS,
   getValidEncounterDatetime,
   PARTOGRAPHY_CONCEPTS,
   ENCOUNTER_ROLE,
 } from '../types';
+import { fetchLabourCareEncountersAsResults } from './lcg-encounter-fetch';
 
 export interface MedicationDrugLine {
   drugName: string;
@@ -293,7 +294,7 @@ export async function saveMedicationData(
 
     const encounterPayload = {
       patient: patientUuid,
-      encounterType: MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+      encounterType: LCG_WRITE_ENCOUNTER_TYPE_UUID,
       location: finalLocationUuid,
       encounterDatetime: getValidEncounterDatetime(),
       obs: buildMedicationObservations(formData, options),
@@ -468,12 +469,12 @@ function buildMedicationObservations(formData: MedicationFormPayload, options?: 
 export function useMedicationData(patientUuid: string) {
   const encounterRepresentation =
     'custom:(uuid,encounterDatetime,encounterType:(uuid),obs:(uuid,concept:(uuid),value,obsDatetime))';
-  const fetcher = (url: string) => openmrsFetch(url).then((res) => res.json());
   const { data, error, mutate } = useSWR(
     patientUuid
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
+      ? (['labour-care-encounters', 'medication', patientUuid, encounterRepresentation] as const)
       : null,
-    fetcher,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     {
       revalidateOnFocus: false,
       revalidateIfStale: false,

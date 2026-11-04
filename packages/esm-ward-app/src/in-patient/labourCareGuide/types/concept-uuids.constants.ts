@@ -52,6 +52,7 @@ export const UUID_URINE_NOT_DONE = labourCareGuideConceptUuids.UUID_URINE_NOT_DO
 export const UUID_URINE_TEST_TIME_SLOT = labourCareGuideConceptUuids.UUID_URINE_TEST_TIME_SLOT;
 
 export const UUID_PARTOGRAPHY_ENCOUNTER = labourCareGuideConceptUuids.UUID_PARTOGRAPHY_ENCOUNTER;
+export const UUID_LCG_ENCOUNTER = labourCareGuideConceptUuids.UUID_LCG_ENCOUNTER;
 
 export const UUID_MEDICATION_OXYTOCIN_ADMINISTERED = labourCareGuideConceptUuids.UUID_MEDICATION_OXYTOCIN_ADMINISTERED;
 export const UUID_MEDICATION_OXYTOCIN_DOSE = labourCareGuideConceptUuids.UUID_MEDICATION_OXYTOCIN_DOSE;

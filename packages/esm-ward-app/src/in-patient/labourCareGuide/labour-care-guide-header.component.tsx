@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Add } from '@carbon/react/icons';
+import { Add, Edit } from '@carbon/react/icons';
 import { getPatientName } from '@openmrs/esm-framework';
 import styles from './labour-care-guide.scss';
 
@@ -14,7 +14,9 @@ type LabourCareGuideHeaderProps = {
   riskFactors: string;
   gravidaValue: number;
   admissionDetailsFilled: boolean;
+  canEditAdmissionDetails?: boolean;
   onAddAdmissionDetails: () => void;
+  onEditAdmissionDetails?: () => void;
 };
 
 export const LabourCareGuideSummaryHeader: React.FC<LabourCareGuideHeaderProps> = ({
@@ -27,7 +29,9 @@ export const LabourCareGuideSummaryHeader: React.FC<LabourCareGuideHeaderProps> 
   riskFactors,
   gravidaValue,
   admissionDetailsFilled,
+  canEditAdmissionDetails = false,
   onAddAdmissionDetails,
+  onEditAdmissionDetails,
 }) => {
   const { t } = useTranslation();
 
@@ -81,13 +85,23 @@ export const LabourCareGuideSummaryHeader: React.FC<LabourCareGuideHeaderProps> 
         </div>
       </div>
 
-      {!admissionDetailsFilled && (
+      {!admissionDetailsFilled ? (
         <button type="button" className={styles.headerAddButton} onClick={onAddAdmissionDetails}>
           <span>{t('add', 'Add')}</span>
           <span className={styles.addDivider} />
           <Add size={16} />
         </button>
-      )}
+      ) : canEditAdmissionDetails && onEditAdmissionDetails ? (
+        <button
+          type="button"
+          className={styles.headerAddButton}
+          onClick={onEditAdmissionDetails}
+          title={t('editRiskFactors', 'Edit risk factors')}>
+          <span>{t('edit', 'Edit')}</span>
+          <span className={styles.addDivider} />
+          <Edit size={16} />
+        </button>
+      ) : null}
     </div>
   );
 };

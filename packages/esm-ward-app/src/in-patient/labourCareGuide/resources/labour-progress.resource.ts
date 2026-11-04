@@ -3,7 +3,7 @@ import type { TFunction } from 'react-i18next';
 import {
   LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID,
   LCG_EMERGENCY_REASON_CONCEPT_UUID,
-  MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+  LCG_WRITE_ENCOUNTER_TYPE_UUID,
   PARTOGRAPHY_CONCEPTS,
   URGE_TO_PUSH_UUID,
   URINE_TEST_TIME_SLOT_CONCEPT,
@@ -113,7 +113,7 @@ export async function saveLabourProgressData(
 
     const encounterPayload = {
       patient: patientUuid,
-      encounterType: MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+      encounterType: LCG_WRITE_ENCOUNTER_TYPE_UUID,
       location: finalLocationUuid,
       encounterDatetime: eventTimestamp,
       obs: buildLabourProgressObservations(formData, eventTimestamp, options),

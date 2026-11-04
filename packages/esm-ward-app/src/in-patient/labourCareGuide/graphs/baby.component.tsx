@@ -132,7 +132,7 @@ const secondStageLowerSegmentKeys = BABY_SECOND_STAGE_LOWER_SLOT_OPTIONS.map((_,
 const babyRows = [
   { parameter: 'Baseline FHR', alert: '<110, ≥160', splitCells: true, key: 'baselineFhr', group: 'upper' },
   { parameter: 'FHR deceleration', alert: 'L', splitCells: true, key: 'fhrDeceleration', group: 'upper' },
-  { parameter: 'Amniotic fluid', alert: 'M+++, B', splitCells: false, key: 'amnioticFluid', group: 'lower' },
+  { parameter: 'Amniotic fluid', alert: 'M+++', splitCells: false, key: 'amnioticFluid', group: 'lower' },
   { parameter: 'Fetal position', alert: 'P, T', splitCells: false, key: 'fetalPosition', group: 'lower' },
   { parameter: 'Caput', alert: '+++', splitCells: false, key: 'caput', group: 'lower' },
   { parameter: 'Moulding', alert: '+++', splitCells: false, key: 'moulding', group: 'lower' },
