@@ -194,13 +194,12 @@ export const isBabyAlertValue = (rowKey: BabyAlertKey, rawValue: string) => {
     case 'fhrDeceleration':
       return value === 'L' || value.includes('LATE');
     case 'amnioticFluid':
+      // Red alert only for thick meconium (Meconium +3 / M+++).
       return (
-        value === 'B' ||
-        value === 'M' ||
-        value === 'M+' ||
-        value === 'M++' ||
         value === 'M+++' ||
-        value.startsWith('M+')
+        value.includes('MECONIUM +++') ||
+        value.includes('MECONIUM+3') ||
+        value.includes('MECONIUM +3')
       );
     case 'fetalPosition':
       return value === 'P' || value === 'T';

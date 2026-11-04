@@ -1,10 +1,11 @@
 import { openmrsFetch, restBaseUrl, toOmrsIsoString } from '@openmrs/esm-framework';
 import useSWR from 'swr';
 import { useCallback } from 'react';
-import { ENCOUNTER_ROLE, MCH_PARTOGRAPHY_ENCOUNTER_UUID, PARTOGRAPHY_CONCEPTS } from '../types';
+import { ENCOUNTER_ROLE, LCG_WRITE_ENCOUNTER_TYPE_UUID, PARTOGRAPHY_CONCEPTS } from '../types';
 import type { TFunction } from 'react-i18next';
 import type { AdmissionDetailsFormData } from '../forms/admission-details-form.component';
 import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from '../constants/admission-form.constants';
+import { fetchLabourCareEncountersAsResults } from './lcg-encounter-fetch';
 
 export interface AdmissionDetailsEncounter {
   uuid: string;
@@ -235,7 +236,7 @@ export async function saveAdmissionDetails(
 
     const encounterPayload = {
       patient: patientUuid,
-      encounterType: MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+      encounterType: LCG_WRITE_ENCOUNTER_TYPE_UUID,
       location: locationUuid,
       encounterDatetime: toOmrsIsoString(now),
       obs: observations,
@@ -290,17 +291,14 @@ export function useAdmissionDetails(patientUuid: string) {
     'custom:(uuid,encounterDatetime,encounterType:(uuid,display),' +
     'obs:(uuid,concept:(uuid,display),value,obsDatetime),' +
     'patient:(uuid))';
-  const url = patientUuid
-    ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
-    : null;
-
-  const { data, error, isLoading, mutate } = useSWR<{ data: { results: AdmissionDetailsEncounter[] } }>(
-    url,
-    openmrsFetch,
+  const { data, error, isLoading, mutate } = useSWR<{ results: AdmissionDetailsEncounter[] }>(
+    patientUuid ? (['labour-care-encounters', 'admission-details', patientUuid, encounterRepresentation] as const) : null,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     { revalidateOnFocus: false, revalidateIfStale: false },
   );
 
-  const allEncounters: AdmissionDetailsEncounter[] = data?.data?.results ?? [];
+  const allEncounters: AdmissionDetailsEncounter[] = data?.results ?? [];
 
   const admissionEncounters = allEncounters.filter((encounter) =>
     encounter.obs?.some(
@@ -423,6 +421,8 @@ export function useAdmissionDetails(patientUuid: string) {
 
   return {
     admissionData,
+    admissionEncounterUuid: latestEncounter?.uuid ?? null,
+    admissionEncounterDatetime: latestEncounter?.encounterDatetime ?? null,
     isLoading,
     error,
     mutate: memoizedMutate,

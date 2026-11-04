@@ -30,6 +30,7 @@ import { activeFirstStageHours, secondStageHours } from '../labour-care-guide.ut
 import type { SharedDecisionAlertItem } from '../alert-rules';
 import type { LcgCorrectionAuditRecord } from '../resources/lcg-session-correction.resource';
 import type { SummaryOfLabourFormData } from '../resources/summary-of-labour.resource';
+import type { AdmissionDetailsFormData } from './admission-details-form.component';
 
 type AdmissionDetailsState = {
   labourOnset: string;
@@ -91,6 +92,9 @@ export type LabourCareGuideFormsProps = {
 
   // admission details
   setAdmissionDetails: React.Dispatch<React.SetStateAction<AdmissionDetailsState>>;
+  admissionInitialValues?: AdmissionDetailsFormData | null;
+  isEditingAdmissionDetails?: boolean;
+  setIsEditingAdmissionDetails?: (value: boolean) => void;
 
   // shared decision auto-prompt
   sharedDecisionAutoPromptSummary: string | null;
@@ -184,6 +188,9 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
   setLocalMedicationEntries,
   setLocalSharedDecisionMakingEntries,
   setAdmissionDetails,
+  admissionInitialValues = null,
+  isEditingAdmissionDetails = false,
+  setIsEditingAdmissionDetails,
   sharedDecisionAutoPromptSummary,
   setSharedDecisionAutoPromptSummary,
   sharedDecisionAutoPromptItems,
@@ -655,7 +662,13 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
       {isAdmissionDetailsFormOpen ? (
         <AdmissionDetailsForm
           isOpen={isAdmissionDetailsFormOpen}
-          onClose={() => setIsAdmissionDetailsFormOpen(false)}
+          editMode={isEditingAdmissionDetails}
+          riskFactorsOnly={isEditingAdmissionDetails}
+          initialValues={isEditingAdmissionDetails ? admissionInitialValues : null}
+          onClose={() => {
+            setIsEditingAdmissionDetails?.(false);
+            setIsAdmissionDetailsFormOpen(false);
+          }}
           onSubmit={(data) => {
             const riskFactorsDisplay = (data.riskFactors || [])
               .map((risk) => {
@@ -695,6 +708,7 @@ export const LabourCareGuideForms: React.FC<LabourCareGuideFormsProps> = ({
               rupturedMembranesTime: data.rupturedMembranesTime,
             }));
             mutateAdmissionDetails();
+            setIsEditingAdmissionDetails?.(false);
             setIsAdmissionDetailsFormOpen(false);
           }}
           patient={

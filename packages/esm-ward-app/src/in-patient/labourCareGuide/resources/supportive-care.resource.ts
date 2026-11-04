@@ -5,13 +5,14 @@ import type { TFunction } from 'react-i18next';
 import {
   LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID,
   LCG_EMERGENCY_REASON_CONCEPT_UUID,
-  MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+  LCG_WRITE_ENCOUNTER_TYPE_UUID,
   SUPPORTIVE_CARE_CODED_VALUES,
   SUPPORTIVE_CARE_FORM_CONCEPTS,
   ENCOUNTER_ROLE,
 } from '../types';
 import { type LcgGridSlotOptions, validateStageAwareGridSlotSubmission } from '../time-slot-utils';
 import { parseLcgEntryTimeString } from '../labour-care-guide.utils';
+import { fetchLabourCareEncountersAsResults } from './lcg-encounter-fetch';
 
 export interface SupportiveCareFormPayload {
   time: string;
@@ -107,7 +108,7 @@ export async function saveSupportiveCareData(
 
     const encounterPayload = {
       patient: patientUuid,
-      encounterType: MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+      encounterType: LCG_WRITE_ENCOUNTER_TYPE_UUID,
       location: finalLocationUuid,
       // Encounter time is set slightly in the past to avoid 'future encounter' errors on slow servers
       encounterDatetime: toOmrsIsoString(new Date(Date.now() - 2 * 60 * 1000)),
@@ -241,12 +242,12 @@ const toSupportiveCareDisplayValue = (raw: unknown): string => {
 export function useSupportiveCareData(patientUuid: string, enabled = true) {
   const encounterRepresentation =
     'custom:(uuid,encounterDatetime,encounterType:(uuid),obs:(uuid,concept:(uuid),value,obsDatetime))';
-  const fetcher = (url: string) => openmrsFetch(url).then((res) => res.json());
   const { data, error, isLoading, mutate } = useSWR(
     patientUuid && enabled
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
+      ? (['labour-care-encounters', 'supportive-care', patientUuid, encounterRepresentation] as const)
       : null,
-    fetcher,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     { revalidateOnFocus: false, revalidateIfStale: false },
   );
 

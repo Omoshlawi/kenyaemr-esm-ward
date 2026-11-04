@@ -47,7 +47,11 @@ import {
   resolveStopActionLabel,
   secondStageHours,
 } from '../labour-care-guide.utils';
-import { LCG_ADMISSION_RISK_FACTOR_CODE, LCG_LABOUR_ONSET_CODE } from '../constants/admission-form.constants';
+import {
+  LCG_ADMISSION_DETAILS_EDIT_WINDOW_MINUTES,
+  LCG_ADMISSION_RISK_FACTOR_CODE,
+  LCG_LABOUR_ONSET_CODE,
+} from '../constants/admission-form.constants';
 import {
   buildLcgAlertId,
   computeLcgAlertActivationMs,
@@ -188,8 +192,23 @@ export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {})
     ipNumber: '',
   });
 
-  const { admissionData, mutate: mutateAdmissionDetails } = useAdmissionDetails(patientUuid);
+  const {
+    admissionData,
+    admissionEncounterDatetime,
+    mutate: mutateAdmissionDetails,
+  } = useAdmissionDetails(patientUuid);
   const admissionRiskFactorCodes = React.useMemo(() => admissionData?.riskFactors ?? [], [admissionData]);
+  const canEditAdmissionDetails = React.useMemo(() => {
+    if (!admissionEncounterDatetime) {
+      return false;
+    }
+    const recordedAtMs = new Date(admissionEncounterDatetime).getTime();
+    if (!Number.isFinite(recordedAtMs)) {
+      return false;
+    }
+    const elapsedMs = Date.now() - recordedAtMs;
+    return elapsedMs >= 0 && elapsedMs <= LCG_ADMISSION_DETAILS_EDIT_WINDOW_MINUTES * 60_000;
+  }, [admissionEncounterDatetime]);
   const { labourTimeSetData: rawLabourTimeSetData, mutate: mutateLabourTimeSetData } = useLabourTimeSetData(
     patientUuid,
     true,
@@ -1425,6 +1444,8 @@ export function useLcgData(patientUuid: string, options: UseLcgDataOptions = {})
     admissionDetails,
     setAdmissionDetails,
     admissionDetailsFilled,
+    admissionData,
+    canEditAdmissionDetails,
     mutateAdmissionDetails,
     mutateLabourTimeSetData,
     mutateBabyData,

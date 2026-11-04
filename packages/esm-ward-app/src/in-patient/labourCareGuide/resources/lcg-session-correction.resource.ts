@@ -15,7 +15,9 @@ import {
   LCG_CORRECTION_TYPE_WRONG_PATIENT_TRANSFER_CONCEPT_UUID,
   LCG_TERMINATION_REASON_TYPE_CONCEPT_UUID,
   LCG_TERMINATION_REASON_WRONG_PATIENT_CONCEPT_UUID,
-  MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+  isLabourCareEncounterType,
+  LCG_READ_ENCOUNTER_TYPE_UUIDS,
+  LCG_WRITE_ENCOUNTER_TYPE_UUID,
   PARTOGRAPHY_GRAPH_TYPES,
   TIMER_SLOT_CONCEPT_UUID,
 } from '../types';
@@ -111,7 +113,6 @@ export type LcgEligibleCorrectionPatient = {
 };
 
 const VOID_REASON = 'Entered in error: wrong patient selection';
-const LCG_SHARED_DECISION_ENCOUNTER_TYPE_UUID = '022d62af-e2a5-4282-953b-52dd5cba3296';
 
 const encounterListRepresentation =
   'custom:(uuid,encounterDatetime,voided,encounterType:(uuid),obs:(uuid,voided,concept:(uuid,display),value:(uuid,display),obsDatetime))';
@@ -218,7 +219,7 @@ const getActiveObs = (encounter: any) =>
   (Array.isArray(encounter?.obs) ? encounter.obs : []).filter((obs: any) => !obs?.voided);
 
 const isLabourTimeSetEncounter = (encounter: any) => {
-  if (encounter?.encounterType?.uuid !== MCH_PARTOGRAPHY_ENCOUNTER_UUID) {
+  if (!isLabourCareEncounterType(encounter?.encounterType?.uuid)) {
     return false;
   }
 
@@ -239,10 +240,7 @@ const isLcgManagedEncounter = (encounter: any) => {
     return false;
   }
 
-  return (
-    encounter?.encounterType?.uuid === MCH_PARTOGRAPHY_ENCOUNTER_UUID ||
-    encounter?.encounterType?.uuid === LCG_SHARED_DECISION_ENCOUNTER_TYPE_UUID
-  );
+  return isLabourCareEncounterType(encounter?.encounterType?.uuid);
 };
 
 const ADMISSION_PREP_MS = 60 * 60 * 1000;
@@ -511,9 +509,13 @@ async function cloneEncounterToPatient(
     })
     .filter((obs: any) => obs.concept);
 
+  const sourceEncounterTypeUuid = sourceEncounter.encounterType?.uuid;
   const payload = {
     patient: targetPatientUuid,
-    encounterType: sourceEncounter.encounterType?.uuid,
+    // New write targets must use LCG; preserve non-labour-care encounter types as-is.
+    encounterType: isLabourCareEncounterType(sourceEncounterTypeUuid)
+      ? LCG_WRITE_ENCOUNTER_TYPE_UUID
+      : sourceEncounterTypeUuid,
     location: locationUuid,
     encounterDatetime,
     obs: obsPayload,
@@ -550,12 +552,21 @@ async function fetchPatientEncountersByType(patientUuid: string, encounterTypeUu
 }
 
 async function fetchPatientLcgEncounters(patientUuid: string) {
-  const [partographyEncounters, sharedDecisionEncounters] = await Promise.all([
-    fetchPatientEncountersByType(patientUuid, MCH_PARTOGRAPHY_ENCOUNTER_UUID),
-    fetchPatientEncountersByType(patientUuid, LCG_SHARED_DECISION_ENCOUNTER_TYPE_UUID),
-  ]);
+  const encounterGroups = await Promise.all(
+    LCG_READ_ENCOUNTER_TYPE_UUIDS.map((encounterTypeUuid) =>
+      fetchPatientEncountersByType(patientUuid, encounterTypeUuid),
+    ),
+  );
 
-  return [...partographyEncounters, ...sharedDecisionEncounters];
+  const byUuid = new Map<string, any>();
+  for (const group of encounterGroups) {
+    for (const encounter of group) {
+      if (encounter?.uuid && !byUuid.has(encounter.uuid)) {
+        byUuid.set(encounter.uuid, encounter);
+      }
+    }
+  }
+  return Array.from(byUuid.values());
 }
 
 function collectTransferEncounterUuids(encounters: any[], termination: LcgSessionTerminationState): string[] {

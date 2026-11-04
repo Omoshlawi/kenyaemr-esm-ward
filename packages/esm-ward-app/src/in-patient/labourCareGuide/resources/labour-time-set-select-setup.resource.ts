@@ -2,7 +2,8 @@ import React, { useCallback } from 'react';
 import { openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
 import useSWR from 'swr';
 import { useTranslation, type TFunction } from 'react-i18next';
-import { MCH_PARTOGRAPHY_ENCOUNTER_UUID, TIMER_SLOT_CONCEPT_UUID } from '../types';
+import { isLabourCareEncounterType, LCG_WRITE_ENCOUNTER_TYPE_UUID, TIMER_SLOT_CONCEPT_UUID } from '../types';
+import { fetchLabourCareEncountersAsResults } from './lcg-encounter-fetch';
 
 export interface LabourTimeSetEntry {
   id: string;
@@ -21,7 +22,7 @@ function parseTimeValue(raw: unknown): string | null {
 }
 
 function isTimerEncounter(encounter: any) {
-  if (encounter?.encounterType?.uuid !== MCH_PARTOGRAPHY_ENCOUNTER_UUID) {
+  if (!isLabourCareEncounterType(encounter?.encounterType?.uuid)) {
     return false;
   }
   const obs = Array.isArray(encounter?.obs) ? encounter.obs : [];
@@ -32,13 +33,13 @@ export function useLabourTimeSetData(patientUuid: string, enabled: boolean = tru
   const { t } = useTranslation();
   const encounterRepresentation =
     'custom:(uuid,encounterDatetime,encounterType:(uuid),obs:(uuid,concept:(uuid),value,obsDatetime))';
-  const fetcher = (url: string) => openmrsFetch(url).then((res) => res.json());
 
   const { data, error, isLoading, mutate } = useSWR(
     patientUuid && enabled
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&v=${encounterRepresentation}&limit=40&order=desc`
+      ? (['labour-care-encounters', 'labour-time-set', patientUuid, encounterRepresentation] as const)
       : null,
-    fetcher,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     { revalidateOnFocus: false, revalidateIfStale: false },
   );
 
@@ -85,7 +86,7 @@ export async function saveLabourTimeSetData(
     patient: patientUuid,
     location: locationUuid,
     encounterDatetime: timestamp,
-    encounterType: MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+    encounterType: LCG_WRITE_ENCOUNTER_TYPE_UUID,
     obs: [
       {
         concept: TIMER_SLOT_CONCEPT_UUID,

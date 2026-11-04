@@ -220,6 +220,7 @@ import {
   UUID_NO,
   UUID_PARITY_CONCEPT,
   UUID_PARTOGRAPHY_ENCOUNTER,
+  UUID_LCG_ENCOUNTER,
   UUID_SHARED_DECISION_ACTION,
   UUID_SHARED_DECISION_ASSESSMENT,
   UUID_SHARED_DECISION_BIRTH,
@@ -336,7 +337,20 @@ export const LCG_BABY_TWIN_INDEX_CONCEPT_UUID = _partoConcepts['baby-twin-index'
 
 const _partoUuids = (configSchema as any)?.partography?._default?.uuids ?? {};
 
+/** Legacy Partograph encounter type — retained for historical reads only. */
 export const MCH_PARTOGRAPHY_ENCOUNTER_UUID = _partoUuids.mchPartographyEncounterUuid ?? UUID_PARTOGRAPHY_ENCOUNTER;
+
+/** Primary Labour Care Guide encounter type used for all new LCG writes. */
+export const MCH_LCG_ENCOUNTER_UUID = _partoUuids.mchLcgEncounterUuid ?? UUID_LCG_ENCOUNTER;
+
+/** Alias for the active write target (LCG). Prefer this over the legacy Partograph UUID. */
+export const LCG_WRITE_ENCOUNTER_TYPE_UUID = MCH_LCG_ENCOUNTER_UUID;
+
+/** Encounter types queried when loading LCG session history (LCG + legacy Partograph). */
+export const LCG_READ_ENCOUNTER_TYPE_UUIDS = [MCH_LCG_ENCOUNTER_UUID, MCH_PARTOGRAPHY_ENCOUNTER_UUID] as const;
+
+export const isLabourCareEncounterType = (encounterTypeUuid?: string | null): boolean =>
+  Boolean(encounterTypeUuid && (LCG_READ_ENCOUNTER_TYPE_UUIDS as readonly string[]).includes(encounterTypeUuid));
 
 export const CONTRACTION_STRONG_UUID = _partoUuids.contractionStrongConceptUuid ?? UUID_CONTRACTION_STRONG_FALLBACK;
 
@@ -356,8 +370,9 @@ export const PARTOGRAPHY_GRAPH_TYPES = [
   'progress-events',
 ] as const;
 
+/** Graph write mapping — all new submissions use the dedicated LCG encounter type. */
 export const PARTOGRAPHY_ENCOUNTER_TYPES = Object.fromEntries(
-  PARTOGRAPHY_GRAPH_TYPES.map((type) => [type, MCH_PARTOGRAPHY_ENCOUNTER_UUID]),
+  PARTOGRAPHY_GRAPH_TYPES.map((type) => [type, MCH_LCG_ENCOUNTER_UUID]),
 ) as Record<(typeof PARTOGRAPHY_GRAPH_TYPES)[number], string>;
 
 export interface OpenMRSResponse<T> {

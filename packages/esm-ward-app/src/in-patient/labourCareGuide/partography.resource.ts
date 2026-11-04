@@ -2,13 +2,12 @@
 export function useMembraneAmnioticFluidData(patientUuid: string) {
   const encounterRepresentation =
     'custom:(uuid,encounterDatetime,encounterType:(uuid),obs:(uuid,concept:(uuid),value,obsDatetime))';
-  const fetcher = (url: string) => openmrsFetch(url).then((res) => res.json());
-
   const { data, error, isLoading, mutate } = useSWR(
     patientUuid
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
+      ? (['labour-care-encounters', 'membrane-amniotic-fluid', patientUuid, encounterRepresentation] as const)
       : null,
-    fetcher,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     {
       onError: (error) => {
         console.error('Error fetching membrane amniotic fluid data:', error);
@@ -109,11 +108,11 @@ import {
   type PartographyLocalEntry,
 } from './storage/lcg-local-storage';
 import useSWR from 'swr';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   PARTOGRAPHY_CONCEPTS,
   PARTOGRAPHY_ENCOUNTER_TYPES,
-  MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+  LCG_WRITE_ENCOUNTER_TYPE_UUID,
   URINE_TEST_TIME_SLOT_CONCEPT,
   BABY_FORM_CONCEPTS,
   BABY_CODED_VALUES,
@@ -136,17 +135,12 @@ import {
   CONTRACTION_LEVEL_STRONG_CONCEPT,
   MOULDING_NONE_CONCEPT,
 } from './types';
+import { fetchLabourCareEncounters, fetchLabourCareEncountersAsResults } from './resources/lcg-encounter-fetch';
 
 export type { PartographyObservation, PartographyEncounter };
 const defaultPartographyConfig = labourCareGuidePartographyConfig;
 const getConceptMappingsForGraphType = (graphType: string): string[] => {
   return defaultPartographyConfig.conceptMappings[graphType] || [];
-};
-
-const getFallbackEncounterTypes = (graphType: string): string[] => {
-  return (
-    defaultPartographyConfig.fallbackEncounterMapping[graphType] || defaultPartographyConfig.defaultFallbackSequence
-  );
 };
 
 const getStationDisplay = (conceptUuid: string): string => {
@@ -217,90 +211,29 @@ export const usePartographyConfig = () => {
   return config.partography;
 };
 
-let encounterTypeCache: { [key: string]: string } = {};
-
-async function discoverEncounterTypes(): Promise<{ [key: string]: string }> {
-  if (Object.keys(encounterTypeCache).length > 0) {
-    return encounterTypeCache;
-  }
-
-  try {
-    const response = await openmrsFetch(`${restBaseUrl}/encountertype?v=default`);
-
-    if (response.ok) {
-      const data = await response.json();
-      const encounterTypes = data.results || [];
-      encounterTypes.forEach((et) => {
-        const normalizedName = et.name.toLowerCase().replace(/\s+/g, '-');
-        encounterTypeCache[normalizedName] = et.uuid;
-        if (et.display) {
-          const normalizedDisplay = et.display.toLowerCase().replace(/\s+/g, '-');
-          encounterTypeCache[normalizedDisplay] = et.uuid;
-        }
-      });
-
-      return encounterTypeCache;
-    } else {
-      return {};
-    }
-  } catch (error) {
-    return {};
-  }
-}
-
 async function getEncounterTypeForGraph(graphType: string): Promise<string | null> {
+  // All new LCG / partography graph submissions write exclusively to the LCG encounter type.
+  // Legacy Partograph remains read-only for historical continuity.
   const predefinedType = PARTOGRAPHY_ENCOUNTER_TYPES[graphType];
   if (predefinedType) {
     return predefinedType;
   }
-  const availableTypes = await discoverEncounterTypes();
-  const specificType = availableTypes[graphType];
-  if (specificType) {
-    return specificType;
-  }
-
-  for (const pattern of defaultPartographyConfig.encounterPatterns) {
-    if (availableTypes[pattern]) {
-      return availableTypes[pattern];
-    }
-  }
-
-  const fallbacks = getFallbackEncounterTypes(graphType);
-
-  for (const fallback of fallbacks) {
-    if (availableTypes[fallback]) {
-      return availableTypes[fallback];
-    }
-  }
-
-  const anyType = Object.values(availableTypes)[0];
-  if (anyType) {
-    return anyType;
-  }
-
-  return null;
+  return LCG_WRITE_ENCOUNTER_TYPE_UUID;
 }
 
 export function usePartographyEncounters(patientUuid: string, graphType: string) {
   const customRep =
     'custom:(uuid,encounterDatetime,encounterType:(uuid,display),obs:(uuid,concept:(uuid,display),value,obsDatetime))';
 
-  const [encounterTypeUuid, setEncounterTypeUuid] = useState<string | null>(null);
-  useEffect(() => {
-    if (patientUuid && graphType) {
-      getEncounterTypeForGraph(graphType).then(setEncounterTypeUuid);
-    }
-  }, [patientUuid, graphType]);
-  const apiUrl =
-    encounterTypeUuid && patientUuid
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${encounterTypeUuid}&v=${customRep}&limit=40&order=desc`
-      : null;
-
+  // Dual-read LCG + legacy Partograph so historical and new entries share one timeline.
+  // graphType is retained for callers / local-storage fallback keying; write path uses LCG.
   const { data, error, isLoading, mutate } = useSWR<OpenMRSResponse<PartographyEncounter>>(
-    apiUrl,
-    async (url: string) => {
-      const response = await openmrsFetch(url);
-      return response.data;
+    patientUuid && graphType
+      ? (['labour-care-encounters', 'partography', patientUuid, graphType, customRep] as const)
+      : null,
+    async ([, , uuid, , representation]: readonly [string, string, string, string, string]) => {
+      const results = await fetchLabourCareEncounters<PartographyEncounter>(uuid, representation);
+      return { results };
     },
     { revalidateOnFocus: false, revalidateIfStale: false },
   );
@@ -309,7 +242,7 @@ export function usePartographyEncounters(patientUuid: string, graphType: string)
 
   return {
     encounters,
-    isLoading: isLoading || !encounterTypeUuid,
+    isLoading,
     error,
     mutate,
   };
@@ -1454,13 +1387,13 @@ export function transformEncounterToTableData(
 export function useFetalHeartRateData(patientUuid: string) {
   const encounterRepresentation =
     'custom:(uuid,encounterDatetime,encounterType:(uuid),obs:(uuid,concept:(uuid),value,obsDatetime))';
-  const fetcher = (url: string) => openmrsFetch(url).then((res) => res.json());
 
   const { data, error, isLoading, mutate } = useSWR(
     patientUuid
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
+      ? (['labour-care-encounters', 'fetal-heart-rate', patientUuid, encounterRepresentation] as const)
       : null,
-    fetcher,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     {
       onError: (error) => {
         console.error('Error fetching fetal heart rate data:', error);

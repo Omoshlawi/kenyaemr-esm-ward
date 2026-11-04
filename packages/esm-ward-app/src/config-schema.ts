@@ -48,6 +48,8 @@ export const labourCareGuideConceptUuids = {
   UUID_URINE_NOT_DONE: '1118AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   UUID_URINE_TEST_TIME_SLOT: 'bb3724c9-fbcc-49c5-9702-6cde0be325ca',
   UUID_PARTOGRAPHY_ENCOUNTER: '022d62af-e2a5-4282-953b-52dd5cba3296',
+  /** Dedicated Labour Care Guide encounter type for new LCG submissions. */
+  UUID_LCG_ENCOUNTER: '110967b5-3f82-41cb-be85-3b359283d8f8',
   UUID_MEDICATION_OXYTOCIN_ADMINISTERED: '82580974-ff46-41c5-b218-4bea7f53bf7e',
   UUID_MEDICATION_OXYTOCIN_DOSE: '166530AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   UUID_MEDICATION_MEDICATION: '1282AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
@@ -321,6 +323,7 @@ export const labourCareGuidePartographyConfig = {
   uuids: {
     timeSlot: 'a1b2c3d4-1111-2222-3333-444455556666',
     mchPartographyEncounterUuid: labourCareGuideConceptUuids.UUID_PARTOGRAPHY_ENCOUNTER,
+    mchLcgEncounterUuid: labourCareGuideConceptUuids.UUID_LCG_ENCOUNTER,
     drugsFluidsEncounterUuid: '39da3525-afe4-45ff-8977-c53b7b359158',
     contractionStrongConceptUuid: labourCareGuideConceptUuids.UUID_CONTRACTION_STRONG_FALLBACK,
   },

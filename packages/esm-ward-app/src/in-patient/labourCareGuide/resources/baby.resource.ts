@@ -9,9 +9,10 @@ import {
   LCG_BABY_TWIN_INDEX_CONCEPT_UUID,
   LCG_EMERGENCY_OVERRIDE_CONCEPT_UUID,
   LCG_EMERGENCY_REASON_CONCEPT_UUID,
-  MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+  LCG_WRITE_ENCOUNTER_TYPE_UUID,
 } from '../types';
 import type { BabyEntry } from '../graphs/baby.component';
+import { fetchLabourCareEncountersAsResults } from './lcg-encounter-fetch';
 
 export interface SaveBabyResponse {
   success: boolean;
@@ -55,17 +56,22 @@ const BABY_DISPLAY_VALUES: Record<string, string> = {
   [BABY_CODED_VALUES.DEGREE.THREE_PLUS]: '+++',
 };
 
-function parseTimeMetadata(raw: unknown): { time: string; twinIndex: number } {
+function parseTimeMetadata(raw: unknown): { time: string; twinIndex: number; amnioticFluidGrade?: string } {
   if (typeof raw !== 'string') {
     return { time: '', twinIndex: 1 };
   }
 
-  const match = raw.match(/Time:\s*([0-9]{2}:[0-9]{2})(?:\s*\|\s*Twin:\s*(\d+))?/i);
-  if (match) {
-    const twinIndex = Number.parseInt(match[2] ?? '1', 10);
+  const timeMatch = raw.match(/Time:\s*([0-9]{2}:[0-9]{2})/i);
+  const twinMatch = raw.match(/\|\s*Twin:\s*(\d+)/i);
+  const amnioticMatch = raw.match(/\|\s*AF:\s*(M\+{0,3})/i);
+
+  if (timeMatch) {
+    const twinIndex = Number.parseInt(twinMatch?.[1] ?? '1', 10);
+    const amnioticFluidGrade = amnioticMatch?.[1]?.toUpperCase();
     return {
-      time: match[1],
+      time: timeMatch[1],
       twinIndex: Number.isFinite(twinIndex) && twinIndex > 0 ? twinIndex : 1,
+      amnioticFluidGrade,
     };
   }
 
@@ -74,6 +80,21 @@ function parseTimeMetadata(raw: unknown): { time: string; twinIndex: number } {
   }
 
   return { time: '', twinIndex: 1 };
+}
+
+function buildBabyTimeObsValue(time: string, twinIndex?: number, amnioticFluid?: string): string {
+  const normalizedTime = time.startsWith('Time:') ? time.replace(/^Time:\s*/i, '').trim() : time.trim();
+  const parts = [`Time: ${normalizedTime}`];
+  if (twinIndex && twinIndex > 1) {
+    parts.push(`Twin: ${twinIndex}`);
+  }
+  const amnioticGrade = String(amnioticFluid ?? '')
+    .trim()
+    .toUpperCase();
+  if (/^M\+{1,3}$/.test(amnioticGrade)) {
+    parts.push(`AF: ${amnioticGrade}`);
+  }
+  return parts.join(' | ');
 }
 
 function parseTwinIndexValue(raw: unknown): number {
@@ -115,12 +136,12 @@ function codedDisplay(raw: unknown): string {
 export function useBabyData(patientUuid: string, enabled = true) {
   const encounterRepresentation =
     'custom:(uuid,encounterDatetime,encounterType:(uuid),obs:(uuid,concept:(uuid),value,obsDatetime))';
-  const fetcher = (url: string) => openmrsFetch(url).then((res) => res.json());
   const { data, error, isLoading, mutate } = useSWR(
     patientUuid && enabled
-      ? `${restBaseUrl}/encounter?patient=${patientUuid}&encounterType=${MCH_PARTOGRAPHY_ENCOUNTER_UUID}&v=${encounterRepresentation}&limit=40&order=desc`
+      ? (['labour-care-encounters', 'baby', patientUuid, encounterRepresentation] as const)
       : null,
-    fetcher,
+    ([, , uuid, representation]: readonly [string, string, string, string]) =>
+      fetchLabourCareEncountersAsResults(uuid, representation),
     { revalidateOnFocus: false, revalidateIfStale: false },
   );
 
@@ -140,6 +161,8 @@ export function useBabyData(patientUuid: string, enabled = true) {
           const twinIndexObs = observations.find((obs) => obs.concept?.uuid === LCG_BABY_TWIN_INDEX_CONCEPT_UUID);
           const parsedTimeMetadata = parseTimeMetadata(timeObs?.value);
           const observedTwinIndex = twinIndexObs ? parseTwinIndexValue(twinIndexObs.value) : undefined;
+          const codedAmnioticFluid = codedDisplay(amnioticFluidObs?.value);
+          const amnioticFluid = parsedTimeMetadata.amnioticFluidGrade || codedAmnioticFluid;
 
           if (
             !baselineFhrObs &&
@@ -160,7 +183,7 @@ export function useBabyData(patientUuid: string, enabled = true) {
             baselineFhr:
               baselineFhrObs?.value !== undefined && baselineFhrObs?.value !== null ? String(baselineFhrObs.value) : '',
             fhrDeceleration: codedDisplay(fhrDecelerationObs?.value),
-            amnioticFluid: codedDisplay(amnioticFluidObs?.value),
+            amnioticFluid,
             fetalPosition: codedDisplay(fetalPositionObs?.value),
             caput: codedDisplay(caputObs?.value),
             moulding: codedDisplay(mouldingObs?.value),
@@ -237,7 +260,7 @@ export async function saveBabyData(
 
     const encounterPayload = {
       patient: patientUuid,
-      encounterType: MCH_PARTOGRAPHY_ENCOUNTER_UUID,
+      encounterType: LCG_WRITE_ENCOUNTER_TYPE_UUID,
       location: finalLocationUuid,
       encounterDatetime: toOmrsIsoString(new Date(Date.now() - 3 * 60 * 1000)),
       obs: buildBabyObservations(formData, options),
@@ -321,7 +344,7 @@ function buildBabyObservations(formData: BabyFormPayload, options?: BabySaveOpti
   const observations = [
     {
       concept: BABY_FORM_CONCEPTS.time,
-      value: formData.time.startsWith('Time:') ? formData.time : `Time: ${formData.time}`,
+      value: buildBabyTimeObsValue(formData.time, twinIndex, formData.amnioticFluid),
       obsDatetime,
     },
     formData.baselineFhr?.trim()
