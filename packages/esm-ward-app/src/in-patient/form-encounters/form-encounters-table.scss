@@ -18,6 +18,13 @@
   }
 }
 
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: layout.$spacing-05;
+}
+
 .menuItem {
   max-width: none;
 }

@@ -10,6 +10,7 @@ import { moduleName } from './constant';
 import { createDashboardLink } from './createDashboardLink.component';
 import { inPatientMeta } from './in-patient/in-patient.meta';
 export * from './in-patient/ebola';
+export * from './in-patient/mental-health';
 
 export const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 
