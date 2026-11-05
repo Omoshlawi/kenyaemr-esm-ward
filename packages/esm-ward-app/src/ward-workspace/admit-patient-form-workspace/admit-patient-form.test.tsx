@@ -369,7 +369,7 @@ describe('AdmitPatientForm admission attachment', () => {
     mockedCreateAttachment.mockResolvedValue({ ok: true });
   });
 
-  it('uploads the attachment on the admission encounter for a psychiatric ward', async () => {
+  it('uploads the attachment after admission for a psychiatric ward', async () => {
     mockWardTags([psychiatricTagUuid]);
     const user = userEvent.setup();
     renderForm();
@@ -381,7 +381,6 @@ describe('AdmitPatientForm admission attachment', () => {
     expect(mockedCreateAttachment).toHaveBeenCalledWith(
       mockPatientAlice.uuid,
       expect.objectContaining({ file: pdf, fileName: 'consent.pdf', fileDescription: 'Admission attachment' }),
-      'encounter-uuid',
     );
     expect(mockedAdmitPatient.mock.invocationCallOrder[0]).toBeLessThan(
       mockedCreateAttachment.mock.invocationCallOrder[0],

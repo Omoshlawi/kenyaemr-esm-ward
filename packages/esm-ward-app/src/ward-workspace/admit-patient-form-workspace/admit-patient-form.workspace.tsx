@@ -116,7 +116,7 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
                     fileDescription: 'Admission attachment',
                     base64Content: '',
                   },
-                  response.data.uuid,
+                  // response.data.uuid,
                 );
               } catch {
                 // The patient is already admitted, so a failed upload must not stop the bed assignment.
