@@ -1,0 +1,11 @@
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+ 
+jobs:
+  pr-title:
+    uses: Palladium-hub/platform-ci/.github/workflows/frontend-pr-title-check.yml@main
+    with:
+      pr-title: ${{ github.event.pull_request.title }}
+      pr-author-login: ${{ github.event.pull_request.user.login }}
+      pr-author-type: ${{ github.event.pull_request.user.type }}
