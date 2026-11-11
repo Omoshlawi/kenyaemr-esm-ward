@@ -238,6 +238,36 @@
       "order": 0,
       "online": true,
       "offline": false
+    },
+    {
+      "name": "admission-notes",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "admissionNotes",
+      "meta":{
+          "title": "admissionNotes"
+       },
+      "online": true,
+      "offline": false
+    },
+    {
+      "name": "inpatient-review",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "inpatientReview",
+      "meta":{
+          "title": "inpatientReview"
+       },
+      "online": true,
+      "offline": false
+    },
+     {
+      "name": "inpatient-mental-health-screening-tools",
+      "slot": "inpatient-dashboard-tabs-slot",
+      "component": "mentalHealthScreeningTools",
+      "meta":{
+          "title": "mentalHealthScreeningTools"
+       },
+      "online": true,
+      "offline": false
     }
   ],
   "modals": [

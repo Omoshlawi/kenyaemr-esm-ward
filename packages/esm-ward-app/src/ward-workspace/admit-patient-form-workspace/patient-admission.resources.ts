@@ -11,6 +11,8 @@ import z from 'zod';
 import { type WardConfigObject } from '../../config-schema';
 import dayjs from 'dayjs';
 import useSWR from 'swr';
+import { useAdmissionLocationTags } from '../../in-patient/in-patient.resource';
+import { type TFunction, useTranslation } from 'react-i18next';
 export const useDiagnoses = () => {
   const { diagnosisConceptSourceUud } = useConfig<WardConfigObject>();
   const [q, setQ] = useState('');
@@ -71,13 +73,73 @@ export const useProvider = (uuid: string) => {
   };
 };
 
-export const inpatientAdmissionSchema = z.object({
-  bedId: z.number().optional(),
-  admissionDate: z.date({ coerce: true }),
-});
+export const inpatientAdmissionSchema = (isPsychiatric: boolean = false, t: TFunction) =>
+  z
+    .object({
+      bedId: z.number().optional(),
+      admissionDate: z.date({ coerce: true }),
+      psychiatricCategory: z.string().uuid().optional(),
+      attachedFile: z
+        .instanceof(File)
+        .optional()
+        .refine((file) => !file || file.size <= 2 * 1024 * 1024, {
+          message: t('fileSizeError', 'File size must be less than 2 MB'),
+        })
+        .refine((file) => !file || ['application/pdf'].includes(file.type), {
+          message: t('fileTypeError', 'File type must be PDF'),
+        }),
+    })
+    .superRefine((data, ctx) => {
+      if (isPsychiatric && !data.psychiatricCategory) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['psychiatricCategory'],
+          message: t('categoryError', 'Psychiatric category is required for psychiatric wards'),
+        });
+      }
+      if (isPsychiatric && !data.attachedFile) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['attachedFile'],
+          message: t('attachmentError', 'Attachment is required for psychiatric wards'),
+        });
+      }
+    });
 
 const formartDate = (date: Date) => {
   return date ? dayjs(date).format('YYYY-MM-DD HH:mm:ss') : '';
 };
 
-export type InapatientAdmissionFormData = z.infer<typeof inpatientAdmissionSchema>;
+export type InapatientAdmissionFormData = z.infer<ReturnType<typeof inpatientAdmissionSchema>>;
+
+export const usePsychiatricWardCategories = (locationUuid?: string) => {
+  const { t } = useTranslation();
+  const { inpatientLocationTags, psychiatricCategories } = useConfig<WardConfigObject>();
+  const { error, isLoading, tags } = useAdmissionLocationTags(locationUuid);
+  const isPsychiatricWard = useMemo(
+    () => tags.some((tag) => tag.uuid === inpatientLocationTags.psychiatricWard),
+    [inpatientLocationTags.psychiatricWard, tags],
+  );
+
+  const psychiatricCategoryOptions = useMemo(() => {
+    return [
+      { label: t('voluntary', 'Voluntary'), value: psychiatricCategories.voluntary },
+      { label: t('involuntary', 'Involuntary'), value: psychiatricCategories.involuntary },
+      { label: t('emergencyAdmission', 'Emergency Admission'), value: psychiatricCategories.emergencyAdmission },
+      { label: t('forensicAdmission', 'Forensic Admission'), value: psychiatricCategories.forensicAdmission },
+    ];
+  }, [
+    psychiatricCategories.emergencyAdmission,
+    psychiatricCategories.forensicAdmission,
+    psychiatricCategories.involuntary,
+    psychiatricCategories.voluntary,
+    t,
+  ]);
+
+  return {
+    isPsychiatricWard,
+    error,
+    isLoading,
+    psychiatricCategoryOptions,
+  };
+};

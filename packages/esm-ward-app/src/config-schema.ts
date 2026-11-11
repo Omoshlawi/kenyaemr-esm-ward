@@ -933,6 +933,7 @@ export const configSchema: ConfigSchema = {
       maternityWard: 'b95dd376-fa35-40a6-b140-d144c5f22f62',
       labourWard: '7680b7ee-6880-450c-8b7e-2a748b6f9dc7',
       isolationWard: 'cc5cb426-5433-4e9a-ad22-456e6b627b05',
+      psychiatricWard: '37bedf9c-07b1-4d8b-9ba3-ad3b9d48e10d',
       // Official KenyaEMR critical-care location tag UUIDs (same at every facility).
       icuWard: '770f6a93-8e59-48ad-ba7d-98d5652db240',
       hduWard: '25439b2d-6495-4f5d-9ec6-4fe64686cf46',
@@ -1106,8 +1107,46 @@ export const configSchema: ConfigSchema = {
     encounterTypeUuid: {
       _type: Type.UUID,
       _default: '465a92f2-baf8-42e9-9612-53064be868e8',
-      _description:
-        'Encounter type used to save and fetch blood transfusions (defaults to Clinical Consultation).',
+      _description: 'Encounter type used to save and fetch blood transfusions (defaults to Clinical Consultation).',
+    },
+  },
+  admissionNotesFormUuid: {
+    _type: Type.UUID,
+    _description: 'Admission notes form uuid',
+    _default: 'dbc4ff03-3eee-49f0-86a8-7cfd33dc2460',
+  },
+  inpatientReviewFormUuid: {
+    _type: Type.UUID,
+    _description: 'Doctors notes form uuid',
+    _default: '87379b0a-738b-4799-9736-cdac614cee2a',
+  },
+  mentalHealthScreeningTools: {
+    _type: Type.Array,
+    _description: 'Mental health screening tools',
+    _default: [
+      {
+        label: 'Alcohol Abuse Screening Tool (AUDIT)',
+        formUuid: '7ba743c8-d8e6-44ad-aeed-8d2ff9e985db',
+      },
+      {
+        label: 'Generalized Anxiety Disorder Assessment',
+        formUuid: '524d078e-936a-4543-9ca6-7a8d9ed4db06',
+      },
+      {
+        label: 'Depression Screening (PHQ-9)',
+        formUuid: '5fe533ee-0c40-4a1f-a071-dc4d0fbb0c17',
+      },
+    ],
+  },
+  psychiatricCategories: {
+    _type: Type.Object,
+    _description: 'Psychiatric categories',
+    _default: {
+      question: '11c54b66-d733-460c-81ad-5347371fa41b',
+      voluntary: 'ae2b3f93-bd11-4d8f-88ee-bc8d20ab7154',
+      involuntary: '6455c7db-f438-4c15-a146-defcbf9b3f2b',
+      emergencyAdmission: '06f34d63-c694-421f-8a96-37a70d9e14ad',
+      forensicAdmission: '7f10db1a-23dd-4769-b191-3b6a63a21f64',
     },
   },
 } as const;
@@ -1222,6 +1261,7 @@ export interface WardConfigObject {
     picuWard: string;
     pediatricWard: string;
     isolationWard: string;
+    psychiatricWard: string;
   };
   bypassPartographAdmissionChecks: boolean;
   treatmentChartCardexEncounterTypeUuid: string;
@@ -1268,6 +1308,19 @@ export interface WardConfigObject {
   };
   bloodTransfusion: {
     encounterTypeUuid: string;
+  };
+  admissionNotesFormUuid: string;
+  inpatientReviewFormUuid: string;
+  mentalHealthScreeningTools: Array<{
+    label: string;
+    formUuid: string;
+  }>;
+  psychiatricCategories: {
+    question: string;
+    voluntary: string;
+    involuntary: string;
+    emergencyAdmission: string;
+    forensicAdmission: string;
   };
 }
 export interface PendingItemsElementConfig {

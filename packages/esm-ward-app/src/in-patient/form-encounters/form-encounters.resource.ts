@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import useSWR from 'swr';
 import { openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
-import { type Encounter } from '../../encounter-observations/visit.resource';
+import { type Encounter } from '../encounter-observations/visit.resource';
 
 const VISIT_ENCOUNTERS_REP =
   'custom:(uuid,encounters:(uuid,encounterDatetime,form:(uuid,name,display),' +
@@ -13,20 +13,20 @@ const VISIT_ENCOUNTERS_REP =
 type VisitEncountersResponse = { uuid: string; encounters?: Array<Encounter> };
 
 /**
- * Fetches the encounters of a visit filled with the given form, including their obs,
+ * Fetches the encounters of a visit filled with any of the given forms, including their obs,
  * which the visit context's default representation leaves out.
  */
-export const useVisitFormEncounters = (visitUuid: string | undefined, formUuid: string) => {
-  const url = visitUuid && formUuid ? `${restBaseUrl}/visit/${visitUuid}?v=${VISIT_ENCOUNTERS_REP}` : null;
+export const useVisitFormEncounters = (visitUuid: string | undefined, formUuids: Array<string>) => {
+  const formUuidsKey = formUuids.join(',');
+  const url = visitUuid && formUuidsKey ? `${restBaseUrl}/visit/${visitUuid}?v=${VISIT_ENCOUNTERS_REP}` : null;
   const { data, error, isLoading, mutate } = useSWR<{ data: VisitEncountersResponse }>(url, openmrsFetch);
 
-  const encounters = useMemo(
-    () =>
-      (data?.data?.encounters ?? [])
-        .filter((encounter) => encounter.form?.uuid === formUuid)
-        .sort((a, b) => new Date(b.encounterDatetime).getTime() - new Date(a.encounterDatetime).getTime()),
-    [data, formUuid],
-  );
+  const encounters = useMemo(() => {
+    const allowedFormUuids = new Set(formUuidsKey.split(','));
+    return (data?.data?.encounters ?? [])
+      .filter((encounter) => allowedFormUuids.has(encounter.form?.uuid))
+      .sort((a, b) => new Date(b.encounterDatetime).getTime() - new Date(a.encounterDatetime).getTime());
+  }, [data, formUuidsKey]);
 
   return { encounters, error, isLoading, mutate };
 };

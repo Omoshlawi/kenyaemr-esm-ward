@@ -4,7 +4,10 @@ import {
   Column,
   DatePicker,
   DatePickerInput,
+  Dropdown,
+  FileUploader,
   Form,
+  FormGroup,
   InlineNotification,
   Row,
   Stack,
@@ -12,6 +15,7 @@ import {
 } from '@carbon/react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  createAttachment,
   showSnackbar,
   useAppContext,
   useConfig,
@@ -30,7 +34,11 @@ import BedSelector from '../bed-selector.component';
 import WardPatientWorkspaceBanner from '../patient-banner/patient-banner.component';
 import FacilityBedCapacityNotification from './facility-bed-capacity-notification.component';
 import styles from './admit-patient-form.scss';
-import { type InapatientAdmissionFormData, inpatientAdmissionSchema } from './patient-admission.resources';
+import {
+  type InapatientAdmissionFormData,
+  inpatientAdmissionSchema,
+  usePsychiatricWardCategories,
+} from './patient-admission.resources';
 
 /**
  * This form gets rendered when the user clicks "admit patient" in
@@ -48,6 +56,11 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
   const config = useConfig<WardConfigObject>();
   const { t } = useTranslation();
   const { location } = useWardLocation();
+  const {
+    isPsychiatricWard,
+    isLoading: isLoadingPsychiatricWard,
+    psychiatricCategoryOptions,
+  } = usePsychiatricWardCategories(location?.uuid);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { admitPatient, isLoadingEmrConfiguration, errorFetchingEmrConfiguration } = useAdmitPatient();
   const [showErrorNotifications, setShowErrorNotifications] = useState(false);
@@ -66,7 +79,7 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     watch,
   } = useForm<InapatientAdmissionFormData>({
     defaultValues: { admissionDate: new Date() },
-    resolver: zodResolver(inpatientAdmissionSchema),
+    resolver: zodResolver(inpatientAdmissionSchema(isPsychiatricWard, t)),
   });
   const [bedIdObservable] = watch(['bedId']);
 
@@ -78,10 +91,45 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     setShowErrorNotifications(false);
     setIsSubmitting(true);
     const bedSelected = beds.find((bed) => bed.bedId === values.bedId);
-    admitPatient(patient, dispositionType, visit.uuid, [], values.admissionDate, config.admissionFormUuid)
+
+    admitPatient(
+      patient,
+      dispositionType,
+      visit.uuid,
+      values.psychiatricCategory
+        ? [{ concept: config.psychiatricCategories.question, value: values.psychiatricCategory }]
+        : [],
+      values.admissionDate,
+      config.admissionFormUuid,
+    )
       .then(
         async (response) => {
           if (response.ok) {
+            if (values.attachedFile) {
+              try {
+                await createAttachment(
+                  patient.uuid,
+                  {
+                    file: values.attachedFile,
+                    fileName: values.attachedFile.name,
+                    fileType: values.attachedFile.type,
+                    fileDescription: 'Admission attachment',
+                    base64Content: '',
+                  },
+                  // response.data.uuid,
+                );
+              } catch {
+                // The patient is already admitted, so a failed upload must not stop the bed assignment.
+                showSnackbar({
+                  kind: 'warning',
+                  title: t('attachmentNotUploaded', 'Attachment not uploaded'),
+                  subtitle: t(
+                    'patientAdmittedButAttachmentNotUploaded',
+                    'Patient admitted successfully but failed to upload the attachment',
+                  ),
+                });
+              }
+            }
             if (bedSelected) {
               return assignPatientToBed(values.bedId, patient.uuid, response.data.uuid);
             } else {
@@ -159,7 +207,6 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     setShowErrorNotifications(true);
     setIsSubmitting(false);
   }, []);
-
   if (!wardPatientGroupDetails) return <></>;
 
   return (
@@ -222,6 +269,57 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
               placeholder={t('notConfigured', 'Bed type not configured')}
             />
           </Column>
+          {isPsychiatricWard && (
+            <>
+              <Column>
+                <Controller
+                  control={control}
+                  name="psychiatricCategory"
+                  render={({ field, fieldState }) => (
+                    <Dropdown<{ label: string; value: string }>
+                      aria-label={t('category', 'Category')}
+                      direction="bottom"
+                      id="admission-psychiatric-category"
+                      invalid={!!fieldState?.error}
+                      invalidText={fieldState?.error?.message}
+                      itemToString={(item) => item?.label ?? ''}
+                      items={psychiatricCategoryOptions}
+                      label={t('chooseCategory', 'Choose category')}
+                      onChange={({ selectedItem }) => {
+                        field.onChange(selectedItem?.value);
+                      }}
+                      size="md"
+                      titleText={t('psychiatricCategory', 'Psychiatric category')}
+                      type="default"
+                    />
+                  )}
+                />
+              </Column>
+              <Column>
+                <Controller
+                  control={control}
+                  name="attachedFile"
+                  render={({ field }) => (
+                    <FormGroup legendText={t('attachment', 'Attachment')}>
+                      <FileUploader
+                        labelTitle=""
+                        labelDescription={t('attachmentUpload', 'Upload an attachment (PDF only)')}
+                        buttonLabel={t('addFile', 'Add file')}
+                        buttonKind="tertiary"
+                        size="md"
+                        filenameStatus="edit"
+                        accept={['application/pdf']}
+                        multiple={false}
+                        disabled={isSubmitting}
+                        onAddFiles={(_, { addedFiles }) => field.onChange(addedFiles[0])}
+                        onDelete={() => field.onChange(undefined)}
+                      />
+                    </FormGroup>
+                  )}
+                />
+              </Column>
+            </>
+          )}
 
           <Column>
             <div className={styles.errorNotifications}>
@@ -256,7 +354,8 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
               isLoadingEmrConfiguration ||
               errorFetchingEmrConfiguration ||
               isLoading ||
-              isLoadingBedsAssignedToPatient
+              isLoadingBedsAssignedToPatient ||
+              isLoadingPsychiatricWard
             }>
             {!isSubmitting ? t('admit', 'Admit') : t('admitting', 'Admitting...')}
           </Button>

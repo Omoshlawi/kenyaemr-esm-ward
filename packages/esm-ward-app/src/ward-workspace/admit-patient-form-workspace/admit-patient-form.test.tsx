@@ -1,10 +1,12 @@
 import React from 'react';
 import userEvent from '@testing-library/user-event';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import {
+  createAttachment,
   type DefaultWorkspaceProps,
   showSnackbar,
   useAppContext,
+  useConfig,
   useFeatureFlag,
   useSession,
 } from '@openmrs/esm-framework';
@@ -16,6 +18,30 @@ import type { WardPatient, WardViewContext } from '../../types';
 import { assignPatientToBed, removePatientFromBed, useAdmitPatient } from '../../ward.resource';
 import AdmitPatientFormWorkspace from './admit-patient-form.workspace';
 import useWardLocation from '../../hooks/useWardLocation';
+import { useAdmissionLocationTags } from '../../in-patient/in-patient.resource';
+
+jest.mock('@openmrs/esm-framework', () => ({
+  ...jest.requireActual('@openmrs/esm-framework'),
+  Workspace2: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+jest.mock('../../in-patient/in-patient.resource', () => ({
+  useAdmissionLocationTags: jest.fn(),
+}));
+
+jest.mock('../bed-selector.component', () => ({
+  __esModule: true,
+  default: ({ onChange }: { onChange: (bedId: number) => void }) => (
+    <button type="button" onClick={() => onChange(3)}>
+      Select bed 3
+    </button>
+  ),
+}));
+
+jest.mock('./facility-bed-capacity-notification.component', () => ({
+  __esModule: true,
+  default: () => null,
+}));
 
 jest.mock('../../hooks/useAdmissionLocation', () => ({
   useAdmissionLocation: jest.fn(),
@@ -279,5 +305,135 @@ describe.skip('Testing AdmitPatientForm', () => {
       subtitle: 'Patient admitted successfully to Inpatient Ward',
       title: 'Patient admitted successfully',
     });
+  });
+});
+
+describe('AdmitPatientForm admission attachment', () => {
+  const psychiatricTagUuid = '37bedf9c-07b1-4d8b-9ba3-ad3b9d48e10d';
+  const categoryQuestionUuid = '11c54b66-d733-460c-81ad-5347371fa41b';
+  const voluntaryUuid = 'ae2b3f93-bd11-4d8f-88ee-bc8d20ab7154';
+  const mockedCreateAttachment = jest.mocked(createAttachment);
+  const mockedUseAdmissionLocationTags = jest.mocked(useAdmissionLocationTags);
+  const closeWorkspace = jest.fn();
+  const pdf = new File(['content'], 'consent.pdf', { type: 'application/pdf' });
+
+  function renderForm() {
+    const props = { workspaceProps: { wardPatient: mockWardPatientAliceProps }, closeWorkspace };
+    renderWithSwr(
+      <AdmitPatientFormWorkspace {...(props as unknown as React.ComponentProps<typeof AdmitPatientFormWorkspace>)} />,
+    );
+  }
+
+  function mockWardTags(tagUuids: Array<string>) {
+    mockedUseAdmissionLocationTags.mockReturnValue({
+      tags: tagUuids.map((uuid) => ({ uuid, display: uuid, name: uuid, description: '' })),
+      isLoading: false,
+      error: undefined,
+      mutate: jest.fn(),
+    });
+  }
+
+  async function fillPsychiatricFields(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: 'Voluntary' }));
+    await user.upload(screen.getByLabelText('Add file'), pdf);
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(useAppContext<WardViewContext>).mockReturnValue(mockWardViewContext);
+    jest.mocked(useAdmitPatient).mockReturnValue(mockUseAdmitPatientObj);
+    jest.mocked(useConfig).mockReturnValue({
+      admissionFormUuid: 'admission-form-uuid',
+      inpatientLocationTags: { psychiatricWard: psychiatricTagUuid },
+      psychiatricCategories: {
+        question: categoryQuestionUuid,
+        voluntary: voluntaryUuid,
+        involuntary: '6455c7db-f438-4c15-a146-defcbf9b3f2b',
+        emergencyAdmission: '06f34d63-c694-421f-8a96-37a70d9e14ad',
+        forensicAdmission: '7f10db1a-23dd-4769-b191-3b6a63a21f64',
+      },
+    });
+    mockedUseWardLocation.mockReturnValue({
+      location: mockLocationInpatientWard,
+      invalidLocation: false,
+      isLoadingLocation: false,
+      errorFetchingLocation: null,
+    });
+    // @ts-ignore - only the fields read by the form are needed
+    mockedUseAssignedBedByPatient.mockReturnValue({ data: { data: { results: [] } }, isLoading: false });
+    mockedAdmitPatient.mockResolvedValue({ ok: true, data: { uuid: 'encounter-uuid' } });
+    // @ts-ignore - only the ok key is needed
+    mockedAssignPatientToBed.mockResolvedValue({ ok: true });
+    // @ts-ignore - the response is not read
+    mockedCreateAttachment.mockResolvedValue({ ok: true });
+  });
+
+  it('uploads the attachment after admission for a psychiatric ward', async () => {
+    mockWardTags([psychiatricTagUuid]);
+    const user = userEvent.setup();
+    renderForm();
+
+    await fillPsychiatricFields(user);
+    await user.click(screen.getByRole('button', { name: 'Admit' }));
+
+    await waitFor(() => expect(mockedCreateAttachment).toHaveBeenCalledTimes(1));
+    expect(mockedCreateAttachment).toHaveBeenCalledWith(
+      mockPatientAlice.uuid,
+      expect.objectContaining({ file: pdf, fileName: 'consent.pdf', fileDescription: 'Admission attachment' }),
+    );
+    expect(mockedAdmitPatient.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedCreateAttachment.mock.invocationCallOrder[0],
+    );
+    expect(mockedAdmitPatient.mock.calls[0][3]).toEqual([{ concept: categoryQuestionUuid, value: voluntaryUuid }]);
+  });
+
+  it('warns and still assigns the bed when the upload fails', async () => {
+    mockWardTags([psychiatricTagUuid]);
+    mockedCreateAttachment.mockRejectedValue(new Error('Upload failed'));
+    const user = userEvent.setup();
+    renderForm();
+
+    await fillPsychiatricFields(user);
+    await user.click(screen.getByRole('button', { name: 'Select bed 3' }));
+    await user.click(screen.getByRole('button', { name: 'Admit' }));
+
+    await waitFor(() =>
+      expect(mockedAssignPatientToBed).toHaveBeenCalledWith(3, mockPatientAlice.uuid, 'encounter-uuid'),
+    );
+    expect(mockedShowSnackbar).toHaveBeenCalledWith({
+      kind: 'warning',
+      title: 'Attachment not uploaded',
+      subtitle: 'Patient admitted successfully but failed to upload the attachment',
+    });
+  });
+
+  it('does not admit a psychiatric patient without a category and attachment', async () => {
+    mockWardTags([psychiatricTagUuid]);
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.click(screen.getByRole('button', { name: 'Admit' }));
+
+    expect(await screen.findByText('Attachment is required for psychiatric wards')).toBeInTheDocument();
+    expect(screen.getAllByText('Psychiatric category is required for psychiatric wards').length).toBeGreaterThan(0);
+    expect(mockedAdmitPatient).not.toHaveBeenCalled();
+  });
+
+  it('admits without psychiatric fields, obs or an upload on other wards', async () => {
+    mockWardTags([]);
+    const user = userEvent.setup();
+    renderForm();
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Psychiatric category')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add file')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Admit' }));
+
+    await waitFor(() => expect(mockedAdmitPatient).toHaveBeenCalledTimes(1));
+    expect(mockedAdmitPatient.mock.calls[0][3]).toEqual([]);
+    await waitFor(() => expect(closeWorkspace).toHaveBeenCalled());
+    expect(mockedCreateAttachment).not.toHaveBeenCalled();
   });
 });
