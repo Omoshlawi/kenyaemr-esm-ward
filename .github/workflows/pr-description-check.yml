@@ -1,0 +1,11 @@
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+ 
+jobs:
+  pr-description:
+    uses: Palladium-hub/platform-ci/.github/workflows/frontend-pr-description-check.yml@main
+    with:
+      pr-body: ${{ github.event.pull_request.body }}
+      pr-author-login: ${{ github.event.pull_request.user.login }}
+      pr-author-type: ${{ github.event.pull_request.user.type }}
