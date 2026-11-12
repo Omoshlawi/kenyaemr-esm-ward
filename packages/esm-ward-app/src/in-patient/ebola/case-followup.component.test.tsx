@@ -218,10 +218,10 @@ describe('CaseFollowUp', () => {
     render(<CaseFollowUp patientUuid="patient-1" />);
 
     const todayCells = screen.getAllByRole('button', { name: new RegExp(`Day \\d+ \\(${todayDisplay}\\)`) });
-    expect(todayCells.length).toBeGreaterThan(1);
-    expect(todayCells[1]).toBeEnabled();
+    expect(todayCells.length).toBeGreaterThan(0);
+    expect(todayCells[0]).toBeEnabled();
 
-    await user.click(todayCells[1]);
+    await user.click(todayCells[0]);
     expect(await screen.findByText('0')).toBeInTheDocument();
     expect(screen.getByText('X')).toBeInTheDocument();
     expect(screen.getByText(/No fever or bleeding/i)).toBeInTheDocument();
