@@ -1136,6 +1136,18 @@ export const configSchema: ConfigSchema = {
         label: 'Depression Screening (PHQ-9)',
         formUuid: '5fe533ee-0c40-4a1f-a071-dc4d0fbb0c17',
       },
+      {
+        label: 'Schizophrenia Test and Early Psychosis Indicator',
+        formUuid: '793556aa-49a1-4502-8830-1253e510acbc',
+      },
+      {
+        label: 'Suicide Risk Assessment Form',
+        formUuid: 'c582be1d-b872-406b-8035-67964b5cb91d',
+      },
+      {
+        label: 'Drug Abuse Screening Test',
+        formUuid: 'b2c3d4e5-f6g7-48h9-i0j1-k213m4n506p7',
+      },
     ],
   },
   psychiatricCategories: {
