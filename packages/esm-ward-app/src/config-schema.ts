@@ -1148,6 +1148,18 @@ export const configSchema: ConfigSchema = {
         label: 'Drug Abuse Screening Test',
         formUuid: 'b2c3d4e5-f6g7-48h9-i0j1-k213m4n506p7',
       },
+      {
+        label: 'Psychological Review/Progress Notes',
+        formUuid: '7a7c203b-9350-4671-bd0f-c9044b7d2219',
+      },
+      {
+        label: 'Psychiatric Inpatient Review Notes',
+        formUuid: 'b5d92314-ef50-4dac-a7d9-b0481f66887f',
+      },
+      {
+        label: 'Psychological Intake / Assessment Form',
+        formUuid: '4518bba1-cfc2-4b92-ae58-18b243aea194',
+      },
     ],
   },
   psychiatricCategories: {
