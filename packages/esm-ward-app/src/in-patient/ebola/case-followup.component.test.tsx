@@ -65,6 +65,10 @@ const listedContact = {
 };
 
 describe('CaseFollowUp', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
     mockUseContactFollowUp.mockReturnValue({
       payload: null,
@@ -160,6 +164,8 @@ describe('CaseFollowUp', () => {
   });
 
   it('aligns isolation day 1 with 22 Oct and a listed contact arriving on 28 Oct with that date column', () => {
+    // The timeline stretches up to today, so pin "today" inside the first 21 days of isolation.
+    jest.useFakeTimers({ now: new Date(2026, 9, 30, 9, 0, 0) });
     mockUseRelationships.mockReturnValue({
       contacts: [listedContact],
       isLoading: false,

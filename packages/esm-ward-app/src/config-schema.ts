@@ -1160,6 +1160,10 @@ export const configSchema: ConfigSchema = {
         label: 'Psychological Intake / Assessment Form',
         formUuid: '4518bba1-cfc2-4b92-ae58-18b243aea194',
       },
+      {
+        label: 'Mood Disorder Questionnaire',
+        formUuid: 'ae76dd1b-d590-4f4f-bd28-fc4857166323',
+      },
     ],
   },
   psychiatricCategories: {
