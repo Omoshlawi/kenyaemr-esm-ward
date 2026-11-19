@@ -1164,6 +1164,10 @@ export const configSchema: ConfigSchema = {
         label: 'Mood Disorder Questionnaire',
         formUuid: 'ae76dd1b-d590-4f4f-bd28-fc4857166323',
       },
+      {
+        label: 'Suicide Risk Screening Tool',
+        formUuid: '8533e340-0f0c-42d5-9064-bcf5cad28b72',
+      },
     ],
   },
   psychiatricCategories: {
