@@ -472,7 +472,7 @@ export const PARTOGRAPHY_COLORS = {
 export const PARTOGRAPHY_Y_RANGES = {
   cervix: { min: 1, max: 10 },
   baby: { min: 0, max: 10 },
-  'fetal-heart-rate': { min: 80, max: 200 },
+  'fetal-heart-rate': { min: 0, max: 200 },
   'cervical-dilation': { min: 0, max: 10 },
   'descent-of-head': { min: -4, max: 4 },
   'uterine-contractions': { min: 0, max: 6 },
@@ -968,11 +968,11 @@ export const getDescentStationMapping = () => {
 
 export const VALIDATION_RANGES = {
   CERVIX: { min: 1, max: 10, normal: { min: 1, max: 10 }, step: 0.5 },
-  FETAL_HEART_RATE: { min: 80, max: 200, normal: { min: 110, max: 160 }, step: 1 },
+  FETAL_HEART_RATE: { min: 0, max: 200, normal: { min: 110, max: 160 }, step: 1 },
   CERVICAL_DILATION: { min: 0, max: 10, normal: { min: 0, max: 10 }, step: 0.5 },
-  MATERNAL_PULSE: { min: 40, max: 140, normal: { min: 60, max: 100 }, step: 1 },
-  SYSTOLIC_BP: { min: 60, max: 250, normal: { min: 90, max: 140 }, step: 1 },
-  DIASTOLIC_BP: { min: 30, max: 150, normal: { min: 60, max: 90 }, step: 1 },
+  MATERNAL_PULSE: { min: 0, max: 300, normal: { min: 60, max: 100 }, step: 1 },
+  SYSTOLIC_BP: { min: 0, max: 320, normal: { min: 90, max: 140 }, step: 1 },
+  DIASTOLIC_BP: { min: 0, max: 200, normal: { min: 60, max: 90 }, step: 1 },
   TEMPERATURE: { min: 35, max: 42, normal: { min: 36, max: 37.5 }, step: 0.1 },
   UTERINE_CONTRACTIONS: { min: 0, max: 10, normal: { min: 2, max: 5 }, step: 1 },
 } as const;

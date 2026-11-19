@@ -652,10 +652,22 @@ const BabyForm: React.FC<BabyFormProps> = ({
       moulding: hasLowerInput && isLowerTime ? data.moulding : '',
     };
 
-    if (hasUpperInput && !sanitizedData.baselineFhr) {
+    if (hasUpperInput && sanitizedData.baselineFhr === '') {
       setError('baselineFhr', { type: 'manual', message: t('baselineFhrRequired', 'Baseline FHR is required') });
       setSaveError(t('completeRequiredFields', 'Complete the required fields before saving'));
       return;
+    }
+
+    if (sanitizedData.baselineFhr) {
+      const baselineFhr = Number(sanitizedData.baselineFhr);
+      if (!Number.isFinite(baselineFhr) || baselineFhr < 0 || baselineFhr > 200) {
+        setError('baselineFhr', {
+          type: 'manual',
+          message: t('baselineFhrRange', 'Baseline FHR must be between 0 and 200'),
+        });
+        setSaveError(t('completeRequiredFields', 'Complete the required fields before saving'));
+        return;
+      }
     }
 
     if (hasUpperInput && !sanitizedData.fhrDeceleration) {
@@ -898,11 +910,14 @@ const BabyForm: React.FC<BabyFormProps> = ({
                 <NumberInput
                   id="baseline-fhr"
                   label={t('baselineFhr', 'Baseline FHR')}
-                  min={80}
+                  min={0}
                   max={200}
                   step={1}
                   value={field.value || ''}
-                  onChange={(e, { value }) => field.onChange(String(value))}
+                  onChange={(event, data) => {
+                    const nextValue = data?.value ?? (event.target as HTMLInputElement).value;
+                    field.onChange(nextValue === undefined || nextValue === null ? '' : String(nextValue));
+                  }}
                   disabled={upperFieldsDisabled}
                   invalid={!!fieldState.error}
                   invalidText={fieldState.error?.message}

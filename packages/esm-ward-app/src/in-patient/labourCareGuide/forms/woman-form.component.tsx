@@ -55,9 +55,9 @@ type WomanFormProps = {
 };
 
 const WOMAN_FIELD_RANGES = {
-  pulse: { min: 20, max: 300, step: 1 },
-  systolicBp: { min: 40, max: 320, step: 1 },
-  diastolicBp: { min: 30, max: 200, step: 1 },
+  pulse: { min: 0, max: 300, step: 1 },
+  systolicBp: { min: 0, max: 320, step: 1 },
+  diastolicBp: { min: 0, max: 200, step: 1 },
   temperature: { min: 25.0, max: 45.0, step: 0.1 },
 } as const;
 
@@ -446,9 +446,14 @@ const WomanForm: React.FC<WomanFormProps> = ({
                   min={WOMAN_FIELD_RANGES.pulse.min}
                   max={WOMAN_FIELD_RANGES.pulse.max}
                   step={WOMAN_FIELD_RANGES.pulse.step}
+                  allowEmpty
                   disabled={!areFieldsEnabled}
                   value={field.value}
                   onChange={(e) => field.onChange((e.target as HTMLInputElement).value)}
+                  invalidText={t(
+                    'pulseRange',
+                    `Pulse must be between ${WOMAN_FIELD_RANGES.pulse.min} and ${WOMAN_FIELD_RANGES.pulse.max}`,
+                  )}
                 />
               )}
             />
@@ -467,9 +472,14 @@ const WomanForm: React.FC<WomanFormProps> = ({
                   min={WOMAN_FIELD_RANGES.systolicBp.min}
                   max={WOMAN_FIELD_RANGES.systolicBp.max}
                   step={WOMAN_FIELD_RANGES.systolicBp.step}
+                  allowEmpty
                   disabled={!areFieldsEnabled}
                   value={field.value}
                   onChange={(e) => field.onChange((e.target as HTMLInputElement).value)}
+                  invalidText={t(
+                    'systolicRange',
+                    `Systolic BP must be between ${WOMAN_FIELD_RANGES.systolicBp.min} and ${WOMAN_FIELD_RANGES.systolicBp.max}`,
+                  )}
                 />
               )}
             />
@@ -488,9 +498,14 @@ const WomanForm: React.FC<WomanFormProps> = ({
                   min={WOMAN_FIELD_RANGES.diastolicBp.min}
                   max={WOMAN_FIELD_RANGES.diastolicBp.max}
                   step={WOMAN_FIELD_RANGES.diastolicBp.step}
+                  allowEmpty
                   disabled={!areFieldsEnabled}
                   value={field.value}
                   onChange={(e) => field.onChange((e.target as HTMLInputElement).value)}
+                  invalidText={t(
+                    'diastolicRange',
+                    `Diastolic BP must be between ${WOMAN_FIELD_RANGES.diastolicBp.min} and ${WOMAN_FIELD_RANGES.diastolicBp.max}`,
+                  )}
                 />
               )}
             />
@@ -509,9 +524,14 @@ const WomanForm: React.FC<WomanFormProps> = ({
                   min={WOMAN_FIELD_RANGES.temperature.min}
                   max={WOMAN_FIELD_RANGES.temperature.max}
                   step={WOMAN_FIELD_RANGES.temperature.step}
+                  allowEmpty
                   disabled={!areFieldsEnabled}
                   value={field.value}
                   onChange={(e) => field.onChange((e.target as HTMLInputElement).value)}
+                  invalidText={t(
+                    'temperatureRange',
+                    `Temperature must be between ${WOMAN_FIELD_RANGES.temperature.min} and ${WOMAN_FIELD_RANGES.temperature.max}`,
+                  )}
                 />
               )}
             />
