@@ -10,18 +10,33 @@ const errorPaths = (result: ReturnType<ReturnType<typeof inpatientAdmissionSchem
 
 describe('inpatientAdmissionSchema', () => {
   const admissionDate = new Date();
+  const bedId = 3;
 
   describe('on a psychiatric ward', () => {
     const schema = inpatientAdmissionSchema(true, t);
 
+    it('requires a real bed so the patient is not left unassigned', () => {
+      expect(errorPaths(schema.safeParse({ admissionDate }))).toEqual(['bedId']);
+      expect(errorPaths(schema.safeParse({ admissionDate, bedId: 0 }))).toEqual([
+        'bedId',
+        'psychiatricCategory',
+        'attachedFile',
+      ]);
+    });
+
     it('reports a missing category and attachment on their own fields', () => {
-      const result = schema.safeParse({ admissionDate });
+      const result = schema.safeParse({ admissionDate, bedId });
 
       expect(errorPaths(result)).toEqual(['psychiatricCategory', 'attachedFile']);
     });
 
     it('accepts a category with a PDF attachment', () => {
-      const result = schema.safeParse({ admissionDate, psychiatricCategory: categoryUuid, attachedFile: pdf });
+      const result = schema.safeParse({
+        admissionDate,
+        bedId,
+        psychiatricCategory: categoryUuid,
+        attachedFile: pdf,
+      });
 
       expect(result.success).toBe(true);
     });
@@ -30,20 +45,20 @@ describe('inpatientAdmissionSchema', () => {
   describe('on any other ward', () => {
     const schema = inpatientAdmissionSchema(false, t);
 
-    it('does not require a category or attachment', () => {
-      expect(schema.safeParse({ admissionDate }).success).toBe(true);
+    it('does not require a category or attachment when a bed is selected', () => {
+      expect(schema.safeParse({ admissionDate, bedId }).success).toBe(true);
     });
 
     it('rejects a file larger than 2 MB', () => {
       const largeFile = new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'large.pdf', { type: 'application/pdf' });
 
-      expect(errorPaths(schema.safeParse({ admissionDate, attachedFile: largeFile }))).toEqual(['attachedFile']);
+      expect(errorPaths(schema.safeParse({ admissionDate, bedId, attachedFile: largeFile }))).toEqual(['attachedFile']);
     });
 
     it('rejects a file that is not a PDF', () => {
       const image = new File(['content'], 'photo.png', { type: 'image/png' });
 
-      expect(errorPaths(schema.safeParse({ admissionDate, attachedFile: image }))).toEqual(['attachedFile']);
+      expect(errorPaths(schema.safeParse({ admissionDate, bedId, attachedFile: image }))).toEqual(['attachedFile']);
     });
   });
 });

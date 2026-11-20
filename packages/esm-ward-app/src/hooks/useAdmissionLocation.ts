@@ -16,29 +16,26 @@ const requestRep =
   'custom:(ward,totalBeds,occupiedBeds,bedLayouts:(rowNumber,bedType,columnNumber,bedNumber,bedId,bedUuid,status,location,patients:(person:full,identifiers,uuid)))';
 
 /**
+ * Fetches bed layouts (including patients in those beds) for the current ward via Bed Management's
+ * `admissionLocation` endpoint. "Admitted" in the ward linelist = patients present on these beds;
+ * "Unassigned" = inpatient admissions with no bed on this layout.
  *
- * Fetches bed information (including info about patients in those beds) for a location,
- * as provided by the bed management module. If the bed management module is not installed,
- * then no request will be made, the return object's
- * `isLoading` field will be false, and the `admissionLocation` field will be undefined.
- *
- * Note that "admissionLocation" isn't the clearest name, but it matches the endpoint name
- *
- * @param rep the "v=" representation parameter
- * @returns
+ * Always requests when a ward location is set. Do not gate on the `bedmanagement-module` feature
+ * flag alone — that flag was historically tied to bedmanagement ^6 while the app requires >=7, so
+ * the flag stayed off and every patient appeared under Unassigned.
  */
 export function useAdmissionLocation(rep: string = requestRep, overrideLocation: string | null = null) {
   const { location } = useWardLocation(overrideLocation);
   const isBedManagementModuleInstalled = useFeatureFlag('bedmanagement-module');
 
   const apiUrl = location?.uuid ? `${restBaseUrl}/admissionLocation/${location?.uuid}?v=${rep}` : null;
-  const { data, ...rest } = useSWR<FetchResponse<AdmissionLocationFetchResponse>, Error>(
-    isBedManagementModuleInstalled ? apiUrl : null,
-    openmrsFetch,
-  );
+  const { data, ...rest } = useSWR<FetchResponse<AdmissionLocationFetchResponse>, Error>(apiUrl, openmrsFetch, {
+    shouldRetryOnError: false,
+  });
 
   return {
     admissionLocation: data?.data,
+    isBedManagementModuleInstalled,
     ...rest,
   };
 }

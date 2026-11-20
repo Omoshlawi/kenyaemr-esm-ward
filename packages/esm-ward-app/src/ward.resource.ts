@@ -16,10 +16,18 @@ export function useCreateEncounter() {
     dateOfAdmission?: Date,
     formUuid?: string,
   ) => {
+    const encounterTypeUuid = encounterType?.uuid;
+    if (!encounterTypeUuid) {
+      return Promise.reject(new Error('Missing admission/transfer encounter type from EMR configuration'));
+    }
+    if (!location?.uuid) {
+      return Promise.reject(new Error('Missing ward location for the admission encounter'));
+    }
+
     const encounterPayload = {
       patient: patient.uuid,
-      encounterType,
-      location: location?.uuid,
+      encounterType: encounterTypeUuid,
+      location: location.uuid,
       encounterProviders: [
         {
           provider: currentProvider?.uuid,
@@ -68,8 +76,19 @@ export function useAdmitPatient() {
   return { admitPatient, isLoadingEmrConfiguration, errorFetchingEmrConfiguration };
 }
 
-export function assignPatientToBed(bedUuid: number, patientUuid: string, encounterUuid: string) {
-  return openmrsFetch(`${restBaseUrl}/beds/${bedUuid}`, {
+/**
+ * Assign a patient to a bed.
+ * Bed Management expects the numeric bed id in the path (`/beds/{bedId}`). Passing a bed UUID
+ * often returns HTTP 500 on KenyaEMR / bedmanagement builds.
+ */
+export function assignPatientToBed(bedId: number | string, patientUuid: string, encounterUuid: string) {
+  if (bedId === undefined || bedId === null || bedId === '') {
+    return Promise.reject(new Error('Missing bed id for bed assignment'));
+  }
+  if (!encounterUuid) {
+    return Promise.reject(new Error('Missing encounter for bed assignment'));
+  }
+  return openmrsFetch(`${restBaseUrl}/beds/${bedId}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

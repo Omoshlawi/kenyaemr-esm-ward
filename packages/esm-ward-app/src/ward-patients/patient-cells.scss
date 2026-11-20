@@ -11,3 +11,18 @@
   white-space: nowrap;
   padding: 0;
 }
+
+.viewChartsButton {
+  @include type.type-style('body-compact-01');
+  background: none;
+  border: 0;
+  color: var(--cds-link-primary, #0f62fe);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

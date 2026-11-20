@@ -21,6 +21,7 @@ const mockUseCriticalCareWardTab = jest.mocked(useCriticalCareWardTab);
 describe('WardPatientsTable', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.history.replaceState({}, '', '/openmrs/spa/home/ward');
     mockUseCriticalCareWardTab.mockReturnValue({
       tab: null,
       locationUuid: undefined,
@@ -65,7 +66,7 @@ describe('WardPatientsTable', () => {
     expect(screen.getAllByText('No component configured for this ward patients tab')).toHaveLength(5);
   });
 
-  it('shows a critical-care tab next to Discharged when the selected ward matches', () => {
+  it('does not show a unit dashboard tab for critical-care wards', () => {
     mockUseCriticalCareWardTab.mockReturnValue({
       tab: { kind: 'icu', label: 'ICU' },
       locationUuid: 'icu-location-uuid',
@@ -74,23 +75,40 @@ describe('WardPatientsTable', () => {
 
     renderWithSwr(<WardPatientsTable />);
 
-    expect(screen.getByText('Unassigned')).toBeInTheDocument();
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
-    expect(tabs.slice(-2)).toEqual(['Discharged', 'ICU']);
+    expect(tabs).toEqual(['Awaiting Admission', 'Admitted', 'Unassigned', 'Discharge In', 'Discharged']);
+    expect(ExtensionSlot).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: WARD_PATIENTS_CRITICAL_CARE_SLOT }),
+      expect.anything(),
+    );
+  });
+
+  it('hosts the critical-care chart when icuView points at a patient', () => {
+    window.history.replaceState({}, '', '/openmrs/spa/home/ward?icuView=/patient/abc');
+    mockUseCriticalCareWardTab.mockReturnValue({
+      tab: { kind: 'nicu', label: 'NICU' },
+      locationUuid: 'nicu-location-uuid',
+      isLoading: false,
+    });
+
+    renderWithSwr(<WardPatientsTable />);
+
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     expect(ExtensionSlot).toHaveBeenCalledWith(
       expect.objectContaining({
         name: WARD_PATIENTS_CRITICAL_CARE_SLOT,
         state: expect.objectContaining({
-          locationUuid: 'icu-location-uuid',
-          wardKind: 'icu',
-          label: 'ICU',
+          locationUuid: 'nicu-location-uuid',
+          wardKind: 'nicu',
+          label: 'NICU',
         }),
       }),
       expect.anything(),
     );
   });
 
-  it('shows a fallback message when the critical-care slot has no extensions', () => {
+  it('shows a fallback message when the chart slot has no extensions', () => {
+    window.history.replaceState({}, '', '/openmrs/spa/home/ward?icuView=/patient/abc');
     mockUseCriticalCareWardTab.mockReturnValue({
       tab: { kind: 'hdu', label: 'HDU' },
       locationUuid: 'hdu-location-uuid',
@@ -100,7 +118,7 @@ describe('WardPatientsTable', () => {
 
     renderWithSwr(<WardPatientsTable />);
 
-    expect(screen.getByText('HDU dashboard not loaded')).toBeInTheDocument();
+    expect(screen.getByText('HDU chart not loaded')).toBeInTheDocument();
     expect(ExtensionSlot).not.toHaveBeenCalled();
   });
 });

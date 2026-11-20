@@ -55,9 +55,10 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
   const launchPatientAdmissionForm = () => launchWorkspace2('admit-patient-form-workspace', { wardPatient });
 
   const isBedManagementModuleInstalled = useFeatureFlag('bedmanagement-module');
+  const hasWardBeds = (wardPatientGroupDetails?.bedLayouts?.length ?? 0) > 0;
 
-  // If bed management module is installed and the patient is not currently assigned a bed,
-  // open the next form for bed selection. If not, admit patient directly
+  // If beds are available on this ward (or bed management is flagged on) and the patient has no bed,
+  // open the admit form so they are assigned a bed and appear under Admitted — not Unassigned.
   // (Note that it is possible, albeit an edge case, for a patient to have a bed assigned while not admitted)
   const onAdmit = () => {
     if (isPediatricWard && patient?.person?.age > 12) {
@@ -67,13 +68,15 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
         subtitle: t('pediatricError', 'Patients older than 12 years cannot be admitted to the pediatric ward'),
       });
     }
-    if (isBedManagementModuleInstalled && !bed) {
+    if ((isBedManagementModuleInstalled || hasWardBeds) && !bed) {
       launchPatientAdmissionForm();
     } else {
+      let admitted = false;
       admitPatient(patient, dispositionType, visit.uuid)
         .then(
           (response) => {
             if (response && response?.ok) {
+              admitted = true;
               showSnackbar({
                 kind: 'success',
                 title: t('patientAdmittedSuccessfully', 'Patient admitted successfully'),
@@ -94,6 +97,10 @@ const AdmitPatientButton: React.FC<AdmitPatientButtonProps> = ({
         .finally(() => {
           wardPatientGroupDetails?.mutate?.();
           onAdmitPatientSuccess();
+          if (admitted) {
+            // Hard refresh so the admitted patient shows on the ward census / ICU embed immediately.
+            window.location.reload();
+          }
         });
     }
   };

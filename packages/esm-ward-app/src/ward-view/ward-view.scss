@@ -40,6 +40,12 @@
   overflow: hidden;
 }
 
+/** Critical-care chart: hide status/capacity cards; Ward Patients + chart fill the page. */
+.wrapperContainerFullPage {
+  margin-block-start: 0;
+  min-height: calc(100vh - var(--omrs-navbar-height, #{layout.$spacing-09}));
+}
+
 .wrapperHeader {
   display: flex;
   align-items: center;

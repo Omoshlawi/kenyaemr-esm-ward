@@ -1,13 +1,18 @@
-import { useDefineAppContext } from '@openmrs/esm-framework';
+import { ExtensionSlot, useDefineAppContext } from '@openmrs/esm-framework';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckmarkFilled, EventSchedule, Home, User } from '@carbon/react/icons';
+import {
+  isCriticalCarePatientChartPath,
+  useCriticalCareEmbeddedPath,
+} from '../../hooks/open-critical-care-chart';
+import { useCriticalCareWardTab } from '../../hooks/useCriticalCareWardTab';
 import { useWardSummaryMetrics } from '../../hooks/useSummaryMetrics';
 import useWardLocation from '../../hooks/useWardLocation';
 import { useWardPatientGrouping } from '../../hooks/useWardPatientGrouping';
 import { type WardViewContext } from '../../types';
 import WardPatientsTable from '../../ward-patients/ward-patients-table';
-import { WARD_PATIENTS_TAB_INDEX } from '../../ward-patients/ward-patients-slots';
+import { WARD_CRITICAL_CARE_METRICS_SLOT, WARD_PATIENTS_TAB_INDEX } from '../../ward-patients/ward-patients-slots';
 import Filters from '../linelist-wards/Filters';
 import Header from '../linelist-wards/Header';
 import Metrics, { type Metric } from '../linelist-wards/Metrics';
@@ -16,7 +21,6 @@ import Ward from '../ward.component';
 import { resetWardViewUi, updateWardViewUi } from '../ward-view-ui.store';
 import DefaultWardBeds from './default-ward-beds.component';
 import DefaultWardPatientCardHeader from './default-ward-patient-card-header.component';
-import DefaultWardPendingPatients from './default-ward-pending-patients.component';
 import DefaultWardUnassignedPatients from './default-ward-unassigned-patients.component';
 import { InlineLoading } from '@carbon/react';
 
@@ -25,6 +29,10 @@ const DefaultWardView = () => {
   const { t } = useTranslation();
   const wardPatientGroupDetails = useWardPatientGrouping();
   const summary = useWardSummaryMetrics();
+  const { tab: criticalCareTab, locationUuid } = useCriticalCareWardTab();
+  const embeddedPath = useCriticalCareEmbeddedPath();
+  const chartFullPage =
+    Boolean(criticalCareTab) && isCriticalCarePatientChartPath(embeddedPath);
   useDefineAppContext<WardViewContext>('ward-view-context', {
     wardPatientGroupDetails,
     WardPatientHeader: DefaultWardPatientCardHeader,
@@ -71,7 +79,6 @@ const DefaultWardView = () => {
 
   const wardBeds = <DefaultWardBeds />;
   const wardUnassignedPatients = <DefaultWardUnassignedPatients />;
-  const wardPendingPatients = <DefaultWardPendingPatients />;
 
   if (isLoadingLocation) {
     return <InlineLoading status="active" description={t('loadingLocation', 'Loading location...')} />;
@@ -79,12 +86,26 @@ const DefaultWardView = () => {
 
   return (
     <>
-      <Header title={location.display}>
-        <Filters inline />
-      </Header>
-      <Metrics metrics={cards} />
-      {/* <WardViewHeader {...{ wardPendingPatients }} /> */}
+      {!chartFullPage ? (
+        <>
+          <Header title={location.display}>
+            <Filters inline />
+          </Header>
+          <Metrics metrics={cards} />
+          {criticalCareTab ? (
+            <ExtensionSlot
+              name={WARD_CRITICAL_CARE_METRICS_SLOT}
+              state={{
+                locationUuid,
+                wardKind: criticalCareTab.kind,
+                label: criticalCareTab.label,
+              }}
+            />
+          ) : null}
+        </>
+      ) : null}
       <WardViewContentWrapper
+        chartFullPage={chartFullPage}
         cardView={<Ward {...{ wardBeds, wardUnassignedPatients }} />}
         tableView={<WardPatientsTable />}
       />

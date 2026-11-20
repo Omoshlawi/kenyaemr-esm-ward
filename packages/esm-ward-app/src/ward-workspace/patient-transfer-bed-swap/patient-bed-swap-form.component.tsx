@@ -28,9 +28,12 @@ const PatientBedSwapForm: React.FC<Workspace2DefinitionProps<WardPatientWorkspac
   const zodSchema = useMemo(
     () =>
       z.object({
-        bedId: z.number({
-          required_error: t('pleaseSelectBed', 'Please select a bed'),
-        }),
+        bedId: z
+          .number({
+            required_error: t('pleaseSelectBed', 'Please select a bed'),
+            invalid_type_error: t('pleaseSelectBed', 'Please select a bed'),
+          })
+          .refine((id) => id > 0, { message: t('pleaseSelectBed', 'Please select a bed') }),
       }),
     [t],
   );
@@ -59,7 +62,7 @@ const PatientBedSwapForm: React.FC<Workspace2DefinitionProps<WardPatientWorkspac
         .then(async (response) => {
           if (response.ok) {
             if (bedSelected) {
-              return assignPatientToBed(values.bedId, patient.uuid, response.data.uuid);
+              return assignPatientToBed(values.bedId || bedSelected.bedId, patient.uuid, response.data.uuid);
             } else {
               // get the bed that the patient is currently assigned to
               const bedAssignedToPatient = beds.find((bed) =>

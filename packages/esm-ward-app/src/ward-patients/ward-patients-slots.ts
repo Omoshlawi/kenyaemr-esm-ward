@@ -14,6 +14,9 @@ export const WARD_PATIENTS_UNASSIGNED_SLOT = 'ward-patients-unassigned-slot';
 export const WARD_PATIENTS_DISCHARGE_IN_SLOT = 'ward-patients-discharge-in-slot';
 export const WARD_PATIENTS_DISCHARGED_SLOT = 'ward-patients-discharged-slot';
 
+/** Capacity tiles (total beds, occupied, ventilated, …) above Ward Patients on ICU/HDU/NICU/PICU. */
+export const WARD_CRITICAL_CARE_METRICS_SLOT = 'ward-critical-care-metrics-slot';
+
 export const WARD_PATIENTS_TAB_SLOTS = [
   WARD_PATIENTS_AWAITING_ADMISSION_SLOT,
   WARD_PATIENTS_ADMITTED_SLOT,
@@ -22,12 +25,11 @@ export const WARD_PATIENTS_TAB_SLOTS = [
   WARD_PATIENTS_DISCHARGED_SLOT,
 ] as const;
 
-/** Tab positions in the ward patients table (the optional critical-care tab follows `discharged`). */
+/** Tab positions in the ward patients table. Critical-care charts open from Admitted (no extra tab). */
 export const WARD_PATIENTS_TAB_INDEX = {
   awaitingAdmission: 0,
   admitted: 1,
   unassigned: 2,
   dischargeIn: 3,
   discharged: 4,
-  criticalCare: 5,
 } as const;

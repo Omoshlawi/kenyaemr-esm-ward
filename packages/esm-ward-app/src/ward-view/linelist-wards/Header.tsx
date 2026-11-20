@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@carbon/react';
 import { InPatientPictogram, navigate, PageHeader, PageHeaderContent, showModal } from '@openmrs/esm-framework';
 import { useTranslation } from 'react-i18next';
-import { ArrowRight, ChangeCatalog } from '@carbon/react/icons';
+import { ArrowRight, Renew } from '@carbon/react/icons';
 
 import styles from './linelist-wards.scss';
 
@@ -19,20 +19,21 @@ const Header: React.FC<HeaderProps> = ({ title, children }) => {
       closeModal: () => dispose(),
     });
   };
+
+  const illustration = InPatientPictogram ? (
+    <InPatientPictogram className={styles.pageIllustration} />
+  ) : undefined;
+
   return (
     <PageHeader className={styles.pageHeader}>
-      <PageHeaderContent
-        className={styles.pageHeaderContent}
-        title={title}
-        illustration={<InPatientPictogram className={styles.pageIllustration} />}
-      />
+      <PageHeaderContent className={styles.pageHeaderContent} title={title} illustration={illustration} />
       <div className={styles.pageHeaderRight}>
         <div className={styles.pageHeaderActions}>
           <Button
             size="sm"
             kind="ghost"
             className={styles.headerLink}
-            renderIcon={ArrowRight}
+            renderIcon={ArrowRight || undefined}
             onClick={() => navigate({ to: `${globalThis.spaBase}/home/ward?view=both` })}>
             {t('backToWards', 'Back to Wards')}
           </Button>
@@ -40,7 +41,7 @@ const Header: React.FC<HeaderProps> = ({ title, children }) => {
             size="sm"
             kind="ghost"
             className={styles.headerLink}
-            renderIcon={ChangeCatalog}
+            renderIcon={Renew || undefined}
             onClick={handleSwitchWard}>
             {t('switchWard', 'Switch Ward')}
           </Button>

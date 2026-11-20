@@ -73,6 +73,15 @@ function wardViewContextWithTags(tags: Location['tags']): WardViewContext {
 
 const pediatricWardContext = wardViewContextWithTags([{ uuid: pediatricWardTagUuid, display: 'Pediatric Ward' }]);
 
+/** No beds and bed management off: Admit writes the encounter directly instead of opening the bed form. */
+function withoutBeds(context: WardViewContext): WardViewContext {
+  const details = context.wardPatientGroupDetails;
+  return {
+    ...context,
+    wardPatientGroupDetails: details ? { ...details, bedLayouts: [] } : details,
+  };
+}
+
 const mockAdultWardPatient: WardPatient = {
   patient: mockPatientAlice,
   visit: mockVisitAlice,
@@ -109,7 +118,7 @@ describe('AdmitPatientButton', () => {
 
   it('should admit a patient aged 12 or under to a pediatric ward', async () => {
     const user = userEvent.setup();
-    mockedUseAppContext.mockReturnValue(pediatricWardContext);
+    mockedUseAppContext.mockReturnValue(withoutBeds(pediatricWardContext));
 
     renderAdmitPatientButton(mockChildWardPatient);
     await user.click(screen.getByRole('button', { name: /admit patient/i }));
@@ -120,7 +129,7 @@ describe('AdmitPatientButton', () => {
 
   it('should admit a patient older than 12 to a ward that is not a pediatric ward', async () => {
     const user = userEvent.setup();
-    mockedUseAppContext.mockReturnValue(mockWardViewContext);
+    mockedUseAppContext.mockReturnValue(withoutBeds(mockWardViewContext));
 
     renderAdmitPatientButton(mockAdultWardPatient);
     await user.click(screen.getByRole('button', { name: /admit patient/i }));

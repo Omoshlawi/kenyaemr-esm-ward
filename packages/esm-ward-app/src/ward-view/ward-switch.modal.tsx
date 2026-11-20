@@ -8,9 +8,7 @@ import {
   ModalHeader,
   RadioButton,
   RadioButtonGroup,
-  RadioButtonSkeleton,
   Search,
-  Tag,
 } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
 import { useLocationsByTag } from '../hooks/useAdmissionLocation';
@@ -22,6 +20,10 @@ interface WardSwitchModalProps {
   closeModal: () => void;
 }
 
+/**
+ * Avoid Carbon skeletons / Tag-in-labelText here: older shared @carbon/react builds on live
+ * SPAs have been seen to export `undefined` for some of those (React minified error #130).
+ */
 const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
   const { t } = useTranslation();
   const { locations, isLoading, error } = useLocationsByTag('Admission Location');
@@ -99,11 +101,7 @@ const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
         />
         <div className={styles.wardList}>
           {isLoading ? (
-            <>
-              <RadioButtonSkeleton />
-              <RadioButtonSkeleton />
-              <RadioButtonSkeleton />
-            </>
+            <InlineLoading description={t('loadingWards', 'Loading wards…')} />
           ) : wards.length ? (
             <RadioButtonGroup
               name="ward-switch-selector"
@@ -114,6 +112,9 @@ const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
               disabled={isSaving}>
               {wards.map((ward) => {
                 const isCurrent = ward.uuid === currentWard?.uuid;
+                const label = isCurrent
+                  ? `${ward.display} (${t('currentWard', 'Current')})`
+                  : (ward.display ?? ward.uuid);
                 return (
                   <RadioButton
                     key={ward.uuid}
@@ -121,16 +122,7 @@ const WardSwitchModal: React.FC<WardSwitchModalProps> = ({ closeModal }) => {
                     className={styles.wardOption}
                     value={ward.uuid}
                     disabled={isCurrent}
-                    labelText={
-                      <span className={styles.wardOptionLabel}>
-                        {ward.display}
-                        {isCurrent ? (
-                          <Tag size="sm" type="teal">
-                            {t('currentWard', 'Current')}
-                          </Tag>
-                        ) : null}
-                      </span>
-                    }
+                    labelText={label}
                   />
                 );
               })}

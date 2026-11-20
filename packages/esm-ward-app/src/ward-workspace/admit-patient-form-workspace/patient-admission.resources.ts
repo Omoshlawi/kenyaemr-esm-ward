@@ -73,10 +73,22 @@ export const useProvider = (uuid: string) => {
   };
 };
 
-export const inpatientAdmissionSchema = (isPsychiatric: boolean = false, t: TFunction) =>
+export const inpatientAdmissionSchema = (
+  isPsychiatric: boolean = false,
+  t: TFunction,
+  /** When the ward has beds, a real bed is required so the patient lands in Admitted (not Unassigned). */
+  requireBed: boolean = true,
+) =>
   z
     .object({
-      bedId: z.number().optional(),
+      bedId: requireBed
+        ? z
+            .number({
+              required_error: t('pleaseSelectBed', 'Please select a bed'),
+              invalid_type_error: t('pleaseSelectBed', 'Please select a bed'),
+            })
+            .refine((id) => id > 0, { message: t('pleaseSelectBed', 'Please select a bed') })
+        : z.number().optional(),
       admissionDate: z.date({ coerce: true }),
       psychiatricCategory: z.string().uuid().optional(),
       attachedFile: z

@@ -22,14 +22,14 @@ import {
   Workspace2,
   type Workspace2DefinitionProps,
 } from '@openmrs/esm-framework';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../../config-schema';
 import { useAssignedBedByPatient } from '../../hooks/useAssignedBedByPatient';
 import useWardLocation from '../../hooks/useWardLocation';
 import type { WardPatientWorkspaceProps, WardViewContext } from '../../types';
-import { assignPatientToBed, removePatientFromBed, useAdmitPatient } from '../../ward.resource';
+import { assignPatientToBed, useAdmitPatient } from '../../ward.resource';
 import BedSelector from '../bed-selector.component';
 import WardPatientWorkspaceBanner from '../patient-banner/patient-banner.component';
 import FacilityBedCapacityNotification from './facility-bed-capacity-notification.component';
@@ -43,8 +43,8 @@ import {
 /**
  * This form gets rendered when the user clicks "admit patient" in
  * the patient card in the admission requests workspace, but only when
- * the bed management module is installed. It asks to (optionally) select
- * a bed to assign to patient
+ * the bed management module is installed. A bed must be selected so the
+ * patient appears under Admitted (not Unassigned).
  */
 const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientWorkspaceProps>> = ({
   workspaceProps: { wardPatient },
@@ -67,10 +67,14 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
   const { wardPatientGroupDetails } = useAppContext<WardViewContext>('ward-view-context') ?? {};
   const { isLoading } = wardPatientGroupDetails?.admissionLocationResponse ?? {};
 
-  const { data: bedsAssignedToPatient, isLoading: isLoadingBedsAssignedToPatient } = useAssignedBedByPatient(
-    patient.uuid,
-  );
+  const { isLoading: isLoadingBedsAssignedToPatient } = useAssignedBedByPatient(patient.uuid);
   const beds = isLoading ? [] : (wardPatientGroupDetails?.bedLayouts ?? []);
+  const hasBedsConfigured = !isLoading && beds.length > 0;
+  /**
+   * This workspace only opens when bed management is installed. A real bed is required so the
+   * patient appears under Admitted (with bed), not Unassigned (admitted without a bed).
+   */
+  const admissionSchema = useMemo(() => inpatientAdmissionSchema(isPsychiatricWard, t, true), [isPsychiatricWard, t]);
 
   const {
     control,
@@ -79,9 +83,10 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
     watch,
   } = useForm<InapatientAdmissionFormData>({
     defaultValues: { admissionDate: new Date() },
-    resolver: zodResolver(inpatientAdmissionSchema(isPsychiatricWard, t)),
+    resolver: zodResolver(admissionSchema),
   });
   const [bedIdObservable] = watch(['bedId']);
+  const selectedBed = beds.find((bed) => bed.bedId === bedIdObservable && bed.bedId > 0);
 
   useEffect(() => {
     setHasUnsavedChanges(() => isDirty);
@@ -89,8 +94,13 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
 
   const onSubmit = (values: InapatientAdmissionFormData) => {
     setShowErrorNotifications(false);
+    const bedSelected = beds.find((bed) => bed.bedId === values.bedId && bed.bedId > 0);
+    if (!bedSelected) {
+      setShowErrorNotifications(true);
+      return;
+    }
     setIsSubmitting(true);
-    const bedSelected = beds.find((bed) => bed.bedId === values.bedId);
+    let shouldReload = false;
 
     admitPatient(
       patient,
@@ -130,15 +140,12 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
                 });
               }
             }
-            if (bedSelected) {
-              return assignPatientToBed(values.bedId, patient.uuid, response.data.uuid);
-            } else {
-              const assignedBedId = bedsAssignedToPatient?.data?.results?.[0]?.bedId;
-              if (assignedBedId) {
-                return removePatientFromBed(assignedBedId, patient.uuid);
-              }
-              return response;
+            const bedResponse = await assignPatientToBed(bedSelected.bedId, patient.uuid, response.data.uuid);
+            if (!bedResponse?.ok) {
+              throw new Error('Bed assignment did not succeed');
             }
+            shouldReload = true;
+            return bedResponse;
           }
         },
         (err: any) => {
@@ -161,28 +168,18 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
       .then(
         (response) => {
           if (response && response?.ok) {
-            if (bedSelected) {
-              showSnackbar({
-                kind: 'success',
-                title: t('patientAdmittedSuccessfully', 'Patient admitted successfully'),
-                subtitle: t(
-                  'patientAdmittedSuccessfullySubtitle',
-                  '{{patientName}} has been successfully admitted and assigned to bed {{bedNumber}}',
-                  {
-                    patientName: patient.person.preferredName.display,
-                    bedNumber: bedSelected.bedNumber,
-                  },
-                ),
-              });
-            } else {
-              showSnackbar({
-                kind: 'success',
-                title: t('patientAdmittedSuccessfully', 'Patient admitted successfully'),
-                subtitle: t('patientAdmittedWoBed', 'Patient admitted successfully to {{location}}', {
-                  location: location?.display,
-                }),
-              });
-            }
+            showSnackbar({
+              kind: 'success',
+              title: t('patientAdmittedSuccessfully', 'Patient admitted successfully'),
+              subtitle: t(
+                'patientAdmittedSuccessfullySubtitle',
+                '{{patientName}} has been successfully admitted and assigned to bed {{bedNumber}}',
+                {
+                  patientName: patient.person.preferredName.display,
+                  bedNumber: bedSelected.bedNumber,
+                },
+              ),
+            });
           }
         },
         () => {
@@ -200,6 +197,10 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
         setIsSubmitting(false);
         wardPatientGroupDetails?.mutate?.();
         closeWorkspace({ discardUnsavedChanges: true });
+        if (shouldReload) {
+          // Hard refresh so the patient shows under Admitted (with bed) immediately.
+          window.location.reload();
+        }
       });
   };
 
@@ -255,6 +256,7 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
                     selectedBedId={value}
                     error={error}
                     onChange={onChange}
+                    allowNoBed={false}
                   />
                 );
               }}
@@ -263,7 +265,7 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
           <Column>
             <TextInput
               id="bed-type"
-              value={beds?.find((b) => b.bedId === bedIdObservable)?.bedType?.displayName ?? ''}
+              value={selectedBed?.bedType?.displayName ?? ''}
               readOnly
               labelText={t('bedType', 'Bed type')}
               placeholder={t('notConfigured', 'Bed type not configured')}
@@ -355,7 +357,9 @@ const AdmitPatientFormWorkspace: React.FC<Workspace2DefinitionProps<WardPatientW
               errorFetchingEmrConfiguration ||
               isLoading ||
               isLoadingBedsAssignedToPatient ||
-              isLoadingPsychiatricWard
+              isLoadingPsychiatricWard ||
+              !hasBedsConfigured ||
+              !selectedBed
             }>
             {!isSubmitting ? t('admit', 'Admit') : t('admitting', 'Admitting...')}
           </Button>

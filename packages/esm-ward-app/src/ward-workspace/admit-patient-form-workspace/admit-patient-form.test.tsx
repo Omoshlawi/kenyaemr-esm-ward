@@ -375,6 +375,7 @@ describe('AdmitPatientForm admission attachment', () => {
     renderForm();
 
     await fillPsychiatricFields(user);
+    await user.click(screen.getByRole('button', { name: 'Select bed 3' }));
     await user.click(screen.getByRole('button', { name: 'Admit' }));
 
     await waitFor(() => expect(mockedCreateAttachment).toHaveBeenCalledTimes(1));
@@ -413,6 +414,7 @@ describe('AdmitPatientForm admission attachment', () => {
     const user = userEvent.setup();
     renderForm();
 
+    await user.click(screen.getByRole('button', { name: 'Select bed 3' }));
     await user.click(screen.getByRole('button', { name: 'Admit' }));
 
     expect(await screen.findByText('Attachment is required for psychiatric wards')).toBeInTheDocument();
@@ -429,6 +431,7 @@ describe('AdmitPatientForm admission attachment', () => {
     expect(screen.queryByText('Psychiatric category')).not.toBeInTheDocument();
     expect(screen.queryByText('Add file')).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Select bed 3' }));
     await user.click(screen.getByRole('button', { name: 'Admit' }));
 
     await waitFor(() => expect(mockedAdmitPatient).toHaveBeenCalledTimes(1));

@@ -26,12 +26,14 @@ import React, { useMemo, useState } from 'react';
 import { useWardPatientSearch } from '../ward-view/ward-view-ui.store';
 import { useTranslation } from 'react-i18next';
 import { type WardConfigObject } from '../config-schema';
+import { useCriticalCareWardTab } from '../hooks/useCriticalCareWardTab';
 import { type WardPatient, type WardViewContext } from '../types';
 import { bedLayoutToBed, getOpenmrsId } from '../ward-view/ward-view.resource';
-import { HyperLinkPatientCell } from './patient-cells';
+import { HyperLinkPatientCell, ViewCriticalCareChartsCell } from './patient-cells';
 import { EmptyState } from './table-state-components';
 import styles from './ward-patient.scss';
 import DischargePatientAction from './discharge-patient-action.component';
+
 const AdmittedPatients = () => {
   const search = useWardPatientSearch();
 
@@ -39,15 +41,22 @@ const AdmittedPatients = () => {
   const { bedLayouts, wardAdmittedPatientsWithBed, isLoading } = wardPatientGroupDetails ?? {};
   const { t } = useTranslation();
   const config = useConfig<WardConfigObject>();
-  const headers = [
-    { key: 'admissionDate', header: t('admissionDate', 'Admission Date') },
-    { key: 'idNumber', header: t('idNumber', 'ID Number') },
-    { key: 'name', header: t('name', 'Name') },
-    { key: 'gender', header: t('gender', 'Gender') },
-    { key: 'age', header: t('age', 'Age') },
-    { key: 'bedNumber', header: t('bedNumber', 'Bed Number') },
-    { key: 'daysAdmitted', header: t('daysInWard', 'Days In Ward') },
-  ];
+  const { tab: criticalCareTab } = useCriticalCareWardTab();
+  const headers = useMemo(() => {
+    const base = [
+      { key: 'admissionDate', header: t('admissionDate', 'Admission Date') },
+      { key: 'idNumber', header: t('idNumber', 'ID Number') },
+      { key: 'name', header: t('name', 'Name') },
+      { key: 'gender', header: t('gender', 'Gender') },
+      { key: 'age', header: t('age', 'Age') },
+      { key: 'bedNumber', header: t('bedNumber', 'Bed Number') },
+      { key: 'daysAdmitted', header: t('daysInWard', 'Days In Ward') },
+    ];
+    if (!criticalCareTab) {
+      return base;
+    }
+    return [...base, { key: 'viewCharts', header: t('viewCharts', 'View Charts') }];
+  }, [criticalCareTab, t]);
 
   const patients = useMemo(() => {
     return (
@@ -102,23 +111,27 @@ const AdmittedPatients = () => {
           ? Math.abs(dayjs().startOf('day').diff(dayjs(encounterDate).startOf('day'), 'days'))
           : '--';
 
+      const patientUuid = patient.patient?.uuid;
       return {
-        id: patient.patient?.uuid ?? index.toString(),
+        id: patientUuid ?? index.toString(),
         admissionDate,
         idNumber: getOpenmrsId(patient.patient?.identifiers ?? []) ?? '--',
         name: (
           <HyperLinkPatientCell
             patientName={patient.patient?.person?.display ?? ''}
-            patientUuid={patient.patient?.uuid}
+            patientUuid={patientUuid}
           />
         ),
         gender: patient.patient?.person?.gender ?? '--',
         age: patient.patient?.person?.age ?? '--',
         bedNumber: patient.bed?.bedNumber ?? '--',
         daysAdmitted,
+        ...(criticalCareTab && patientUuid
+          ? { viewCharts: <ViewCriticalCareChartsCell patientUuid={patientUuid} /> }
+          : {}),
       };
     });
-  }, [results]);
+  }, [criticalCareTab, results]);
 
   if (isLoading) return <DataTableSkeleton />;
   if (!patients.length)

@@ -15,6 +15,11 @@ interface BedSelectorProps {
   error: FieldError;
   onChange(bedId: number): void;
   minBedCountToUseDropdown?: number;
+  /**
+   * When true, offers a "No bed" choice (bedId 0). Admission should leave this false so
+   * patients are assigned a bed and appear under Admitted instead of Unassigned.
+   */
+  allowNoBed?: boolean;
 }
 
 interface BedDropdownItem {
@@ -32,6 +37,7 @@ const BedSelector: React.FC<BedSelectorProps> = ({
   onChange,
   currentPatient,
   minBedCountToUseDropdown = 16,
+  allowNoBed = false,
 }) => {
   const { location } = useWardLocation();
   const { t } = useTranslation();
@@ -46,7 +52,7 @@ const BedSelector: React.FC<BedSelectorProps> = ({
   };
 
   const bedDropdownItems: BedDropdownItem[] = [
-    { bedId: 0, label: t('noBed', 'No bed'), bedType: '', disabled: false },
+    ...(allowNoBed ? [{ bedId: 0, label: t('noBed', 'No bed'), bedType: '', disabled: false }] : []),
     ...beds.map((bed) => {
       const isPatientAssignedToBed = bed.patients.some((bedPatient) => bedPatient.uuid === currentPatient.uuid);
       return {

@@ -1,8 +1,13 @@
 import { InlineNotification, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
 import { ExtensionSlot, useAssignedExtensions } from '@openmrs/esm-framework';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import {
+  FOCUS_ADMITTED_TAB_EVENT,
+  isCriticalCarePatientChartPath,
+  useCriticalCareEmbeddedPath,
+} from '../hooks/open-critical-care-chart';
 import { useCriticalCareWardTab } from '../hooks/useCriticalCareWardTab';
 import { EmptyState } from './table-state-components';
 import {
@@ -32,7 +37,7 @@ const WardPatientsTabPanel: React.FC<{ slotName: string }> = ({ slotName }) => {
   return <ExtensionSlot name={slotName} />;
 };
 
-const CriticalCareTabPanel: React.FC<{
+const CriticalCareChartHost: React.FC<{
   locationUuid?: string;
   wardKind: string;
   label: string;
@@ -46,10 +51,10 @@ const CriticalCareTabPanel: React.FC<{
         kind="info"
         lowContrast
         hideCloseButton
-        title={t('criticalCareModuleMissing', '{{label}} dashboard not loaded', { label })}
+        title={t('criticalCareModuleMissing', '{{label}} chart not loaded', { label })}
         subtitle={t(
           'criticalCareModuleMissingSubtitle',
-          'Start @kenyaemr/esm-icu-app in the same SPA (openmrs develop --sources for both ward-app and icu-app) so the census and charts can appear here.',
+          'Start @kenyaemr/esm-icu-app in the same SPA (openmrs develop --sources for both ward-app and icu-app) so charts can open from Admitted.',
         )}
       />
     );
@@ -70,9 +75,31 @@ const CriticalCareTabPanel: React.FC<{
 const WardPatientsTable = () => {
   const { t } = useTranslation();
   const { tab: criticalCareTab, locationUuid } = useCriticalCareWardTab();
+  const embeddedPath = useCriticalCareEmbeddedPath();
   const storedTab = useWardViewUi((state) => state.selectedTab);
-  const lastTab = criticalCareTab ? WARD_PATIENTS_TAB_INDEX.criticalCare : WARD_PATIENTS_TAB_INDEX.discharged;
-  const selectedIndex = Math.min(storedTab, lastTab);
+  const selectedIndex = Math.min(storedTab, WARD_PATIENTS_TAB_INDEX.discharged);
+  const showCriticalCareChart =
+    Boolean(criticalCareTab) && isCriticalCarePatientChartPath(embeddedPath);
+
+  useEffect(() => {
+    const onFocusAdmitted = () => {
+      updateWardViewUi({ selectedTab: WARD_PATIENTS_TAB_INDEX.admitted, view: 'list' });
+    };
+    window.addEventListener(FOCUS_ADMITTED_TAB_EVENT, onFocusAdmitted);
+    return () => window.removeEventListener(FOCUS_ADMITTED_TAB_EVENT, onFocusAdmitted);
+  }, []);
+
+  if (showCriticalCareChart && criticalCareTab) {
+    return (
+      <div className={styles.tabContainer}>
+        <CriticalCareChartHost
+          locationUuid={locationUuid}
+          wardKind={criticalCareTab.kind}
+          label={criticalCareTab.label}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.tabContainer}>
@@ -86,7 +113,6 @@ const WardPatientsTable = () => {
           <Tab>{t('unassigned', 'Unassigned')}</Tab>
           <Tab>{t('dischargeIn', 'Discharge In')}</Tab>
           <Tab>{t('discharged', 'Discharged')}</Tab>
-          {criticalCareTab ? <Tab>{t(criticalCareTab.kind, criticalCareTab.label)}</Tab> : null}
         </TabList>
         <TabPanels>
           <TabPanel>
@@ -104,15 +130,6 @@ const WardPatientsTable = () => {
           <TabPanel>
             <WardPatientsTabPanel slotName={WARD_PATIENTS_DISCHARGED_SLOT} />
           </TabPanel>
-          {criticalCareTab ? (
-            <TabPanel>
-              <CriticalCareTabPanel
-                locationUuid={locationUuid}
-                wardKind={criticalCareTab.kind}
-                label={criticalCareTab.label}
-              />
-            </TabPanel>
-          ) : null}
         </TabPanels>
       </Tabs>
     </div>

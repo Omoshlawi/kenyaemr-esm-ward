@@ -12,6 +12,7 @@ import React, { type FC, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { type WardConfigObject } from '../config-schema';
+import { openCriticalCarePatientChart } from '../hooks/open-critical-care-chart';
 import { useEncounterDetails } from '../hooks/useIpdDischargeEncounter';
 import { usePatientBills } from '../ward-workspace/kenya-emr-patient-discharge/patient-discharge.resource';
 import styles from './patient-cells.scss';
@@ -48,6 +49,19 @@ export const HyperLinkPatientCell: FC<CellProps & { patientName: string }> = ({ 
     <ConfigurableLink to={patientChartUrl} templateParams={{ patientUuid }} className={styles.patientLink}>
       {patientName}
     </ConfigurableLink>
+  );
+};
+
+/** Opens the ICU/HDU/NICU/PICU chart for an admitted critical-care patient. */
+export const ViewCriticalCareChartsCell: FC<CellProps> = ({ patientUuid }) => {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      className={styles.viewChartsButton}
+      onClick={() => openCriticalCarePatientChart(patientUuid)}>
+      {t('viewCharts', 'View charts')}
+    </button>
   );
 };
 
